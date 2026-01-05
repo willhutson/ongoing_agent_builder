@@ -1,0 +1,47 @@
+{
+  "name": "@spokestack/agents",
+  "version": "0.1.0",
+  "description": "AI-powered agent system for SpokeStack ERP",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "agents",
+    "ai",
+    "erp",
+    "automation"
+  ],
+  "author": "TeamLMTD",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@upstash/ratelimit": "^1.0.0",
+    "@upstash/redis": "^1.28.0",
+    "bullmq": "^5.0.0",
+    "ioredis": "^5.3.0",
+    "octokit": "^3.1.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0",
+    "eslint": "^8.55.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0"
+  },
+  "peerDependencies": {
+    "@prisma/client": "^5.0.0",
+    "next": "^14.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
