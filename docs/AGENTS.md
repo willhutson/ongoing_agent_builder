@@ -46,12 +46,13 @@ All agents can access:
 │  ├── Content ✅           └── Guidelines         ├── Image              │
 │  └── Commercial ✅                               ├── Video Script       │
 │                                                  ├── Video Storyboard   │
-│  DISTRIBUTION (4)         OPERATIONS (3)         └── Video Production   │
+│  DISTRIBUTION (3+4)       OPERATIONS (3)         └── Video Production   │
 │  ├── Report               ├── Resource                                  │
 │  ├── Approve              ├── Workflow           CLIENT (3)             │
 │  ├── Brief Update         └── Reporting          ├── CRM                │
-│  └── WhatsApp Gateway                            ├── Scope              │
-│                                                  └── Onboarding         │
+│  └── Gateways:                                   ├── Scope              │
+│      WhatsApp, Email,                            └── Onboarding         │
+│      Slack, SMS                                                         │
 │  MEDIA (2)                SOCIAL (3)             PERFORMANCE (3)        │
 │  ├── Media Buying         ├── Listening          ├── Brand Performance  │
 │  └── Campaign             ├── Community          ├── Campaign Analytics │
@@ -131,14 +132,58 @@ All agents can consume moodboards as inspiration input.
 
 ---
 
-### Distribution Layer (WhatsApp Integration)
+### Distribution Layer (Multi-Channel)
 
+Distribution agents handle the business logic; Gateways handle channel-specific delivery.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              DISTRIBUTION AGENTS (Business Logic)            │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐         │
+│  │   Report    │  │   Approve   │  │ Brief Update│         │
+│  │   Agent     │  │   Agent     │  │   Agent     │         │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘         │
+│         │                │                │                 │
+│         └────────────────┼────────────────┘                 │
+│                          ▼                                  │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              CHANNEL SELECTION                       │   │
+│  │   channel: "whatsapp" | "email" | "sms" | "slack"   │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                          │                                  │
+│         ┌────────────────┼────────────────┐                │
+│         ▼                ▼                ▼                │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐       │
+│  │   WhatsApp   │ │    Email     │ │    Slack     │  ...  │
+│  │   Gateway    │ │   Gateway    │ │   Gateway    │       │
+│  └──────────────┘ └──────────────┘ └──────────────┘       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Distribution Agents (Channel-Agnostic)
 | Agent | Tools | Purpose |
 |-------|-------|---------|
-| **Report Agent** | `format_report`, `send_to_am`, `send_to_client`, `schedule_delivery`, `track_opens` | Send dashboards/reports |
-| **Approve Agent** | `request_approval`, `parse_response`, `update_status`, `escalate_timeout`, `track_sla` | Request & collect sign-offs |
-| **Brief Update Agent** | `notify_team`, `summarize_changes`, `confirm_receipt`, `track_acknowledgment` | Distribute brief updates |
-| **WhatsApp Gateway** | `send_message`, `receive_reply`, `manage_session`, `template_compliance`, `rate_limit` | Low-level messaging |
+| **Report Agent** | `format_report`, `select_recipients`, `schedule_delivery`, `track_delivery`, `track_opens` | Send dashboards/reports via any channel |
+| **Approve Agent** | `request_approval`, `parse_response`, `update_status`, `escalate_timeout`, `track_sla` | Request & collect sign-offs via any channel |
+| **Brief Update Agent** | `notify_team`, `summarize_changes`, `confirm_receipt`, `track_acknowledgment` | Distribute brief updates via any channel |
+
+#### Channel Gateways (Delivery Mechanisms)
+| Gateway | Tools | Purpose |
+|---------|-------|---------|
+| **WhatsApp Gateway** | `send_whatsapp`, `receive_reply`, `manage_session`, `template_compliance`, `rate_limit` | WhatsApp Business API |
+| **Email Gateway** | `send_email`, `track_opens`, `track_clicks`, `manage_templates`, `handle_bounce` | Email delivery (SendGrid, etc.) |
+| **Slack Gateway** | `send_slack`, `receive_reply`, `manage_channel`, `thread_reply` | Slack workspace integration |
+| **SMS Gateway** | `send_sms`, `receive_reply`, `rate_limit` | SMS delivery |
+
+#### Usage Pattern
+```python
+# Same agent, different channel
+ReportAgent(channel="whatsapp").send(report_id="123", recipient="client")
+ReportAgent(channel="email").send(report_id="123", recipient="client")
+
+# Or let recipient preferences decide
+ReportAgent().send(report_id="123", recipient="client")  # Uses client's preferred channel
+```
 
 ---
 

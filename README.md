@@ -38,11 +38,12 @@ Every agent can be specialized:
 │  ├── Content               └── Guidelines         ├── Image              │
 │  └── Commercial                                   └── Video (3 agents)   │
 │                                                                          │
-│  DISTRIBUTION (4)          OPERATIONS (3)         CLIENT (3)             │
+│  DISTRIBUTION (3+4)        OPERATIONS (3)         CLIENT (3)             │
 │  ├── Report                ├── Resource           ├── CRM                │
 │  ├── Approve               ├── Workflow           ├── Scope              │
 │  ├── Brief Update          └── Reporting          └── Onboarding         │
-│  └── WhatsApp Gateway                                                    │
+│  └── Gateways: WhatsApp,                                                 │
+│      Email, Slack, SMS                                                   │
 │                                                                          │
 │  MEDIA (2)                 SOCIAL (3)             PERFORMANCE (3)        │
 │  ├── Media Buying          ├── Listening          ├── Brand Performance  │
