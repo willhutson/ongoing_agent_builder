@@ -14,6 +14,55 @@ THINK → ACT → CREATE
 - **Act**: Execute tools, query data, validate, iterate
 - **Create**: Combine thinking + action into deliverables (documents, assets, recommendations)
 
+### Flexibility First
+
+Every agent can be specialized:
+- **By Vertical**: Beauty, Fashion, Food, Tech, Finance, etc.
+- **By Region**: UAE, KSA, US, UK, APAC, etc.
+- **By Language**: English, Arabic, French, etc.
+- **By Client**: Client-specific rules, voice, preferences
+
+## Agent Ecosystem (43+ Agents)
+
+> See [`docs/AGENTS.md`](docs/AGENTS.md) for the complete directory with tools and details.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           AGENT ECOSYSTEM                                │
+│                     Built on Claude Agent SDK                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  FOUNDATION (4) ✅         BRAND (3)              STUDIO (7)             │
+│  ├── RFP                   ├── Voice              ├── Presentation       │
+│  ├── Brief                 ├── Visual             ├── Copy (multi-lang)  │
+│  ├── Content               └── Guidelines         ├── Image              │
+│  └── Commercial                                   └── Video (3 agents)   │
+│                                                                          │
+│  DISTRIBUTION (4)          OPERATIONS (3)         CLIENT (3)             │
+│  ├── Report                ├── Resource           ├── CRM                │
+│  ├── Approve               ├── Workflow           ├── Scope              │
+│  ├── Brief Update          └── Reporting          └── Onboarding         │
+│  └── WhatsApp Gateway                                                    │
+│                                                                          │
+│  MEDIA (2)                 SOCIAL (3)             PERFORMANCE (3)        │
+│  ├── Media Buying          ├── Listening          ├── Brand Performance  │
+│  └── Campaign              ├── Community          ├── Campaign Analytics │
+│                            └── Social Analytics   └── Competitor         │
+│                                                                          │
+│  FINANCE (3)               QUALITY (2)            KNOWLEDGE (2)          │
+│  ├── Invoice               ├── QA                 ├── Knowledge          │
+│  ├── Forecast              └── Legal              └── Training           │
+│  └── Budget                                                              │
+│                                                                          │
+│  INFLUENCER (1+)           PR (1)                 EVENTS (1)             │
+│  └── Specializable by      └── Media Relations    └── Planning           │
+│      vertical/region                                                     │
+│                            LOCALIZATION (1+)      ACCESSIBILITY (1)      │
+│                            └── Multi-market       └── WCAG Compliance    │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
 ## Architecture
 
 ```
@@ -31,8 +80,8 @@ THINK → ACT → CREATE
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │                   REST API Layer                        │ │
 │  │  POST /api/v1/agent/execute                            │ │
-│  │  POST /api/v1/agent/stream                             │ │
 │  │  GET  /api/v1/agent/status/:id                         │ │
+│  │  GET  /api/v1/agents                                   │ │
 │  └────────────────────┬───────────────────────────────────┘ │
 │                       ▼                                      │
 │  ┌────────────────────────────────────────────────────────┐ │
@@ -43,45 +92,62 @@ THINK → ACT → CREATE
 │  │  └─────────────────────────────────────────────────┘   │ │
 │  │                       │                                 │ │
 │  │  ┌────────────────────▼────────────────────────────┐   │ │
-│  │  │              Subagent Pool                       │   │ │
-│  │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ │ │
-│  │  │  │   RFP   │ │  Brief  │ │ Content │ │Commercial│ │ │
-│  │  │  │  Agent  │ │  Agent  │ │  Agent  │ │  Agent   │ │ │
-│  │  │  └─────────┘ └─────────┘ └─────────┘ └──────────┘ │ │
+│  │  │           43+ Specialized Agents                 │   │ │
+│  │  │  (Foundation, Studio, Social, Media, etc.)      │   │ │
 │  │  └─────────────────────────────────────────────────┘   │ │
-│  └────────────────────────────────────────────────────────┘ │
-│                       │                                      │
-│  ┌────────────────────▼───────────────────────────────────┐ │
-│  │           In-Process MCP Tools                          │ │
-│  │  @tool("query_erp")      @tool("generate_document")    │ │
-│  │  @tool("analyze_brief")  @tool("create_asset_draft")   │ │
 │  └────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Priority Agent Capabilities
+## Implementation Status
 
-### Phase 1: Foundation (Implemented)
-| Capability | ERP Module | Agent | Tools |
-|------------|------------|-------|-------|
-| **RFP Processing** | `rfp` | RFP Agent | 5 tools |
-| **Brief Intake** | `briefs` | Brief Agent | 6 tools |
-| **Document Generation** | `content`, `studio` | Content Agent | 7 tools |
-| **Pricing Intelligence** | `rfp` | Commercial Agent | 8 tools |
+### ✅ Phase 1: Foundation (Built)
+| Agent | Tools | Purpose |
+|-------|-------|---------|
+| **RFP Agent** | 5 | Analyze RFPs, extract requirements, draft proposals |
+| **Brief Agent** | 6 | Parse briefs, find similar work, generate clarifying questions |
+| **Content Agent** | 7 | Generate documents, presentations, reports from templates |
+| **Commercial Agent** | 8 | Pricing intelligence from past RFP outcomes |
 
-### Phase 2: Operations
-| Capability | ERP Module | Agent Role |
-|------------|------------|------------|
-| **Resource Optimization** | `resources`, `delegation` | Smart allocation, workload balancing |
-| **Reporting** | `reporting`, `dashboard` | Automated insights, KPI analysis |
-| **Workflow Automation** | `workflows` | Trigger-based agent actions |
+### 🔜 Phase 2: Studio
+- Presentation Agent
+- Copy Agent (EN/AR)
+- Image Agent
+- Video Pipeline (Script, Storyboard, Production)
 
-### Phase 3: Intelligence
-| Capability | ERP Module | Agent Role |
-|------------|------------|------------|
-| **CRM Insights** | `crm` | Client health, opportunity detection |
-| **Scope Analysis** | `scope-changes`, `retainer` | Scope creep detection, utilization alerts |
-| **Predictive** | `nps`, `complaints` | Churn risk, satisfaction trends |
+### 🔜 Phase 3: Distribution
+- Report Agent (WhatsApp)
+- Approve Agent (feedback/sign-offs)
+- Brief Update Agent
+- WhatsApp Gateway
+
+### 🔜 Phase 4+: Specialized
+- Social (Listening, Community, Analytics)
+- Media (Buying, Campaign)
+- Influencer (by vertical)
+- PR, Events, Finance, etc.
+
+## Moodboard Integration
+
+Moodboards are human-curated inspiration that feed into creative agents:
+
+```
+Human curates moodboard (canvas) → Moodboard saved → Agents consume as input
+                                                      ├── Copy Agent (tone)
+                                                      ├── Image Agent (style)
+                                                      ├── Video Agent (look/feel)
+                                                      └── Presentation Agent (aesthetic)
+```
+
+## Tech Stack
+
+- **Runtime**: Python 3.11+
+- **Agent Framework**: Claude Agent SDK (Anthropic)
+- **API**: FastAPI (async)
+- **Model**: Claude Opus 4.5
+- **HTTP Client**: httpx (async)
+- **Validation**: Pydantic
+- **Deployment**: Containerized
 
 ## ERP Module Coverage (28 Total)
 
@@ -95,45 +161,6 @@ retainer        rfp             scope-changes   settings
 studio          time-tracking   whatsapp        workflows
 ```
 
-## Tech Stack
-
-- **Runtime**: Python 3.11+
-- **Agent Framework**: Claude Agent SDK (`claude-agent-sdk`)
-- **API**: FastAPI (async)
-- **Model**: Claude Opus 4.5 (recommended for agents)
-- **Tools**: In-process MCP servers (no subprocess overhead)
-- **Deployment**: Containerized, stateless per-request or session-persistent
-
-## Agent Paradigm: Think → Act → Create
-
-```python
-# Conceptual flow for each agent task
-async def agent_task(task: str):
-    # THINK: Analyze and plan
-    context = await gather_context(task)
-    plan = await reason_about_approach(context)
-
-    # ACT: Execute with tools
-    while not complete:
-        tool = select_best_tool(plan)
-        result = await execute_tool(tool)
-        feedback = evaluate_result(result)
-        plan = adjust_plan(feedback)
-
-    # CREATE: Synthesize output
-    deliverable = combine_results(all_results)
-    return deliverable
-```
-
-## Living Feature Pipeline
-
-Features and scope requests flow from:
-1. GitHub Issues (tagged for agent development)
-2. ERP `/knowledge/agents/skills` directory
-3. This repository's issue tracker
-
----
-
 ## Getting Started
 
 ```bash
@@ -141,12 +168,21 @@ Features and scope requests flow from:
 git clone https://github.com/willhutson/ongoing_agent_builder.git
 cd ongoing_agent_builder
 
-# Setup (coming soon)
+# Setup
 pip install -r requirements.txt
+cp .env.example .env
+# Edit .env with your API keys
 
-# Run (coming soon)
+# Run
 uvicorn main:app --reload
+
+# API docs at http://localhost:8000/docs
 ```
+
+## Documentation
+
+- [`docs/AGENTS.md`](docs/AGENTS.md) - Full agent ecosystem directory (43+ agents)
+- [`CONTEXT.md`](CONTEXT.md) - Session context recovery file
 
 ## Related
 

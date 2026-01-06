@@ -4,18 +4,15 @@ Last updated: 2026-01-06
 
 ## Current Session Summary
 
-Building a standalone API agent service for TeamLMTD ERP using Claude Agent SDK patterns.
+Building a standalone API agent service for TeamLMTD ERP using **Claude Agent SDK**.
 
 ### Key Decisions Made
 
 1. **Standalone service** - Not embedded in ERP, supports multi-tenant architecture
-2. **Claude SDK patterns** - Python-based, using Anthropic client with agentic tool loop
+2. **Claude Agent SDK** - Python-based, using Anthropic client with agentic tool loop
 3. **Core paradigm**: Think → Act → Create
-4. **Priority capabilities**:
-   - RFP processing (analyze, extract requirements, draft responses)
-   - Brief intake (AI-assisted creation)
-   - Document generation (proposals, SOWs, reports)
-   - Commercial/pricing intelligence (learn from past RFP pricing outcomes)
+4. **Maximum flexibility** - Agents can specialize by vertical, region, language, or client
+5. **Moodboard as input** - Human-curated moodboards feed into creative agents as inspiration
 
 ### What's Been Built
 
@@ -27,6 +24,8 @@ ongoing_agent_builder/
 ├── .gitignore
 ├── README.md              # Architecture docs
 ├── CONTEXT.md             # This file (chat recovery)
+├── docs/
+│   └── AGENTS.md          # Full agent ecosystem directory (43+ agents)
 └── src/
     ├── config.py          # Pydantic settings
     ├── agents/
@@ -40,29 +39,54 @@ ongoing_agent_builder/
     └── tools/             # (placeholder for shared tools)
 ```
 
-### Agents Implemented
+### Agent Ecosystem (43+ Agents)
 
-| Agent | Tools | Purpose |
-|-------|-------|---------|
-| **RFP Agent** | 5 | Analyze RFPs, extract requirements, draft proposals |
-| **Brief Agent** | 6 | Parse briefs, find similar work, generate clarifying questions |
-| **Content Agent** | 7 | Generate documents, presentations, reports from templates |
-| **Commercial Agent** | 8 | Pricing intelligence from past RFP → negotiation → contract data |
+See `docs/AGENTS.md` for full details.
 
-### Commercial Agent (Pricing Intelligence)
+| Layer | Agents | Status |
+|-------|--------|--------|
+| **Foundation** | RFP, Brief, Content, Commercial | ✅ Built |
+| **Brand** | Voice, Visual, Guidelines | Planned |
+| **Studio** | Presentation, Copy (EN/AR/+), Image, Video (Script/Storyboard/Production) | Planned |
+| **Distribution** | Report, Approve, Brief Update, WhatsApp Gateway | Planned |
+| **Operations** | Resource, Workflow, Reporting | Planned |
+| **Client** | CRM, Scope, Onboarding | Planned |
+| **Media** | Media Buying, Campaign | Planned |
+| **Social** | Listening, Community, Social Analytics | Planned |
+| **Performance** | Brand Performance, Campaign Analytics, Competitor | Planned |
+| **Finance** | Invoice, Forecast, Budget | Planned |
+| **Quality** | QA, Legal | Planned |
+| **Knowledge** | Knowledge, Training | Planned |
+| **Influencer** | Base + vertical specializations (Beauty, Fashion, Food, Tech, etc.) | Planned |
+| **PR** | Press Release, Media Outreach, Coverage | Planned |
+| **Events** | Planning, Logistics, Attendee | Planned |
+| **Localization** | Multi-market adaptation | Planned |
+| **Accessibility** | WCAG compliance, alt text, captions | Planned |
 
-Key workflow:
-1. Upload historical data: RFP + submitted commercial + negotiated contract
-2. Agent learns pricing patterns by industry/scope/client type
-3. For new RFPs: suggests pricing based on similar past outcomes
-4. Tracks win/loss rates by pricing strategy
+### Key Architecture Decisions
 
-Tools:
-- `search_similar_commercials` - Find past pricing + outcomes
-- `get_pricing_history` - Client/service patterns
-- `calculate_estimate` - Build estimates with margin targets
-- `get_win_rate_analysis` - Win/loss by strategy
-- `create_commercial_document` - Save pricing proposals
+#### Moodboard Flow
+```
+Human curates moodboard (canvas) → Moodboard saved → Agents consume as inspiration
+                                                      ├── Copy Agent (tone)
+                                                      ├── Image Agent (style)
+                                                      ├── Video Agent (look/feel)
+                                                      └── Presentation Agent (aesthetic)
+```
+
+#### Agent Specialization
+```python
+# Agents can be specialized by vertical, region, language, or client
+InfluencerAgent(vertical="beauty", region="uae", language="ar")
+CopyAgent(language="ar", client_id="client_123")
+```
+
+#### WhatsApp Architecture
+```
+Report Agent ────┐
+Approve Agent ───┼──▶ WhatsApp Gateway ──▶ WhatsApp Business API
+Brief Update ────┘
+```
 
 ### API Endpoints
 
@@ -78,31 +102,34 @@ Tools:
 
 Target repo: https://github.com/willhutson/erp_staging_lmtd
 
-28 modules to support (see README.md for full list)
+28 modules to support - see `docs/AGENTS.md` for full mapping.
 
 ### Completed This Session
 
 - [x] Scaffold project structure
-- [x] Define RFP Agent
+- [x] Define RFP Agent (5 tools)
+- [x] Define Brief Agent (6 tools)
+- [x] Define Content Agent (7 tools)
+- [x] Define Commercial Agent (8 tools)
 - [x] Design API contract
-- [x] Add Brief Agent
-- [x] Add Content Agent
-- [x] Add Commercial Agent (pricing intelligence)
+- [x] Plan full agent ecosystem (43+ agents)
+- [x] Document agent directory
 
 ### Next Steps
 
-1. [ ] Implement ERP API client with actual endpoints
-2. [ ] Add authentication/tenant isolation
-3. [ ] Add Resource Agent
-4. [ ] Docker containerization
-5. [ ] Tests
-6. [ ] Historical data import for Commercial Agent training
+1. [ ] Build Studio agents (Presentation, Copy, Image)
+2. [ ] Build Distribution agents (WhatsApp)
+3. [ ] Build Video pipeline (Script, Storyboard, Production)
+4. [ ] Implement ERP API client with actual endpoints
+5. [ ] Add authentication/tenant isolation
+6. [ ] Docker containerization
+7. [ ] Tests
 
 ### Tech Stack
 
 - Python 3.11+
 - FastAPI (async)
-- Anthropic SDK (direct client with tool loop)
+- **Claude Agent SDK** (Anthropic client with tool loop)
 - httpx for async HTTP
 - Pydantic for settings/validation
 - Claude Opus 4.5 model
@@ -113,6 +140,7 @@ Target repo: https://github.com/willhutson/erp_staging_lmtd
 - Prefers practical, working code over extensive planning
 - Multi-tenant is critical (ERP designed for multiple instances)
 - Wants agents to help "out of the box"
+- Wants maximum flexibility for specialization
 
 ---
 
