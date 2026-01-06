@@ -44,10 +44,10 @@ THINK → ACT → CREATE
 │  │                       │                                 │ │
 │  │  ┌────────────────────▼────────────────────────────┐   │ │
 │  │  │              Subagent Pool                       │   │ │
-│  │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐           │   │ │
-│  │  │  │   RFP   │ │  Brief  │ │ Content │  ...      │   │ │
-│  │  │  │  Agent  │ │  Agent  │ │  Agent  │           │   │ │
-│  │  │  └─────────┘ └─────────┘ └─────────┘           │   │ │
+│  │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ │ │
+│  │  │  │   RFP   │ │  Brief  │ │ Content │ │Commercial│ │ │
+│  │  │  │  Agent  │ │  Agent  │ │  Agent  │ │  Agent   │ │ │
+│  │  │  └─────────┘ └─────────┘ └─────────┘ └──────────┘ │ │
 │  │  └─────────────────────────────────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────┘ │
 │                       │                                      │
@@ -61,13 +61,13 @@ THINK → ACT → CREATE
 
 ## Priority Agent Capabilities
 
-### Phase 1: Foundation
-| Capability | ERP Module | Agent Role |
-|------------|------------|------------|
-| **RFP Processing** | `rfp` | Analyze RFPs, extract requirements, draft responses |
-| **Brief Intake** | `briefs` | AI-assisted brief creation, requirement extraction |
-| **Document Generation** | `content`, `studio` | Create proposals, reports, SOWs |
-| **Draft Assets** | `dam`, `content-engine` | Generate creative starting points for teams |
+### Phase 1: Foundation (Implemented)
+| Capability | ERP Module | Agent | Tools |
+|------------|------------|-------|-------|
+| **RFP Processing** | `rfp` | RFP Agent | 5 tools |
+| **Brief Intake** | `briefs` | Brief Agent | 6 tools |
+| **Document Generation** | `content`, `studio` | Content Agent | 7 tools |
+| **Pricing Intelligence** | `rfp` | Commercial Agent | 8 tools |
 
 ### Phase 2: Operations
 | Capability | ERP Module | Agent Role |
