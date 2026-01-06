@@ -42,6 +42,7 @@ from .ops_reporting_agent import OpsReportingAgent
 from .crm_agent import CRMAgent
 from .scope_agent import ScopeAgent
 from .onboarding_agent import OnboardingAgent
+from .instance_onboarding_agent import InstanceOnboardingAgent
 
 # Media agents
 from .media_buying_agent import MediaBuyingAgent
@@ -114,6 +115,7 @@ __all__ = [
     "CRMAgent",
     "ScopeAgent",
     "OnboardingAgent",
+    "InstanceOnboardingAgent",
     # Media
     "MediaBuyingAgent",
     "CampaignAgent",

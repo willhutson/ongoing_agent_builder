@@ -48,11 +48,11 @@ All agents can access:
 │                                                  ├── Video Storyboard   │
 │  DISTRIBUTION (3+4)       OPERATIONS (3)         └── Video Production   │
 │  ├── Report               ├── Resource                                  │
-│  ├── Approve              ├── Workflow           CLIENT (3)             │
+│  ├── Approve              ├── Workflow           CLIENT (4)             │
 │  ├── Brief Update         └── Reporting          ├── CRM                │
 │  └── Gateways:                                   ├── Scope              │
-│      WhatsApp, Email,                            └── Onboarding         │
-│      Slack, SMS                                                         │
+│      WhatsApp, Email,                            ├── Onboarding         │
+│      Slack, SMS                                  └── Instance Onboarding│
 │  MEDIA (2)                SOCIAL (3)             PERFORMANCE (3)        │
 │  ├── Media Buying         ├── Listening          ├── Brand Performance  │
 │  └── Campaign             ├── Community          ├── Campaign Analytics │
@@ -73,7 +73,7 @@ All agents can access:
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 
-Total: 43+ agents (expandable by specialization)
+Total: 44+ agents (expandable by specialization)
 ```
 
 ---
@@ -204,6 +204,7 @@ ReportAgent().send(report_id="123", recipient="client")  # Uses client's preferr
 | **CRM Agent** | `get_client_health`, `predict_churn`, `suggest_touchpoint`, `track_satisfaction` | Client health, relationships |
 | **Scope Agent** | `detect_scope_creep`, `track_utilization`, `alert_overrun`, `suggest_change_order` | Scope creep, retainers |
 | **Onboarding Agent** | `create_checklist`, `track_progress`, `send_reminders`, `assign_tasks` | New client/project setup |
+| **Instance Onboarding Agent** | `assess_business`, `recommend_modules`, `provision_database`, `provision_storage`, `initiate_oauth_flow`, `link_ad_accounts`, `configure_sso`, `generate_sample_instance` + 24 more | New ERP instance setup with infrastructure provisioning, external platform credentials (Google Ads, Meta Ads, TikTok, etc.), SSO, and sample data generation for demos |
 
 ---
 

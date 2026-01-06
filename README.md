@@ -22,7 +22,7 @@ Every agent can be specialized:
 - **By Language**: English, Arabic, French, etc.
 - **By Client**: Client-specific rules, voice, preferences
 
-## Agent Ecosystem (43+ Agents)
+## Agent Ecosystem (44+ Agents)
 
 > See [`docs/AGENTS.md`](docs/AGENTS.md) for the complete directory with tools and details.
 
@@ -32,33 +32,33 @@ Every agent can be specialized:
 │                     Built on Claude Agent SDK                           │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  FOUNDATION (4) ✅         BRAND (3)              STUDIO (7)             │
+│  FOUNDATION (4) ✅         BRAND (3) ✅           STUDIO (7) ✅          │
 │  ├── RFP                   ├── Voice              ├── Presentation       │
 │  ├── Brief                 ├── Visual             ├── Copy (multi-lang)  │
 │  ├── Content               └── Guidelines         ├── Image              │
 │  └── Commercial                                   └── Video (3 agents)   │
 │                                                                          │
-│  DISTRIBUTION (3+4)        OPERATIONS (3)         CLIENT (3)             │
+│  DISTRIBUTION (3+4) ✅     OPERATIONS (3) ✅      CLIENT (4) ✅          │
 │  ├── Report                ├── Resource           ├── CRM                │
 │  ├── Approve               ├── Workflow           ├── Scope              │
-│  ├── Brief Update          └── Reporting          └── Onboarding         │
-│  └── Gateways: WhatsApp,                                                 │
+│  ├── Brief Update          └── Reporting          ├── Onboarding         │
+│  └── Gateways: WhatsApp,                          └── Instance Onboarding│
 │      Email, Slack, SMS                                                   │
 │                                                                          │
-│  MEDIA (2)                 SOCIAL (3)             PERFORMANCE (3)        │
+│  MEDIA (2) ✅              SOCIAL (3) ✅          PERFORMANCE (3) ✅     │
 │  ├── Media Buying          ├── Listening          ├── Brand Performance  │
 │  └── Campaign              ├── Community          ├── Campaign Analytics │
 │                            └── Social Analytics   └── Competitor         │
 │                                                                          │
-│  FINANCE (3)               QUALITY (2)            KNOWLEDGE (2)          │
+│  FINANCE (3) ✅            QUALITY (2) ✅         KNOWLEDGE (2) ✅       │
 │  ├── Invoice               ├── QA                 ├── Knowledge          │
 │  ├── Forecast              └── Legal              └── Training           │
 │  └── Budget                                                              │
 │                                                                          │
-│  INFLUENCER (1+)           PR (1)                 EVENTS (1)             │
+│  INFLUENCER (1+) ✅        PR (1) ✅              EVENTS (1) ✅          │
 │  └── Specializable by      └── Media Relations    └── Planning           │
 │      vertical/region                                                     │
-│                            LOCALIZATION (1+)      ACCESSIBILITY (1)      │
+│                            LOCALIZATION (1+) ✅   ACCESSIBILITY (1) ✅   │
 │                            └── Multi-market       └── WCAG Compliance    │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘

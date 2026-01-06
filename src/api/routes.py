@@ -24,7 +24,7 @@ from ..agents import (
     # Operations
     ResourceAgent, WorkflowAgent, OpsReportingAgent,
     # Client
-    CRMAgent, ScopeAgent, OnboardingAgent,
+    CRMAgent, ScopeAgent, OnboardingAgent, InstanceOnboardingAgent,
     # Media
     MediaBuyingAgent, CampaignAgent,
     # Social
@@ -84,6 +84,7 @@ class AgentType(str, Enum):
     CRM = "crm"
     SCOPE = "scope"
     ONBOARDING = "onboarding"
+    INSTANCE_ONBOARDING = "instance_onboarding"
     # Media
     MEDIA_BUYING = "media_buying"
     CAMPAIGN = "campaign"
@@ -193,6 +194,7 @@ def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None
         AgentType.CRM: (CRMAgent, {}),
         AgentType.SCOPE: (ScopeAgent, {}),
         AgentType.ONBOARDING: (OnboardingAgent, {}),
+        AgentType.INSTANCE_ONBOARDING: (InstanceOnboardingAgent, {}),
         # Media
         AgentType.MEDIA_BUYING: (MediaBuyingAgent, {"client_id": client_id}),
         AgentType.CAMPAIGN: (CampaignAgent, {"client_id": client_id}),
@@ -371,6 +373,7 @@ async def list_agents():
             {"type": "crm", "name": "CRM Agent", "layer": "client", "description": "Client relationship management", "status": "available"},
             {"type": "scope", "name": "Scope Agent", "layer": "client", "description": "Scope management", "status": "available"},
             {"type": "onboarding", "name": "Onboarding Agent", "layer": "client", "description": "Client onboarding", "status": "available"},
+            {"type": "instance_onboarding", "name": "Instance Onboarding Agent", "layer": "client", "description": "New ERP instance setup with infrastructure, platform credentials, and sample data", "status": "available"},
             # Media
             {"type": "media_buying", "name": "Media Buying Agent", "layer": "media", "description": "Media buying and planning", "status": "available"},
             {"type": "campaign", "name": "Campaign Agent", "layer": "media", "description": "Campaign management", "status": "available"},
@@ -399,7 +402,7 @@ async def list_agents():
             {"type": "localization", "name": "Localization Agent", "layer": "specialized", "description": "Multi-market localization", "status": "available"},
             {"type": "accessibility", "name": "Accessibility Agent", "layer": "specialized", "description": "WCAG compliance", "status": "available"},
         ],
-        "total_agents": 43,
+        "total_agents": 44,
         "layers": ["foundation", "studio", "video", "distribution", "gateway", "brand", "operations", "client", "media", "social", "performance", "finance", "quality", "knowledge", "specialized"],
     }
 
@@ -407,4 +410,4 @@ async def list_agents():
 @router.get("/health")
 async def health_check():
     """Service health check."""
-    return {"status": "healthy", "service": "ongoing-agent-builder", "agents_available": 43}
+    return {"status": "healthy", "service": "ongoing-agent-builder", "agents_available": 44}

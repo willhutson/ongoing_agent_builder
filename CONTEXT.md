@@ -25,43 +25,45 @@ ongoing_agent_builder/
 ├── README.md              # Architecture docs
 ├── CONTEXT.md             # This file (chat recovery)
 ├── docs/
-│   └── AGENTS.md          # Full agent ecosystem directory (43+ agents)
+│   └── AGENTS.md          # Full agent ecosystem directory (44+ agents)
 └── src/
     ├── config.py          # Pydantic settings
     ├── agents/
-    │   ├── base.py            # BaseAgent (Think→Act→Create loop)
-    │   ├── rfp_agent.py       # RFP Agent (5 tools)
-    │   ├── brief_agent.py     # Brief Agent (6 tools)
-    │   ├── content_agent.py   # Content Agent (7 tools)
-    │   └── commercial_agent.py # Commercial Agent (8 tools)
+    │   ├── base.py                        # BaseAgent (Think→Act→Create loop)
+    │   ├── rfp_agent.py                   # RFP Agent (5 tools)
+    │   ├── brief_agent.py                 # Brief Agent (6 tools)
+    │   ├── content_agent.py               # Content Agent (7 tools)
+    │   ├── commercial_agent.py            # Commercial Agent (8 tools)
+    │   ├── instance_onboarding_agent.py   # Instance Onboarding (32 tools)
+    │   └── ... (44 agents total)
     ├── api/
     │   └── routes.py      # REST API endpoints
     └── tools/             # (placeholder for shared tools)
 ```
 
-### Agent Ecosystem (43+ Agents)
+### Agent Ecosystem (44+ Agents)
 
 See `docs/AGENTS.md` for full details.
 
 | Layer | Agents | Status |
 |-------|--------|--------|
 | **Foundation** | RFP, Brief, Content, Commercial | ✅ Built |
-| **Brand** | Voice, Visual, Guidelines | Planned |
-| **Studio** | Presentation, Copy (EN/AR/+), Image, Video (Script/Storyboard/Production) | Planned |
-| **Distribution** | Report, Approve, Brief Update, WhatsApp Gateway | Planned |
-| **Operations** | Resource, Workflow, Reporting | Planned |
-| **Client** | CRM, Scope, Onboarding | Planned |
-| **Media** | Media Buying, Campaign | Planned |
-| **Social** | Listening, Community, Social Analytics | Planned |
-| **Performance** | Brand Performance, Campaign Analytics, Competitor | Planned |
-| **Finance** | Invoice, Forecast, Budget | Planned |
-| **Quality** | QA, Legal | Planned |
-| **Knowledge** | Knowledge, Training | Planned |
-| **Influencer** | Base + vertical specializations (Beauty, Fashion, Food, Tech, etc.) | Planned |
-| **PR** | Press Release, Media Outreach, Coverage | Planned |
-| **Events** | Planning, Logistics, Attendee | Planned |
-| **Localization** | Multi-market adaptation | Planned |
-| **Accessibility** | WCAG compliance, alt text, captions | Planned |
+| **Brand** | Voice, Visual, Guidelines | ✅ Built |
+| **Studio** | Presentation, Copy (EN/AR/+), Image, Video (Script/Storyboard/Production) | ✅ Built |
+| **Distribution** | Report, Approve, Brief Update + Gateways (WhatsApp, Email, Slack, SMS) | ✅ Built |
+| **Operations** | Resource, Workflow, Reporting | ✅ Built |
+| **Client** | CRM, Scope, Onboarding, Instance Onboarding | ✅ Built |
+| **Media** | Media Buying, Campaign | ✅ Built |
+| **Social** | Listening, Community, Social Analytics | ✅ Built |
+| **Performance** | Brand Performance, Campaign Analytics, Competitor | ✅ Built |
+| **Finance** | Invoice, Forecast, Budget | ✅ Built |
+| **Quality** | QA, Legal | ✅ Built |
+| **Knowledge** | Knowledge, Training | ✅ Built |
+| **Influencer** | Base + vertical specializations (Beauty, Fashion, Food, Tech, etc.) | ✅ Built |
+| **PR** | Press Release, Media Outreach, Coverage | ✅ Built |
+| **Events** | Planning, Logistics, Attendee | ✅ Built |
+| **Localization** | Multi-market adaptation | ✅ Built |
+| **Accessibility** | WCAG compliance, alt text, captions | ✅ Built |
 
 ### Key Architecture Decisions
 
