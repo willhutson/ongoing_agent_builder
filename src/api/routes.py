@@ -8,7 +8,7 @@ import uuid
 import asyncio
 
 from ..config import get_settings
-from ..agents import RFPAgent
+from ..agents import RFPAgent, BriefAgent, ContentAgent, CommercialAgent
 from ..agents.base import AgentContext, AgentResult
 
 
@@ -22,6 +22,7 @@ class AgentType(str, Enum):
     RFP = "rfp"
     BRIEF = "brief"
     CONTENT = "content"
+    COMMERCIAL = "commercial"
     RESOURCE = "resource"
 
 
@@ -57,14 +58,21 @@ def get_agent(agent_type: AgentType):
     settings = get_settings()
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
+    agent_kwargs = {
+        "client": client,
+        "model": settings.claude_model,
+        "erp_base_url": settings.erp_api_base_url,
+        "erp_api_key": settings.erp_api_key,
+    }
+
     if agent_type == AgentType.RFP:
-        return RFPAgent(
-            client=client,
-            model=settings.claude_model,
-            erp_base_url=settings.erp_api_base_url,
-            erp_api_key=settings.erp_api_key,
-        )
-    # TODO: Add other agent types
+        return RFPAgent(**agent_kwargs)
+    elif agent_type == AgentType.BRIEF:
+        return BriefAgent(**agent_kwargs)
+    elif agent_type == AgentType.CONTENT:
+        return ContentAgent(**agent_kwargs)
+    elif agent_type == AgentType.COMMERCIAL:
+        return CommercialAgent(**agent_kwargs)
     else:
         raise ValueError(f"Agent type {agent_type} not implemented")
 
@@ -173,24 +181,65 @@ async def list_agents():
                 "name": "RFP Agent",
                 "description": "Analyze RFPs, extract requirements, draft proposals",
                 "status": "available",
+                "tools": [
+                    "query_past_projects",
+                    "get_team_capabilities",
+                    "get_client_history",
+                    "create_proposal_draft",
+                    "analyze_document",
+                ],
             },
             {
                 "type": "brief",
                 "name": "Brief Agent",
-                "description": "AI-assisted brief intake and requirement extraction",
-                "status": "coming_soon",
+                "description": "AI-assisted brief intake, requirement extraction, and gap analysis",
+                "status": "available",
+                "tools": [
+                    "parse_brief_input",
+                    "search_similar_briefs",
+                    "get_client_context",
+                    "create_draft_brief",
+                    "generate_clarifying_questions",
+                    "estimate_complexity",
+                ],
             },
             {
                 "type": "content",
                 "name": "Content Agent",
-                "description": "Generate documents, proposals, reports",
-                "status": "coming_soon",
+                "description": "Generate documents, proposals, reports, and presentations",
+                "status": "available",
+                "tools": [
+                    "get_template",
+                    "get_brand_guidelines",
+                    "get_project_data",
+                    "get_case_studies",
+                    "save_document",
+                    "get_meeting_transcript",
+                    "generate_presentation_outline",
+                ],
+            },
+            {
+                "type": "commercial",
+                "name": "Commercial Agent",
+                "description": "Pricing intelligence, commercial proposals, win/loss analysis",
+                "status": "available",
+                "tools": [
+                    "search_similar_commercials",
+                    "get_pricing_history",
+                    "analyze_rfp_scope",
+                    "get_rate_card",
+                    "calculate_estimate",
+                    "get_win_rate_analysis",
+                    "create_commercial_document",
+                    "compare_to_budget",
+                ],
             },
             {
                 "type": "resource",
                 "name": "Resource Agent",
                 "description": "Smart resource allocation and workload balancing",
                 "status": "coming_soon",
+                "tools": [],
             },
         ]
     }
