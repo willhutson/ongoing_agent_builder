@@ -22,7 +22,7 @@ Every agent can be specialized:
 - **By Language**: English, Arabic, French, etc.
 - **By Client**: Client-specific rules, voice, preferences
 
-## Agent Ecosystem (44+ Agents)
+## Agent Ecosystem (46+ Agents)
 
 > See [`docs/AGENTS.md`](docs/AGENTS.md) for the complete directory with tools and details.
 
@@ -38,13 +38,13 @@ Every agent can be specialized:
 │  ├── Content               └── Guidelines         ├── Image              │
 │  └── Commercial                                   └── Video (3 agents)   │
 │                                                                          │
-│  DISTRIBUTION (3+4) ✅     OPERATIONS (3) ✅      CLIENT (4) ✅          │
+│  DISTRIBUTION (3+4) ✅     OPERATIONS (3) ✅      CLIENT (6) ✅          │
 │  ├── Report                ├── Resource           ├── CRM                │
 │  ├── Approve               ├── Workflow           ├── Scope              │
 │  ├── Brief Update          └── Reporting          ├── Onboarding         │
-│  └── Gateways: WhatsApp,                          └── Instance Onboarding│
-│      Email, Slack, SMS                                                   │
-│                                                                          │
+│  └── Gateways: WhatsApp,                          ├── Instance Onboarding│
+│      Email, Slack, SMS                            ├── Instance Analytics │
+│                                                   └── Instance Success   │
 │  MEDIA (2) ✅              SOCIAL (3) ✅          PERFORMANCE (3) ✅     │
 │  ├── Media Buying          ├── Listening          ├── Brand Performance  │
 │  └── Campaign              ├── Community          ├── Campaign Analytics │

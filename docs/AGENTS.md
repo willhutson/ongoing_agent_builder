@@ -48,11 +48,13 @@ All agents can access:
 │                                                  ├── Video Storyboard   │
 │  DISTRIBUTION (3+4)       OPERATIONS (3)         └── Video Production   │
 │  ├── Report               ├── Resource                                  │
-│  ├── Approve              ├── Workflow           CLIENT (4)             │
+│  ├── Approve              ├── Workflow           CLIENT (6)             │
 │  ├── Brief Update         └── Reporting          ├── CRM                │
 │  └── Gateways:                                   ├── Scope              │
 │      WhatsApp, Email,                            ├── Onboarding         │
-│      Slack, SMS                                  └── Instance Onboarding│
+│      Slack, SMS                                  ├── Instance Onboarding│
+│                                                  ├── Instance Analytics │
+│                                                  └── Instance Success   │
 │  MEDIA (2)                SOCIAL (3)             PERFORMANCE (3)        │
 │  ├── Media Buying         ├── Listening          ├── Brand Performance  │
 │  └── Campaign             ├── Community          ├── Campaign Analytics │
@@ -73,7 +75,7 @@ All agents can access:
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 
-Total: 44+ agents (expandable by specialization)
+Total: 46+ agents (expandable by specialization)
 ```
 
 ---
@@ -205,6 +207,8 @@ ReportAgent().send(report_id="123", recipient="client")  # Uses client's preferr
 | **Scope Agent** | `detect_scope_creep`, `track_utilization`, `alert_overrun`, `suggest_change_order` | Scope creep, retainers |
 | **Onboarding Agent** | `create_checklist`, `track_progress`, `send_reminders`, `assign_tasks` | New client/project setup |
 | **Instance Onboarding Agent** | `assess_business`, `recommend_modules`, `provision_database`, `provision_storage`, `initiate_oauth_flow`, `link_ad_accounts`, `configure_sso`, `generate_sample_instance` + 24 more | New ERP instance setup with infrastructure provisioning, external platform credentials (Google Ads, Meta Ads, TikTok, etc.), SSO, and sample data generation for demos |
+| **Instance Analytics Agent** | `get_usage_metrics`, `calculate_health_score`, `benchmark_instance`, `detect_anomalies`, `forecast_growth`, `analyze_feature_adoption`, `calculate_roi`, `generate_executive_report` + 17 more | Platform-level analytics, health scoring, peer benchmarking, anomaly detection, growth forecasting, ROI calculation |
+| **Instance Success Agent** | `assess_instance_health`, `calculate_churn_risk`, `create_success_plan`, `recommend_features`, `identify_expansion_opportunities`, `prepare_qbr`, `predict_renewal_likelihood`, `receive_onboarding_handoff` + 25 more | Customer success management, churn prevention, proactive outreach, expansion identification, QBR preparation, renewal management |
 
 ---
 

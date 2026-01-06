@@ -41,7 +41,7 @@ ongoing_agent_builder/
     └── tools/             # (placeholder for shared tools)
 ```
 
-### Agent Ecosystem (44+ Agents)
+### Agent Ecosystem (46+ Agents)
 
 See `docs/AGENTS.md` for full details.
 
@@ -52,7 +52,7 @@ See `docs/AGENTS.md` for full details.
 | **Studio** | Presentation, Copy (EN/AR/+), Image, Video (Script/Storyboard/Production) | ✅ Built |
 | **Distribution** | Report, Approve, Brief Update + Gateways (WhatsApp, Email, Slack, SMS) | ✅ Built |
 | **Operations** | Resource, Workflow, Reporting | ✅ Built |
-| **Client** | CRM, Scope, Onboarding, Instance Onboarding | ✅ Built |
+| **Client** | CRM, Scope, Onboarding, Instance Onboarding, Instance Analytics, Instance Success | ✅ Built |
 | **Media** | Media Buying, Campaign | ✅ Built |
 | **Social** | Listening, Community, Social Analytics | ✅ Built |
 | **Performance** | Brand Performance, Campaign Analytics, Competitor | ✅ Built |

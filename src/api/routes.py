@@ -24,7 +24,7 @@ from ..agents import (
     # Operations
     ResourceAgent, WorkflowAgent, OpsReportingAgent,
     # Client
-    CRMAgent, ScopeAgent, OnboardingAgent, InstanceOnboardingAgent,
+    CRMAgent, ScopeAgent, OnboardingAgent, InstanceOnboardingAgent, InstanceAnalyticsAgent, InstanceSuccessAgent,
     # Media
     MediaBuyingAgent, CampaignAgent,
     # Social
@@ -85,6 +85,8 @@ class AgentType(str, Enum):
     SCOPE = "scope"
     ONBOARDING = "onboarding"
     INSTANCE_ONBOARDING = "instance_onboarding"
+    INSTANCE_ANALYTICS = "instance_analytics"
+    INSTANCE_SUCCESS = "instance_success"
     # Media
     MEDIA_BUYING = "media_buying"
     CAMPAIGN = "campaign"
@@ -195,6 +197,8 @@ def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None
         AgentType.SCOPE: (ScopeAgent, {}),
         AgentType.ONBOARDING: (OnboardingAgent, {}),
         AgentType.INSTANCE_ONBOARDING: (InstanceOnboardingAgent, {}),
+        AgentType.INSTANCE_ANALYTICS: (InstanceAnalyticsAgent, {}),
+        AgentType.INSTANCE_SUCCESS: (InstanceSuccessAgent, {}),
         # Media
         AgentType.MEDIA_BUYING: (MediaBuyingAgent, {"client_id": client_id}),
         AgentType.CAMPAIGN: (CampaignAgent, {"client_id": client_id}),
@@ -374,6 +378,8 @@ async def list_agents():
             {"type": "scope", "name": "Scope Agent", "layer": "client", "description": "Scope management", "status": "available"},
             {"type": "onboarding", "name": "Onboarding Agent", "layer": "client", "description": "Client onboarding", "status": "available"},
             {"type": "instance_onboarding", "name": "Instance Onboarding Agent", "layer": "client", "description": "New ERP instance setup with infrastructure, platform credentials, and sample data", "status": "available"},
+            {"type": "instance_analytics", "name": "Instance Analytics Agent", "layer": "client", "description": "Platform-level analytics, health scoring, benchmarking, forecasting", "status": "available"},
+            {"type": "instance_success", "name": "Instance Success Agent", "layer": "client", "description": "Customer success management, churn prevention, expansion, QBR prep", "status": "available"},
             # Media
             {"type": "media_buying", "name": "Media Buying Agent", "layer": "media", "description": "Media buying and planning", "status": "available"},
             {"type": "campaign", "name": "Campaign Agent", "layer": "media", "description": "Campaign management", "status": "available"},
@@ -402,7 +408,7 @@ async def list_agents():
             {"type": "localization", "name": "Localization Agent", "layer": "specialized", "description": "Multi-market localization", "status": "available"},
             {"type": "accessibility", "name": "Accessibility Agent", "layer": "specialized", "description": "WCAG compliance", "status": "available"},
         ],
-        "total_agents": 44,
+        "total_agents": 46,
         "layers": ["foundation", "studio", "video", "distribution", "gateway", "brand", "operations", "client", "media", "social", "performance", "finance", "quality", "knowledge", "specialized"],
     }
 
@@ -410,4 +416,4 @@ async def list_agents():
 @router.get("/health")
 async def health_check():
     """Service health check."""
-    return {"status": "healthy", "service": "ongoing-agent-builder", "agents_available": 44}
+    return {"status": "healthy", "service": "ongoing-agent-builder", "agents_available": 46}
