@@ -2,7 +2,33 @@
 
 ## Overview
 
-A **standalone instance framework** built on the Claude Agent SDK that creates, manages, and deploys agents for ERP automation tasks. The framework follows a **one-to-many** relationship: a single agent builder serves multiple `erp_staging_lmtd` instances, enabling centralized agent improvements that propagate to all connected ERP systems in real-time (version control dependent).
+A **standalone orchestration framework** built on the Claude Agent SDK that creates, refines, and deploys agents to `erp_staging_lmtd` instances. Rather than replacing the ERP's existing agent infrastructure, this framework **powers and extends it** - providing the AI backbone for skills, personas, and invocations already defined in the ERP.
+
+**Relationship:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     ONGOING AGENT BUILDER                       │
+│            (Claude Agent SDK Orchestration Layer)               │
+│                                                                 │
+│   • Develops/refines agent skills                               │
+│   • Powers AgentPersona execution                               │
+│   • Manages skill versioning & deployment                       │
+│   • One-to-many: serves multiple ERP instances                  │
+└─────────────────────────────────────────────────────────────────┘
+                               │
+                               │ API Integration
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                      erp_staging_lmtd                           │
+│              (Multi-tenant ERP Platform)                        │
+│                                                                 │
+│   Existing Infrastructure:                                      │
+│   • AgentSkill, AgentPersona, AgentInvocation models           │
+│   • FormTemplate, ContentTrigger systems                        │
+│   • Builder, Workflows, Forms modules                           │
+│   • YAML+MD skill definitions in /knowledge/agents/skills       │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ## Core Philosophy
 
@@ -22,220 +48,575 @@ Agents operate across three capability domains:
 └─────────────────┴─────────────────┴─────────────────────┘
 ```
 
-This triad enables **real problem solving** - agents don't just respond, they understand context, take meaningful action, and build new capabilities.
+This triad enables **real problem solving** - agents understand context, take meaningful action, and build new capabilities within the ERP.
+
+## erp_staging_lmtd Integration
+
+### Existing Agent Infrastructure
+
+The ERP already has a comprehensive agent system. We integrate with, not replace, these components:
+
+**Database Models (Prisma):**
+
+```prisma
+model AgentSkill {
+  id            String   @id
+  organizationId String
+  slug          String
+  name          String
+  category      String
+  triggers      Json     // Event triggers that activate skill
+  inputs        Json     // Required input parameters
+  outputs       Json     // Expected output structure
+  isEnabled     Boolean
+}
+
+model AgentPersona {
+  id            String   @id
+  organizationId String
+  slug          String
+  name          String
+  systemPrompt  String   // AI personality/instructions
+  allowedSkills String[] // Skills this persona can use
+  isEnabled     Boolean
+}
+
+model AgentInvocation {
+  id            String   @id
+  organizationId String
+  skillId       String
+  triggeredBy   String
+  entityType    String   // Brief, Client, Deal, etc.
+  entityId      String
+  status        String   // pending, running, completed, failed
+  input         Json
+  output        Json
+}
+```
+
+**Existing Skills in `/knowledge/agents/skills/`:**
+- `brief-creator.md` - Creates project briefs from client requests
+- `client-analyzer.md` - Analyzes client data and patterns
+- `deadline-tracker.md` - Monitors and alerts on deadlines
+- `quality-checker.md` - Reviews deliverables for quality
+- `resource-scanner.md` - Finds available team resources
+
+**Related Modules (28 total):**
+- `Builder` - Form builder UI
+- `Workflows` - Workflow automation
+- `Forms` - Form definitions and submissions
+- `Briefs`, `CRM`, `Resources`, `Retainers`, etc.
+
+### Skill Definition Format
+
+Skills use a YAML+Markdown hybrid format with founder knowledge capture:
+
+```yaml
+---
+id: brief-creator
+type: skill
+version: 1.0.0
+status: active
+category: briefs
+
+triggers:
+  - event: client_request_received
+  - event: manual_invoke
+
+inputs:
+  - name: client_context
+    type: object
+    required: true
+  - name: request_details
+    type: string
+    required: true
+  - name: resource_availability
+    type: object
+    required: false
+
+outputs:
+  - name: draft_brief
+    type: Brief
+  - name: resource_suggestions
+    type: User[]
+  - name: timeline_estimate
+    type: object
+  - name: quality_warnings
+    type: string[]
+
+dependencies:
+  - timeline_estimator
+  - resource_scanner
+
+permissions:
+  - brief:create
+  - client:read
+  - user:read
+---
+
+# Brief Creator
+
+## Purpose
+Creates comprehensive project briefs from client requests...
+
+## Founder Knowledge
+> "A brief is complete when it has actionable deliverables,
+> clear timeline, and comparable reference work."
+
+## Process
+1. Analyze client request
+2. Scan for similar past briefs
+3. Identify required resources
+4. Estimate timeline
+5. Generate draft with quality checks
+
+## Error Handling
+| Error | Action |
+|-------|--------|
+| Missing client context | Request additional info |
+| No available resources | Flag for manual review |
+...
+```
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     ONGOING AGENT BUILDER                       │
-│                   (Standalone Instance Framework)               │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │                  Claude Agent SDK                        │   │
-│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────┐    │   │
-│  │  │ SDKClient   │ │   Hooks     │ │  Session Mgmt   │    │   │
-│  │  └─────────────┘ └─────────────┘ └─────────────────┘    │   │
-│  └─────────────────────────────────────────────────────────┘   │
-│                              │                                  │
-│  ┌───────────────────────────┴───────────────────────────┐     │
-│  │                  Agent Registry                        │     │
-│  │  ┌──────────────────────────────────────────────────┐ │     │
-│  │  │ Task Agents        │ Workflow Agents             │ │     │
-│  │  │ ├─ Invoicing       │ ├─ Custom per client        │ │     │
-│  │  │ ├─ Inventory       │ ├─ Approval chains          │ │     │
-│  │  │ ├─ Purchasing      │ └─ Multi-step processes     │ │     │
-│  │  │ └─ Reporting       │                             │ │     │
-│  │  └──────────────────────────────────────────────────┘ │     │
-│  └───────────────────────────────────────────────────────┘     │
-│                              │                                  │
-│  ┌───────────────────────────┴───────────────────────────┐     │
-│  │                  Builder Capabilities                  │     │
-│  │  • Feature builder (within tasks)                      │     │
-│  │  • Workflow designer                                   │     │
-│  │  • Form generator                                      │     │
-│  │  • Button/action creator                               │     │
-│  └───────────────────────────────────────────────────────┘     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-                               │
-                               │ API Connections
-                               │ (Direct API/DB)
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    ERP STAGING INSTANCES                        │
-│                      (erp_staging_lmtd)                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │ Instance A  │  │ Instance B  │  │ Instance C  │   ...       │
-│  │ (Client 1)  │  │ (Client 2)  │  │ (Client 3)  │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
-│                                                                 │
-│  Each instance receives:                                        │
-│  • Same core agent capabilities                                 │
-│  • Custom workflow configurations                               │
-│  • Client-specific forms/buttons                                │
-│  • Real-time agent upgrades (version controlled)                │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        ONGOING AGENT BUILDER                            │
+│                    (Standalone Orchestration Framework)                 │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                      Claude Agent SDK                            │   │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────────────┐  │   │
+│  │  │ SDKClient    │  │    Hooks     │  │   Session Management  │  │   │
+│  │  │              │  │ • PreToolUse │  │   • Multi-tenant      │  │   │
+│  │  │ • query()    │  │ • PostToolUse│  │   • Org isolation     │  │   │
+│  │  │ • resume()   │  │ • Validation │  │   • State persistence │  │   │
+│  │  └──────────────┘  └──────────────┘  └───────────────────────┘  │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                    │                                    │
+│  ┌─────────────────────────────────┴─────────────────────────────┐     │
+│  │                      Skill Engine                              │     │
+│  │  ┌─────────────────────────────────────────────────────────┐  │     │
+│  │  │ Skill Compiler                                          │  │     │
+│  │  │ • Parse YAML+MD skill definitions                       │  │     │
+│  │  │ • Generate ClaudeAgentOptions from skill spec           │  │     │
+│  │  │ • Wire triggers to ERP ContentTrigger system            │  │     │
+│  │  └─────────────────────────────────────────────────────────┘  │     │
+│  │  ┌─────────────────────────────────────────────────────────┐  │     │
+│  │  │ Skill Runner                                            │  │     │
+│  │  │ • Execute skills via Claude SDK                         │  │     │
+│  │  │ • Handle inputs/outputs per skill spec                  │  │     │
+│  │  │ • Record AgentInvocation for audit                      │  │     │
+│  │  └─────────────────────────────────────────────────────────┘  │     │
+│  │  ┌─────────────────────────────────────────────────────────┐  │     │
+│  │  │ Skill Builder (Meta-Agent)                              │  │     │
+│  │  │ • Create new skill definitions                          │  │     │
+│  │  │ • Refine existing skills from feedback                  │  │     │
+│  │  │ • Capture founder knowledge                             │  │     │
+│  │  └─────────────────────────────────────────────────────────┘  │     │
+│  └───────────────────────────────────────────────────────────────┘     │
+│                                    │                                    │
+│  ┌─────────────────────────────────┴─────────────────────────────┐     │
+│  │                    Persona Engine                              │     │
+│  │  • Load AgentPersona from ERP                                  │     │
+│  │  • Apply systemPrompt to Claude SDK                            │     │
+│  │  • Enforce allowedSkills permissions                           │     │
+│  │  • Handle persona-specific conversation style                  │     │
+│  └───────────────────────────────────────────────────────────────┘     │
+│                                    │                                    │
+│  ┌─────────────────────────────────┴─────────────────────────────┐     │
+│  │                    Builder Agents                              │     │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐  │     │
+│  │  │ Form        │ │ Workflow    │ │ Feature                 │  │     │
+│  │  │ Generator   │ │ Designer    │ │ Builder                 │  │     │
+│  │  │             │ │             │ │                         │  │     │
+│  │  │ Creates     │ │ Creates     │ │ Extends skills with     │  │     │
+│  │  │ FormTemplate│ │ Content-    │ │ new capabilities        │  │     │
+│  │  │ entries     │ │ Trigger     │ │                         │  │     │
+│  │  └─────────────┘ └─────────────┘ └─────────────────────────┘  │     │
+│  └───────────────────────────────────────────────────────────────┘     │
+│                                    │                                    │
+│  ┌─────────────────────────────────┴─────────────────────────────┐     │
+│  │                  Version Control & Deployment                  │     │
+│  │  • Skill versioning (semver)                                   │     │
+│  │  • Deploy to specific ERP instances                            │     │
+│  │  • Canary/gradual rollout                                      │     │
+│  │  • Rollback capabilities                                       │     │
+│  └───────────────────────────────────────────────────────────────┘     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     │ REST API / Direct DB
+                                     │ (Multi-tenant, org-isolated)
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         erp_staging_lmtd                                │
+│                    (Next.js 14 + Prisma + Supabase)                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐    │
+│  │ Instance A  │  │ Instance B  │  │ Instance C  │  │ Instance D  │    │
+│  │ (Org: acme) │  │ (Org: beta) │  │ (Org: corp) │  │ (Org: demo) │    │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘    │
+│                                                                         │
+│  Shared Infrastructure:                                                 │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ AgentSkill │ AgentPersona │ AgentInvocation │ FormTemplate      │   │
+│  │ ContentTrigger │ KnowledgeDocument │ Brief │ Deliverable │ ... │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                         │
+│  Modules: AI, Briefs, Builder, Workflows, Forms, CRM, Resources...     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Key Design Decisions
 
-### 1. Claude Agent SDK Integration
+### 1. Claude Agent SDK as Execution Engine
 
-The framework is built **on top of** the Claude Agent SDK, not alongside it:
+The framework wraps Claude Agent SDK to execute ERP-defined skills:
 
 ```python
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
 
-class ERPAgent:
-    """Base class for all ERP agents, wrapping Claude Agent SDK."""
+class SkillRunner:
+    """Executes AgentSkill definitions using Claude Agent SDK."""
 
-    def __init__(self, agent_spec: AgentSpec, erp_connection: ERPConnection):
-        self.options = ClaudeAgentOptions(
-            system_prompt=self._build_system_prompt(agent_spec),
-            allowed_tools=agent_spec.tools,
+    def __init__(self, erp_client: ERPClient):
+        self.erp = erp_client
+
+    async def run_skill(
+        self,
+        skill: AgentSkill,
+        persona: AgentPersona,
+        invocation_input: dict,
+        org_id: str
+    ) -> AgentInvocation:
+        # Create invocation record
+        invocation = await self.erp.create_invocation(
+            skill_id=skill.id,
+            org_id=org_id,
+            status="running",
+            input=invocation_input
+        )
+
+        # Build Claude options from skill + persona
+        options = ClaudeAgentOptions(
+            system_prompt=self._build_prompt(skill, persona),
+            allowed_tools=self._map_permissions_to_tools(skill.permissions),
             hooks={
-                "PreToolUse": [self._validate_erp_action],
-                "PostToolUse": [self._log_erp_action],
+                "PreToolUse": [self._validate_org_access(org_id)],
+                "PostToolUse": [self._log_action(invocation.id)],
             }
         )
-        self.client = ClaudeSDKClient(options=self.options)
-        self.erp = erp_connection
+
+        # Execute via Claude SDK
+        async with ClaudeSDKClient(options=options) as client:
+            result = await client.query(
+                self._format_input(skill, invocation_input)
+            )
+            output = await self._collect_output(result, skill.outputs)
+
+        # Update invocation with result
+        await self.erp.update_invocation(
+            invocation.id,
+            status="completed",
+            output=output
+        )
+
+        return invocation
+
+    def _build_prompt(self, skill: AgentSkill, persona: AgentPersona) -> str:
+        """Combine persona systemPrompt with skill context."""
+        return f"""
+{persona.system_prompt}
+
+## Current Skill: {skill.name}
+
+{skill.founder_knowledge}
+
+## Expected Outputs
+{self._format_outputs(skill.outputs)}
+
+## Constraints
+- Only use allowed permissions: {skill.permissions}
+- Record all actions for audit
+- Respect organization boundaries
+"""
 ```
 
-**Why**: Enables continued use of Claude Code as primary development driver while agents leverage the same battle-tested harness.
+### 2. Skill Compiler
 
-### 2. Standalone Instance Pattern
-
-Each agent runs as an independent instance with:
-- Own session management
-- Own ERP connection context
-- Shared agent definitions (from registry)
-
-**Why**: Isolation prevents cross-client data leakage while centralized definitions enable fleet-wide upgrades.
-
-### 3. One-to-Many Deployment
-
-```
-Agent Definition (v1.2.0)
-         │
-         ├──► Instance A (Client 1) ──► erp_staging_lmtd_client1
-         ├──► Instance B (Client 2) ──► erp_staging_lmtd_client2
-         └──► Instance C (Client 3) ──► erp_staging_lmtd_client3
-```
-
-Agent upgrades propagate to all instances based on version control:
-- **Pinned versions**: Client stays on specific version until manually upgraded
-- **Latest tracking**: Client automatically receives improvements
-- **Canary releases**: Test new versions on subset before fleet-wide rollout
-
-### 4. Direct API/DB Connection to ERP
-
-Agents connect to `erp_staging_lmtd` via direct API calls:
+Transforms YAML+MD skill definitions into executable Claude configurations:
 
 ```python
-class ERPConnection:
-    """Direct connection to an erp_staging_lmtd instance."""
+class SkillCompiler:
+    """Compiles skill definitions from /knowledge/agents/skills/"""
 
-    def __init__(self, base_url: str, api_key: str, db_config: dict = None):
-        self.api = ERPApiClient(base_url, api_key)
-        self.db = ERPDatabase(db_config) if db_config else None
+    def compile(self, skill_path: str) -> CompiledSkill:
+        raw = self._parse_yaml_md(skill_path)
 
-    async def get_invoices(self, filters: dict) -> list[Invoice]:
-        return await self.api.get("/invoices", params=filters)
+        return CompiledSkill(
+            metadata=raw.frontmatter,
+            system_context=self._extract_context(raw.body),
+            founder_knowledge=self._extract_founder_knowledge(raw.body),
+            tool_permissions=self._map_to_claude_tools(raw.frontmatter.permissions),
+            input_schema=self._build_input_schema(raw.frontmatter.inputs),
+            output_schema=self._build_output_schema(raw.frontmatter.outputs),
+            triggers=self._compile_triggers(raw.frontmatter.triggers),
+        )
 
-    async def create_workflow(self, workflow_def: WorkflowDefinition) -> Workflow:
-        return await self.api.post("/workflows", json=workflow_def.dict())
+    def deploy_to_erp(self, compiled: CompiledSkill, org_id: str):
+        """Sync compiled skill to ERP AgentSkill table."""
+        self.erp.upsert_agent_skill(
+            org_id=org_id,
+            slug=compiled.metadata.id,
+            name=compiled.metadata.id.replace("-", " ").title(),
+            category=compiled.metadata.category,
+            triggers=compiled.triggers,
+            inputs=compiled.input_schema,
+            outputs=compiled.output_schema,
+            is_enabled=compiled.metadata.status == "active"
+        )
 ```
 
-**Why**: Direct connections offer lower latency and full access to ERP capabilities without MCP server overhead.
+### 3. Builder Agents (Meta-Agents)
 
-## Agent Types
+Agents that create/modify ERP components by calling ERP APIs:
 
-### Task Agents
-Focused agents for specific ERP operations:
+**Form Generator:**
+```python
+class FormGeneratorAgent:
+    """Creates FormTemplate entries in ERP."""
 
-| Agent | Think | Do/Act | Create |
-|-------|-------|--------|--------|
-| **Invoicing** | Analyze billing data, identify discrepancies | Generate invoices, process payments | Build invoice templates, custom fields |
-| **Inventory** | Forecast demand, detect anomalies | Update stock, trigger reorders | Design inventory views, alerts |
-| **Purchasing** | Evaluate vendors, optimize costs | Create POs, approve requests | Build approval workflows |
-| **Reporting** | Identify insights, correlate data | Generate reports, schedule delivery | Create custom dashboards |
+    async def generate_form(self, requirements: str, org_id: str) -> FormTemplate:
+        # Use Claude to design form structure
+        options = ClaudeAgentOptions(
+            system_prompt=FORM_DESIGNER_PROMPT,
+            allowed_tools=["erp_create_form_template", "erp_list_form_templates"]
+        )
 
-### Workflow Agents
-Configurable per-client for custom business processes:
+        async with ClaudeSDKClient(options=options) as client:
+            result = await client.query(f"""
+                Design a form for: {requirements}
 
-- Multi-step approval chains
-- Conditional branching based on business rules
-- Integration with external systems
-- Human-in-the-loop checkpoints
+                Use erp_create_form_template to create the form in the ERP.
+                The form should follow existing patterns in the organization.
+            """)
 
-### Builder Agents
-Meta-agents that create/modify ERP components:
+        return self._extract_created_form(result)
+```
 
-- **Feature Builder**: Adds capabilities within existing task agents
-- **Form Generator**: Creates data entry forms with validation
-- **Button Creator**: Adds action buttons with custom logic
-- **Workflow Designer**: Builds multi-step automated processes
+**Workflow Designer:**
+```python
+class WorkflowDesignerAgent:
+    """Creates ContentTrigger workflows in ERP."""
+
+    async def design_workflow(self, requirements: str, org_id: str) -> list[ContentTrigger]:
+        # Use Claude to design trigger chain
+        options = ClaudeAgentOptions(
+            system_prompt=WORKFLOW_DESIGNER_PROMPT,
+            allowed_tools=[
+                "erp_create_content_trigger",
+                "erp_list_content_triggers",
+                "erp_list_agent_skills"  # Can wire skills into workflows
+            ]
+        )
+
+        async with ClaudeSDKClient(options=options) as client:
+            result = await client.query(f"""
+                Design a workflow for: {requirements}
+
+                Create ContentTrigger entries that chain together.
+                Can invoke existing AgentSkills as actions.
+            """)
+
+        return self._extract_created_triggers(result)
+```
+
+### 4. Multi-Tenant Isolation
+
+All operations are scoped to `organizationId`:
+
+```python
+class ERPClient:
+    """Organization-scoped ERP API client."""
+
+    def __init__(self, base_url: str, api_key: str, org_id: str):
+        self.base_url = base_url
+        self.api_key = api_key
+        self.org_id = org_id  # All requests scoped to this org
+
+    async def get_skills(self) -> list[AgentSkill]:
+        return await self._get(f"/api/v1/agent-skills?organizationId={self.org_id}")
+
+    async def create_invocation(self, **kwargs) -> AgentInvocation:
+        return await self._post("/api/v1/agent-invocations", {
+            "organizationId": self.org_id,
+            **kwargs
+        })
+```
+
+### 5. One-to-Many Deployment
+
+```
+Skill Definition (v1.2.0) in ongoing_agent_builder
+         │
+         │ deploy_to_erp()
+         │
+         ├──► Organization: acme    ──► AgentSkill record (acme)
+         ├──► Organization: beta    ──► AgentSkill record (beta)
+         └──► Organization: corp    ──► AgentSkill record (corp)
+```
+
+Version control strategies:
+- **Pinned**: Org stays on specific skill version
+- **Latest**: Org auto-receives improvements
+- **Canary**: Test on subset before fleet-wide
+
+## API Integration with erp_staging_lmtd
+
+### Required ERP Endpoints
+
+The agent builder needs these API endpoints in erp_staging_lmtd:
+
+```typescript
+// Agent Skills
+GET    /api/v1/agent-skills?organizationId=...
+POST   /api/v1/agent-skills
+PATCH  /api/v1/agent-skills/:id
+DELETE /api/v1/agent-skills/:id
+
+// Agent Personas
+GET    /api/v1/agent-personas?organizationId=...
+POST   /api/v1/agent-personas
+PATCH  /api/v1/agent-personas/:id
+
+// Agent Invocations
+GET    /api/v1/agent-invocations?organizationId=...
+POST   /api/v1/agent-invocations
+PATCH  /api/v1/agent-invocations/:id  // Update status, output
+
+// Form Templates (for Form Generator)
+GET    /api/v1/form-templates?organizationId=...
+POST   /api/v1/form-templates
+
+// Content Triggers (for Workflow Designer)
+GET    /api/v1/content-triggers?organizationId=...
+POST   /api/v1/content-triggers
+
+// Knowledge Documents (for skill context)
+GET    /api/v1/knowledge?organizationId=...&path=...
+```
+
+### Authentication
+
+```python
+class ERPAuth:
+    """Service-to-service auth for agent builder."""
+
+    def __init__(self, service_key: str):
+        self.service_key = service_key  # Long-lived service account key
+
+    def get_headers(self, org_id: str) -> dict:
+        return {
+            "Authorization": f"Bearer {self.service_key}",
+            "X-Organization-Id": org_id,  # Impersonate org for multi-tenant access
+        }
+```
 
 ## Directory Structure
 
 ```
 ongoing_agent_builder/
-├── ARCHITECTURE.md          # This document
-├── README.md                 # Project overview
+├── ARCHITECTURE.md              # This document
+├── README.md                    # Project overview
+├── pyproject.toml
+│
 ├── src/
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── agent_base.py    # ERPAgent base class (wraps Claude SDK)
-│   │   ├── registry.py      # Agent registry and versioning
-│   │   └── connection.py    # ERPConnection for erp_staging_lmtd
-│   ├── agents/
+│   │   ├── sdk_client.py        # Claude Agent SDK wrapper
+│   │   ├── erp_client.py        # erp_staging_lmtd API client
+│   │   └── auth.py              # Service authentication
+│   │
+│   ├── skills/
 │   │   ├── __init__.py
-│   │   ├── task/
-│   │   │   ├── invoicing.py
-│   │   │   ├── inventory.py
-│   │   │   ├── purchasing.py
-│   │   │   └── reporting.py
-│   │   ├── workflow/
-│   │   │   └── base_workflow.py
-│   │   └── builder/
-│   │       ├── feature_builder.py
-│   │       ├── form_generator.py
-│   │       ├── button_creator.py
-│   │       └── workflow_designer.py
-│   ├── specs/               # Agent specifications (YAML/JSON)
-│   │   └── ...
-│   └── api/                 # API layer for ERP integration
-│       └── ...
-├── tests/
+│   │   ├── compiler.py          # YAML+MD → CompiledSkill
+│   │   ├── runner.py            # Execute skills via Claude SDK
+│   │   ├── deployer.py          # Sync skills to ERP instances
+│   │   └── schemas.py           # Pydantic models for skill specs
+│   │
+│   ├── personas/
+│   │   ├── __init__.py
+│   │   └── engine.py            # Load and apply AgentPersona
+│   │
+│   ├── builders/
+│   │   ├── __init__.py
+│   │   ├── form_generator.py    # Creates FormTemplate in ERP
+│   │   ├── workflow_designer.py # Creates ContentTrigger chains
+│   │   ├── feature_builder.py   # Extends skills with new capabilities
+│   │   └── skill_builder.py     # Meta-agent that creates new skills
+│   │
+│   ├── versioning/
+│   │   ├── __init__.py
+│   │   ├── registry.py          # Track skill versions
+│   │   └── deployment.py        # Rollout strategies (pinned/latest/canary)
+│   │
+│   └── api/
+│       ├── __init__.py
+│       └── routes.py            # API for external invocation (optional)
+│
+├── skills/                      # Local skill definitions (synced from/to ERP)
+│   ├── brief-creator.md
+│   ├── client-analyzer.md
 │   └── ...
-└── pyproject.toml
+│
+└── tests/
+    ├── test_compiler.py
+    ├── test_runner.py
+    └── ...
 ```
 
 ## Integration with Claude Code
 
 This framework is designed to be developed and operated via Claude Code:
 
-1. **Development**: Use Claude Code to build/refine agents
-2. **Testing**: Claude Code runs agents against test ERP instances
+1. **Development**: Use Claude Code to build/refine skills and agents
+2. **Testing**: Claude Code runs skills against test ERP instances
 3. **Deployment**: Claude Code manages version control and rollouts
-4. **Operations**: Claude Code monitors agent performance and issues
+4. **Operations**: Claude Code monitors AgentInvocation status and issues
 
-The Claude Agent SDK integration means agents share the same foundation, enabling seamless development workflows.
+The shared Claude Agent SDK foundation enables seamless development—the same SDK powers both the development environment (Claude Code) and production execution.
+
+## Security Considerations
+
+### Multi-Tenant Data Isolation
+- All ERP queries filtered by `organizationId`
+- Agent builder service account has cross-org access, but each skill execution is org-scoped
+- AgentInvocation audit trail tracks all actions per org
+
+### Permission Boundaries
+- Skills declare required permissions in YAML frontmatter
+- SkillRunner validates permissions before execution
+- PreToolUse hooks enforce org access boundaries
+
+### Sensitive Data
+- No secrets in skill definitions (use ERP's secure storage)
+- API keys via environment variables
+- Audit logging for all ERP mutations
 
 ## Next Steps
 
-1. [ ] Set up Python project structure with pyproject.toml
-2. [ ] Implement `ERPAgent` base class wrapping Claude SDK
-3. [ ] Create `ERPConnection` for erp_staging_lmtd API
-4. [ ] Build first task agent (suggest: Invoicing)
-5. [ ] Define agent spec format (YAML schema)
-6. [ ] Implement agent registry with versioning
+1. [ ] Add agent-related API endpoints to erp_staging_lmtd
+2. [ ] Set up Python project structure with pyproject.toml
+3. [ ] Implement ERPClient for API communication
+4. [ ] Build SkillCompiler for YAML+MD parsing
+5. [ ] Create SkillRunner with Claude SDK integration
+6. [ ] Build first builder agent (suggest: Skill Builder meta-agent)
+7. [ ] Set up versioning and deployment system
 
 ---
 
