@@ -22,7 +22,7 @@ Every agent can be specialized:
 - **By Language**: English, Arabic, French, etc.
 - **By Client**: Client-specific rules, voice, preferences
 
-## Agent Ecosystem (46+ Agents)
+## Agent Ecosystem (46 Agents)
 
 > See [`docs/AGENTS.md`](docs/AGENTS.md) for the complete directory with tools and details.
 
@@ -64,6 +64,47 @@ Every agent can be specialized:
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
+## Instance Lifecycle
+
+Three agents manage the complete ERP instance lifecycle:
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                        INSTANCE LIFECYCLE                                 │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌────────────────────┐                                                  │
+│  │ INSTANCE ONBOARDING│  New tenant setup                                │
+│  │      (32 tools)    │  ├── Business assessment & module selection      │
+│  │                    │  ├── Infrastructure provisioning (DB, storage)   │
+│  │                    │  ├── Platform credentials (Google Ads, Meta...)  │
+│  │                    │  ├── SSO/Auth configuration                      │
+│  │                    │  └── Sample data generation for demos            │
+│  └─────────┬──────────┘                                                  │
+│            │ handoff                                                     │
+│            ▼                                                             │
+│  ┌────────────────────┐                                                  │
+│  │  INSTANCE SUCCESS  │  Ongoing success management                      │
+│  │      (33 tools)    │  ├── Health monitoring & proactive outreach      │
+│  │                    │  ├── Churn risk detection & intervention         │
+│  │                    │  ├── Feature recommendations & training          │
+│  │                    │  ├── Expansion opportunity identification        │
+│  │                    │  └── QBR preparation & renewal management        │
+│  └─────────┬──────────┘                                                  │
+│            │ data                                                        │
+│            ▼                                                             │
+│  ┌────────────────────┐                                                  │
+│  │ INSTANCE ANALYTICS │  Platform intelligence                           │
+│  │      (25 tools)    │  ├── Usage metrics (DAU/MAU, sessions, API)      │
+│  │                    │  ├── Health scoring & benchmarking               │
+│  │                    │  ├── Anomaly detection & alerting                │
+│  │                    │  ├── Growth forecasting & capacity planning      │
+│  │                    │  └── ROI calculation & executive reporting       │
+│  └────────────────────┘                                                  │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
 ## Architecture
 
 ```
@@ -93,7 +134,7 @@ Every agent can be specialized:
 │  │  └─────────────────────────────────────────────────┘   │ │
 │  │                       │                                 │ │
 │  │  ┌────────────────────▼────────────────────────────┐   │ │
-│  │  │           43+ Specialized Agents                 │   │ │
+│  │  │           46 Specialized Agents                  │   │ │
 │  │  │  (Foundation, Studio, Social, Media, etc.)      │   │ │
 │  │  └─────────────────────────────────────────────────┘   │ │
 │  └────────────────────────────────────────────────────────┘ │
@@ -102,7 +143,7 @@ Every agent can be specialized:
 
 ## Implementation Status
 
-### ✅ All 43 Agents Built
+### ✅ All 46 Agents Built
 
 | Layer | Agents | Status |
 |-------|--------|--------|
@@ -113,7 +154,7 @@ Every agent can be specialized:
 | **Gateways** | WhatsApp, Email, Slack, SMS | ✅ |
 | **Brand** | Voice, Visual, Guidelines | ✅ |
 | **Operations** | Resource, Workflow, Ops Reporting | ✅ |
-| **Client** | CRM, Scope, Onboarding | ✅ |
+| **Client** | CRM, Scope, Onboarding, Instance Onboarding, Instance Analytics, Instance Success | ✅ |
 | **Media** | Media Buying, Campaign | ✅ |
 | **Social** | Listening, Community, Analytics | ✅ |
 | **Performance** | Brand Performance, Campaign Analytics, Competitor | ✅ |
@@ -176,7 +217,8 @@ uvicorn main:app --reload
 
 ## Documentation
 
-- [`docs/AGENTS.md`](docs/AGENTS.md) - Full agent ecosystem directory (43+ agents)
+- [`docs/AGENTS.md`](docs/AGENTS.md) - Full agent ecosystem directory (46 agents)
+- [`docs/TRAINING_SPEC.md`](docs/TRAINING_SPEC.md) - Comprehensive training program specification
 - [`CONTEXT.md`](CONTEXT.md) - Session context recovery file
 
 ## Related
