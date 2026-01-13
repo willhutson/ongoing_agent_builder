@@ -1,6 +1,6 @@
-# Agent Training Program Technical Specification
+# SpokeStack Agent Training Program Technical Specification
 
-> Complete guide for training teams on the 46-agent ecosystem, including agent capabilities, training methodologies, ERP integration, and ongoing maintenance.
+> Complete guide for training teams on the 49+ agent ecosystem, including agent capabilities, training methodologies, ERP integration, engagement suite, extended modules, and ongoing maintenance.
 
 ---
 
@@ -24,9 +24,10 @@
 ### 1.1 Purpose
 
 This training program ensures all stakeholders understand:
-- **What** each of the 46 agents does
+- **What** each of the 49+ agents does (including 3 new Engagement Suite agents)
 - **How** to configure, train, and customize agents for specific needs
 - **How** to onboard agents to new ERP instances
+- **How** to configure engagement and extended modules per industry vertical
 - **How** to maintain, update, and troubleshoot agents in production
 
 ### 1.2 Target Audiences
@@ -37,6 +38,7 @@ This training program ensures all stakeholders understand:
 | **Account Managers** | Agent capabilities, client workflows, reporting | Practitioner Certified |
 | **Creative Teams** | Studio agents, content workflows, moodboards | Creative Certified |
 | **Media Teams** | Media agents, campaign analytics, platform integrations | Media Certified |
+| **Engagement Teams** | Publisher, Reply, Channel agents, omnichannel orchestration | Engagement Certified |
 | **Developers** | Agent customization, API integration, tool development | Developer Certified |
 | **Customer Success** | Instance lifecycle agents, health monitoring, expansion | Success Certified |
 
@@ -77,28 +79,28 @@ Every agent follows this paradigm:
 ### 2.1 Learning Paths
 
 ```
-                        ┌─────────────────┐
-                        │   FOUNDATION    │
-                        │   (Required)    │
-                        │    8 hours      │
-                        └────────┬────────┘
-                                 │
-        ┌────────────────────────┼────────────────────────┐
-        │                        │                        │
-        ▼                        ▼                        ▼
-┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-│   CREATIVE    │      │    MEDIA      │      │  OPERATIONS   │
-│    TRACK      │      │    TRACK      │      │    TRACK      │
-│   12 hours    │      │   12 hours    │      │   12 hours    │
-└───────────────┘      └───────────────┘      └───────────────┘
-        │                        │                        │
-        └────────────────────────┼────────────────────────┘
-                                 │
-                        ┌────────▼────────┐
-                        │   ADVANCED      │
-                        │ SPECIALIZATION  │
-                        │   16 hours      │
-                        └─────────────────┘
+                              ┌─────────────────┐
+                              │   FOUNDATION    │
+                              │   (Required)    │
+                              │    8 hours      │
+                              └────────┬────────┘
+                                       │
+     ┌───────────────┬─────────────────┼─────────────────┬───────────────┐
+     │               │                 │                 │               │
+     ▼               ▼                 ▼                 ▼               ▼
+┌──────────┐  ┌──────────┐      ┌──────────┐      ┌──────────┐  ┌──────────┐
+│ CREATIVE │  │  MEDIA   │      │OPERATIONS│      │ENGAGEMENT│  │VERTICALS │
+│  TRACK   │  │  TRACK   │      │  TRACK   │      │  TRACK   │  │  TRACK   │
+│ 12 hours │  │ 12 hours │      │ 12 hours │      │ 12 hours │  │ 8 hours  │
+└──────────┘  └──────────┘      └──────────┘      └──────────┘  └──────────┘
+     │               │                 │                 │               │
+     └───────────────┴─────────────────┼─────────────────┴───────────────┘
+                                       │
+                              ┌────────▼────────┐
+                              │   ADVANCED      │
+                              │ SPECIALIZATION  │
+                              │   16 hours      │
+                              └─────────────────┘
 ```
 
 ### 2.2 Module Breakdown
@@ -139,6 +141,23 @@ Every agent follows this paradigm:
 | O3: Resource Management | 3 hrs | Resource, Workflow, Ops Reporting |
 | O4: Client Management | 3 hrs | CRM, Scope, Onboarding |
 
+#### Engagement Track (12 hours) - NEW
+
+| Module | Duration | Agents Covered |
+|--------|----------|----------------|
+| E1: Publisher Agent | 3 hrs | Publisher, Content Calendar integration, multi-platform preview |
+| E2: Reply Agent | 3 hrs | Reply, unified inbox, crisis escalation, auto-responder |
+| E3: Channel Agent | 3 hrs | Channel, omnichannel orchestration, flow design, real-time sync |
+| E4: Integration Workflows | 3 hrs | Studio→Publisher Queue, Reply escalation, Channel automation |
+
+#### Verticals Track (8 hours) - NEW
+
+| Module | Duration | Topics |
+|--------|----------|--------|
+| V1: Module Tier Architecture | 2 hrs | Tier 1-5 hierarchy, configurable primitives |
+| V2: Engagement Module Assignment | 3 hrs | Per-vertical engagement configurations (15 verticals) |
+| V3: Extended Module Configuration | 3 hrs | Entities, Scheduler, Deadlines, Inventory, Contracts, Tickets, Vault |
+
 #### Advanced Specialization (16 hours)
 
 | Module | Duration | Topics |
@@ -156,7 +175,7 @@ Every agent follows this paradigm:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                        46 AGENTS BY CATEGORY                            │
+│                        49+ AGENTS BY CATEGORY                           │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
 │  BUSINESS OPERATIONS (15)                                               │
@@ -175,9 +194,10 @@ Every agent follows this paradigm:
 │  ├── Social: Listening, Community, Social Analytics                     │
 │  └── Performance: Brand Performance, Campaign Analytics, Competitor     │
 │                                                                         │
-│  DISTRIBUTION (7)                                                       │
+│  DISTRIBUTION & ENGAGEMENT (10) - EXPANDED                              │
 │  ├── Core: Report, Approve, Brief Update                                │
-│  └── Gateways: WhatsApp, Email, Slack, SMS                              │
+│  ├── Gateways: WhatsApp, Email, Slack, SMS                              │
+│  └── Engagement Suite (NEW): Publisher, Reply, Channel                  │
 │                                                                         │
 │  PLATFORM & LIFECYCLE (6)                                               │
 │  ├── Instance: Onboarding, Analytics, Success                           │
@@ -188,6 +208,68 @@ Every agent follows this paradigm:
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+### 3.1.1 Module Tier Hierarchy
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         MODULE TIER ARCHITECTURE                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  TIER 1: FOUNDATION (Always Present)                                    │
+│  └── Hub, Team, Clients, Admin, Superadmin                              │
+│                                                                         │
+│  TIER 2: CORE OPERATIONS                                                │
+│  ├── Briefs, Projects, Boards, Workflows                                │
+│  ├── Time, Resources, Leave                                             │
+│  └── Finance, CRM, RFP, Chat                                            │
+│                                                                         │
+│  TIER 3: SPECIALIZED SUITES                                             │
+│  ├── SpokeStudio (Docs, Video, Decks, Moodboards, Calendar, AI Skills)  │
+│  ├── Marketing (Analytics, Listening, Media Buying)                     │
+│  ├── Learning (LMS, Course Builder, Knowledge Base)                     │
+│  └── Feedback (Surveys, Quizzes & Polls, NPS)                           │
+│                                                                         │
+│  TIER 4: EXTENDED MODULES (Configurable per Vertical)                   │
+│  └── Entities, Scheduler, Deadlines, Inventory, Contracts, Tickets, Vault│
+│                                                                         │
+│  TIER 5: ENGAGEMENT SUITE (NEW)                                         │
+│  └── Publisher, Reply, Channel                                          │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3.1.2 Extended Modules Reference
+
+| Module | Purpose | Key Verticals |
+|--------|---------|---------------|
+| **Entities** | Universal party management (candidates, vendors, guests) | Recruitment, Events, Training |
+| **Scheduler** | Appointment and resource booking | Consulting, Legal, Training |
+| **Deadlines** | Compliance and deadline tracking | Legal, Accounting, Architecture |
+| **Inventory** | Asset and item management | Events, IT, Architecture |
+| **Contracts** | Agreement lifecycle management | All |
+| **Tickets** | Service request handling | IT Consulting |
+| **Vault** | Secure document management | Legal, Accounting |
+
+### 3.1.3 Industry Vertical Configurations (15 Verticals)
+
+| Vertical | Engagement Modules | Extended Modules |
+|----------|-------------------|------------------|
+| Marketing Agency | publisher, reply, channel | - |
+| PR & Communications | publisher, reply, channel | - |
+| Creative Studio | publisher, channel | - |
+| Event Management | publisher, reply, channel | entities, scheduler, inventory, contracts, vault |
+| Consulting Firm | channel | - |
+| Recruitment Agency | channel, reply | entities, scheduler, contracts |
+| IT Consulting | reply, channel | tickets, contracts, deadlines, inventory |
+| Legal Services | channel | deadlines, contracts, vault, scheduler |
+| Accounting Firm | channel | - |
+| HR Consulting | channel, reply | - |
+| Architecture & Design | channel, publisher | - |
+| Engineering Consultancy | channel | - |
+| Project Management | channel | - |
+| Training & Development | channel, publisher | - |
+| Translation Services | channel | - |
 
 ### 3.2 Agent Reference Cards
 
@@ -222,6 +304,148 @@ Each agent has a reference card with:
 │ 4. Draft proposal sections                                  │
 │ 5. Estimate effort and resources                            │
 │ 6. Route to Commercial Agent for pricing                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Publisher Agent (NEW - Engagement Suite)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ PUBLISHER AGENT                                    [ENGAGE] │
+├─────────────────────────────────────────────────────────────┤
+│ PURPOSE: Content distribution, multi-platform preview,      │
+│          scheduling, and publishing queue management        │
+├─────────────────────────────────────────────────────────────┤
+│ TOOLS (8):                                                  │
+│ ├── preview_content: Multi-platform preview rendering       │
+│ ├── schedule_post: Add content to publishing queue          │
+│ ├── manage_queue: View/edit/reorder publishing queue        │
+│ ├── publish_now: Immediate multi-platform publishing        │
+│ ├── get_optimal_times: AI-suggested posting times           │
+│ ├── format_for_platform: Adapt content per platform specs   │
+│ ├── sync_calendar: Integrate with SpokeStudio Calendar      │
+│ └── validate_content: Pre-publish compliance checks         │
+├─────────────────────────────────────────────────────────────┤
+│ PREVIEW MODES:                                              │
+│ ├── Website, Instagram, X/Twitter, Facebook                 │
+│ ├── LinkedIn, TikTok, Email                                 │
+│ └── WYSIWYG publishing hub with multi-platform view         │
+├─────────────────────────────────────────────────────────────┤
+│ ROUTES:                                                     │
+│ └── /publisher, /publisher/create, /publisher/drafts,       │
+│     /publisher/scheduled, /publisher/preview                │
+├─────────────────────────────────────────────────────────────┤
+│ ERP MODULES: publisher, studio, content-calendar            │
+├─────────────────────────────────────────────────────────────┤
+│ TYPICAL WORKFLOW:                                           │
+│ 1. Receive content from SpokeStudio                         │
+│ 2. Preview across target platforms                          │
+│ 3. Format and optimize per platform requirements            │
+│ 4. Add to publishing queue with optimal timing              │
+│ 5. Execute scheduled publishing                             │
+│ 6. Route to Reply Agent for engagement monitoring           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Reply Agent (NEW - Engagement Suite)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ REPLY AGENT                                        [ENGAGE] │
+├─────────────────────────────────────────────────────────────┤
+│ PURPOSE: Unified inbox management, customer service, crisis │
+│          escalation, FAQ management, auto-response          │
+├─────────────────────────────────────────────────────────────┤
+│ TOOLS (10):                                                 │
+│ ├── unify_inbox: Consolidate messages across channels       │
+│ ├── analyze_sentiment: Real-time sentiment analysis         │
+│ ├── suggest_response: AI-powered response suggestions       │
+│ ├── manage_faq: Create/update FAQ knowledge base            │
+│ ├── configure_autoresponder: Set auto-response triggers     │
+│ ├── escalate_crisis: Initiate crisis protocol               │
+│ ├── route_to_team: Assign to appropriate team member        │
+│ ├── trigger_delight: Activate surprise & delight actions    │
+│ ├── log_interaction: Record customer touchpoints            │
+│ └── generate_csat: Request customer satisfaction feedback   │
+├─────────────────────────────────────────────────────────────┤
+│ INBOX SOURCES:                                              │
+│ └── Social, Email, Website, Messaging, Reviews              │
+├─────────────────────────────────────────────────────────────┤
+│ AUTO-RESPONDER TRIGGERS:                                    │
+│ ├── Time-based (off-hours, holidays)                        │
+│ ├── Keyword-based (FAQ matching)                            │
+│ ├── Sentiment-based (negative/positive detection)           │
+│ └── Customer type (VIP, new, at-risk)                       │
+├─────────────────────────────────────────────────────────────┤
+│ CRISIS ESCALATION (4 Severity Levels):                      │
+│ ├── Level 1: Auto-respond, log, monitor                     │
+│ ├── Level 2: Escalate to team lead                          │
+│ ├── Level 3: Alert management + PR team                     │
+│ └── Level 4: Executive notification + crisis protocol       │
+├─────────────────────────────────────────────────────────────┤
+│ ROUTES:                                                     │
+│ └── /reply, /reply/inbox, /reply/assigned, /reply/faq,      │
+│     /reply/auto, /reply/escalation                          │
+├─────────────────────────────────────────────────────────────┤
+│ ERP MODULES: reply, crm, notifications, chat                │
+├─────────────────────────────────────────────────────────────┤
+│ TYPICAL WORKFLOW:                                           │
+│ 1. Receive message from unified inbox                       │
+│ 2. Analyze sentiment and context                            │
+│ 3. Check FAQ for matching response                          │
+│ 4. If crisis detected, initiate escalation protocol         │
+│ 5. Generate response suggestion                             │
+│ 6. Route to Channel Agent for delivery                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### Channel Agent (NEW - Engagement Suite)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ CHANNEL AGENT                                      [ENGAGE] │
+├─────────────────────────────────────────────────────────────┤
+│ PURPOSE: Omnichannel orchestration, visual flow design,     │
+│          natural language automation, real-time sync        │
+├─────────────────────────────────────────────────────────────┤
+│ TOOLS (12):                                                 │
+│ ├── design_flow: Visual drag-and-drop flow creation         │
+│ ├── parse_nl_flow: Natural language flow interpretation     │
+│ ├── connect_platform: OAuth platform connections            │
+│ ├── sync_channels: Real-time cross-platform sync            │
+│ ├── route_message: Intelligent message routing              │
+│ ├── configure_webhook: Inbound/outbound webhooks            │
+│ ├── manage_queue: Channel-specific queue management         │
+│ ├── reply_anywhere: Slack/Email/WhatsApp/SMS response       │
+│ ├── track_conversation: Cross-channel thread tracking       │
+│ ├── analyze_channel: Per-channel performance metrics        │
+│ ├── set_triggers: Automation trigger configuration          │
+│ └── handoff_human: Seamless bot-to-human handoff            │
+├─────────────────────────────────────────────────────────────┤
+│ NATURAL LANGUAGE FLOW EXAMPLES:                             │
+│ ├── "After client approves, send to publish for CM"         │
+│ ├── "When sentiment negative, escalate to team lead"        │
+│ └── "If VIP customer, priority route to account manager"    │
+├─────────────────────────────────────────────────────────────┤
+│ CONNECTED PLATFORMS:                                        │
+│ ├── Messaging: WhatsApp, SMS, Slack, Teams                  │
+│ ├── Social: Instagram, X/Twitter, Facebook, LinkedIn        │
+│ ├── Email: Gmail, Outlook, custom SMTP                      │
+│ └── Website: Live chat, contact forms, chatbots             │
+├─────────────────────────────────────────────────────────────┤
+│ ROUTES:                                                     │
+│ └── /channel, /channel/inbox, /channel/connections,         │
+│     /channel/flows                                          │
+├─────────────────────────────────────────────────────────────┤
+│ ERP MODULES: channel, integrations, workflows, chat         │
+├─────────────────────────────────────────────────────────────┤
+│ TYPICAL WORKFLOW:                                           │
+│ 1. Receive natural language flow description                │
+│ 2. Parse and create visual flow diagram                     │
+│ 3. Configure triggers and conditions                        │
+│ 4. Connect required platforms via OAuth                     │
+│ 5. Activate automation with real-time sync                  │
+│ 6. Monitor and optimize based on analytics                  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -264,6 +488,161 @@ Each agent has a reference card with:
                          │
                          ▼
                    CLIENT DELIVERY
+```
+
+### 3.4 Engagement Suite Interaction Patterns (NEW)
+
+#### Content Calendar → Publisher Queue → Publish Flow
+
+```
+                    SPOKESTUDIO
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+          ▼              ▼              ▼
+   ┌────────────┐  ┌────────────┐  ┌────────────┐
+   │    Docs    │  │   Video    │  │   Decks    │
+   └──────┬─────┘  └─────┬──────┘  └─────┬──────┘
+          │              │               │
+          └──────────────┼───────────────┘
+                         │
+                         ▼
+                  ┌─────────────┐
+                  │  Content    │
+                  │  Calendar   │
+                  └──────┬──────┘
+                         │
+           ┌─────────────┼─────────────┐
+           │             │             │
+           ▼             ▼             ▼
+    ┌───────────┐  ┌───────────┐  ┌───────────┐
+    │  Drafts   │  │ Scheduled │  │  Queue    │
+    └─────┬─────┘  └─────┬─────┘  └─────┬─────┘
+          │              │              │
+          └──────────────┼──────────────┘
+                         │
+                         ▼
+                  ┌─────────────┐
+                  │  PUBLISHER  │
+                  │    AGENT    │
+                  └──────┬──────┘
+                         │
+     ┌───────────────────┼───────────────────┐
+     │         │         │         │         │
+     ▼         ▼         ▼         ▼         ▼
+┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+│Website │ │  IG    │ │X/Twitter│ │LinkedIn│ │TikTok │
+│Preview │ │Preview │ │ Preview │ │Preview │ │Preview│
+└────────┘ └────────┘ └────────┘ └────────┘ └────────┘
+                         │
+                         ▼
+               MULTI-PLATFORM PUBLISH
+```
+
+#### Reply Escalation Flow
+
+```
+                    INCOMING MESSAGE
+                          │
+                          ▼
+                   ┌──────────────┐
+                   │ Unified Inbox │
+                   │ (All Sources) │
+                   └───────┬──────┘
+                           │
+                           ▼
+                   ┌──────────────┐
+                   │    REPLY     │
+                   │    AGENT     │
+                   └───────┬──────┘
+                           │
+                           ▼
+                   ┌──────────────┐
+                   │  Sentiment   │
+                   │  Analysis    │
+                   └───────┬──────┘
+                           │
+       ┌───────────────────┼───────────────────┐
+       │                   │                   │
+       ▼                   ▼                   ▼
+  [POSITIVE]          [NEUTRAL]          [NEGATIVE]
+       │                   │                   │
+       ▼                   ▼                   ▼
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Surprise & │    │  Standard   │    │   Crisis    │
+│   Delight   │    │  Response   │    │  Protocol   │
+└─────────────┘    └─────────────┘    └──────┬──────┘
+                                             │
+                        ┌────────────────────┼────────────────────┐
+                        │                    │                    │
+                        ▼                    ▼                    ▼
+                  ┌──────────┐        ┌──────────┐        ┌──────────┐
+                  │ Level 1  │        │ Level 2  │        │ Level 3-4│
+                  │ Auto-Log │        │Team Lead │        │ Exec +   │
+                  │ Monitor  │        │ Escalate │        │ PR Team  │
+                  └──────────┘        └──────────┘        └──────────┘
+                                             │
+                                             ▼
+                                   ┌─────────────────┐
+                                   │  LEADERSHIP     │
+                                   │    ALERT        │
+                                   └─────────────────┘
+```
+
+#### Channel Flow: Natural Language → Automation
+
+```
+              NATURAL LANGUAGE INPUT
+                      │
+    "After client approves, send to publish
+     for community manager review"
+                      │
+                      ▼
+              ┌──────────────┐
+              │   CHANNEL    │
+              │    AGENT     │
+              └───────┬──────┘
+                      │
+                      ▼
+              ┌──────────────┐
+              │  NL Parser   │
+              │  (parse_nl_  │
+              │    flow)     │
+              └───────┬──────┘
+                      │
+                      ▼
+       ┌──────────────────────────┐
+       │    VISUAL FLOW CANVAS    │
+       │                          │
+       │  ┌──────┐    ┌──────┐   │
+       │  │Client│───►│Approve│   │
+       │  │Action│    │Trigger│   │
+       │  └──────┘    └───┬───┘   │
+       │                  │       │
+       │            ┌─────▼─────┐ │
+       │            │Publisher  │ │
+       │            │  Queue    │ │
+       │            └─────┬─────┘ │
+       │                  │       │
+       │            ┌─────▼─────┐ │
+       │            │   CM      │ │
+       │            │  Review   │ │
+       │            └───────────┘ │
+       └──────────────────────────┘
+                      │
+                      ▼
+              ┌──────────────┐
+              │  Automation  │
+              │   Trigger    │
+              └───────┬──────┘
+                      │
+       ┌──────────────┼──────────────┐
+       │              │              │
+       ▼              ▼              ▼
+  ┌─────────┐   ┌─────────┐   ┌─────────┐
+  │  Slack  │   │  Email  │   │WhatsApp │
+  │ Notify  │   │ Notify  │   │ Notify  │
+  └─────────┘   └─────────┘   └─────────┘
 ```
 
 ---
@@ -402,6 +781,30 @@ GENERATES (for demos):
 | `time-tracking` | Resource Agent | Invoice |
 | `whatsapp` | WhatsApp Gateway | Distribution agents |
 | `workflows` | Workflow Agent | All agents |
+
+#### Engagement Suite Modules (NEW)
+
+| ERP Module | Primary Agent(s) | Supporting Agents |
+|------------|------------------|-------------------|
+| `publisher` | Publisher Agent | Content, Calendar |
+| `content-calendar` | Publisher Agent | Studio agents |
+| `reply` | Reply Agent | CRM, Channel |
+| `channel` | Channel Agent | All gateways, Publisher |
+| `unified-inbox` | Reply Agent | Channel |
+| `auto-responder` | Reply Agent | Knowledge |
+| `crisis-escalation` | Reply Agent | Workflow |
+
+#### Extended Modules (NEW - Tier 4)
+
+| ERP Module | Primary Agent(s) | Key Verticals |
+|------------|------------------|---------------|
+| `entities` | Entities Manager | Recruitment, Events, Training |
+| `scheduler` | Scheduler Agent | Consulting, Legal, Training |
+| `deadlines` | Deadline Tracker | Legal, Accounting, Architecture |
+| `inventory` | Inventory Manager | Events, IT, Architecture |
+| `contracts` | Contract Agent | All verticals |
+| `tickets` | Ticket Handler | IT Consulting |
+| `vault` | Vault Agent | Legal, Accounting |
 
 ---
 
@@ -677,32 +1080,32 @@ Key metrics to track:
 ### 7.1 Certification Levels
 
 ```
-                    ┌─────────────────────┐
-                    │      EXPERT         │
-                    │   (All tracks +     │
-                    │    contribution)    │
-                    └──────────┬──────────┘
-                               │
-           ┌───────────────────┼───────────────────┐
-           │                   │                   │
-           ▼                   ▼                   ▼
-   ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-   │  SPECIALIST   │   │  SPECIALIST   │   │  SPECIALIST   │
-   │   Creative    │   │    Media      │   │  Operations   │
-   └───────────────┘   └───────────────┘   └───────────────┘
-           │                   │                   │
-           └───────────────────┼───────────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │    PRACTITIONER     │
-                    │  (Foundation + 1    │
-                    │      track)         │
-                    └──────────┬──────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │     FOUNDATION      │
-                    │    (Required)       │
-                    └─────────────────────┘
+                         ┌─────────────────────┐
+                         │      EXPERT         │
+                         │   (All tracks +     │
+                         │    contribution)    │
+                         └──────────┬──────────┘
+                                    │
+    ┌───────────────┬───────────────┼───────────────┬───────────────┐
+    │               │               │               │               │
+    ▼               ▼               ▼               ▼               ▼
+┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐   ┌─────────┐
+│SPECIALIST│   │SPECIALIST│   │SPECIALIST│   │SPECIALIST│   │SPECIALIST│
+│Creative │   │  Media   │   │Operations│   │Engagement│   │Verticals │
+└─────────┘   └─────────┘   └─────────┘   └─────────┘   └─────────┘
+    │               │               │               │               │
+    └───────────────┴───────────────┼───────────────┴───────────────┘
+                                    │
+                         ┌──────────▼──────────┐
+                         │    PRACTITIONER     │
+                         │  (Foundation + 1    │
+                         │      track)         │
+                         └──────────┬──────────┘
+                                    │
+                         ┌──────────▼──────────┐
+                         │     FOUNDATION      │
+                         │    (Required)       │
+                         └─────────────────────┘
 ```
 
 ### 7.2 Certification Requirements
@@ -726,13 +1129,32 @@ Key metrics to track:
 - Practitioner Certified
 - Complete Advanced Specialization (16 hours)
 - Pass advanced exam (80% minimum)
-- Complete 10 hands-on labs
+- Complete 10 hands-on labs (including track-specific labs)
 - Submit 2 case studies
 - Contribute 1 improvement (documentation, tool, or prompt)
 
+##### Engagement Specialist Requirements (NEW)
+
+- Complete Engagement Track (12 hours)
+- Pass Engagement exam (80% minimum)
+- Complete E-LAB-01 through E-LAB-09
+- Demonstrate proficiency in:
+  - Publisher multi-platform preview configuration
+  - Reply crisis escalation protocol setup
+  - Channel natural language flow design
+  - Full engagement pipeline integration
+
+##### Verticals Specialist Requirements (NEW)
+
+- Complete Verticals Track (8 hours)
+- Pass Verticals exam (80% minimum)
+- Complete V-LAB-01 through V-LAB-03
+- Configure at least 3 different industry verticals
+- Demonstrate extended module configuration
+
 #### Expert Certified
 
-- All three Specialist certifications
+- All five Specialist certifications (Creative, Media, Operations, Engagement, Verticals)
 - Contribute significant improvement (new agent, major feature)
 - Mentor 2 practitioners
 - Present at internal training session
@@ -786,6 +1208,28 @@ Each participant gets:
 | O-LAB-03: Resource Planning | 1 hr | Allocate resources to project |
 | O-LAB-04: Approval Workflow | 1 hr | Route content through approvals |
 
+#### Engagement Labs (NEW)
+
+| Lab | Duration | Objective |
+|-----|----------|-----------|
+| E-LAB-01: Publisher Preview Modes | 1 hr | Configure multi-platform preview modes (Website, IG, X, LinkedIn, TikTok, Email) |
+| E-LAB-02: Content Queue Workflow | 1.5 hr | Build Studio → Content Calendar → Publisher Queue workflow |
+| E-LAB-03: Reply Unified Inbox | 1 hr | Set up unified inbox consolidating Social, Email, Website, Messaging |
+| E-LAB-04: Crisis Escalation Setup | 1.5 hr | Configure 4-level crisis escalation protocols with leadership alerts |
+| E-LAB-05: Auto-Responder Config | 1 hr | Create auto-responders with time, keyword, sentiment, and customer triggers |
+| E-LAB-06: Channel Visual Flows | 1.5 hr | Build automation flows using drag-and-drop canvas |
+| E-LAB-07: Natural Language Flows | 1 hr | Design flows using natural language descriptions |
+| E-LAB-08: Reply-from-Anywhere | 1 hr | Configure Slack, Email, WhatsApp, SMS response integration |
+| E-LAB-09: Full Engagement Pipeline | 2 hr | End-to-end: Content → Publish → Reply → Channel orchestration |
+
+#### Verticals Labs (NEW)
+
+| Lab | Duration | Objective |
+|-----|----------|-----------|
+| V-LAB-01: Vertical Config | 1 hr | Configure engagement modules for specific vertical |
+| V-LAB-02: Extended Modules | 1.5 hr | Set up Entities, Scheduler, Contracts for Recruitment vertical |
+| V-LAB-03: Event Management Setup | 2 hr | Full event vertical with entities, scheduler, inventory, vault |
+
 #### Advanced Labs
 
 | Lab | Duration | Objective |
@@ -794,6 +1238,8 @@ Each participant gets:
 | A-LAB-02: Custom Agent | 2 hr | Create a custom specialized agent |
 | A-LAB-03: Tool Development | 2 hr | Add new tool to existing agent |
 | A-LAB-04: Analytics Deep Dive | 2 hr | Use Instance Analytics for insights |
+| A-LAB-05: Engagement Suite Integration | 2 hr | Full Publisher + Reply + Channel integration |
+| A-LAB-06: Vertical Customization | 2 hr | Customize extended modules for new industry vertical |
 
 ---
 
@@ -842,6 +1288,22 @@ Each participant gets:
 4. Complete client onboarding workflow
 5. Troubleshoot workflow automation
 
+#### Engagement Practical (NEW)
+
+1. Configure Publisher with multi-platform preview modes
+2. Set up Reply unified inbox with FAQ integration
+3. Create auto-responder with sentiment-based triggers
+4. Design Channel flow using natural language
+5. Complete crisis escalation scenario (Level 3)
+
+#### Verticals Practical (NEW)
+
+1. Configure engagement modules for Event Management vertical
+2. Set up extended modules (Entities, Scheduler, Inventory)
+3. Build vertical-specific workflow with contracts and vault
+4. Migrate configuration between verticals
+5. Generate vertical compliance report
+
 ---
 
 ## 10. Resources & Reference Materials
@@ -850,10 +1312,11 @@ Each participant gets:
 
 | Resource | Location | Description |
 |----------|----------|-------------|
-| Agent Directory | `docs/AGENTS.md` | All 46 agents with tools |
+| Agent Directory | `docs/AGENTS.md` | All 49+ agents with tools |
 | API Reference | `/docs` endpoint | OpenAPI specification |
 | Architecture | `README.md` | System architecture |
 | Context Recovery | `CONTEXT.md` | Session continuity |
+| Training Spec | `docs/TRAINING_SPEC.md` | This document |
 
 ### 10.2 Quick Reference
 
@@ -907,6 +1370,16 @@ GET  /api/v1/health            - Health check
 | **Moodboard** | Human-curated visual inspiration for creative agents |
 | **Gateway** | Agent that handles message delivery (WhatsApp, Email, etc.) |
 | **Handoff** | Transfer of context from one agent to another |
+| **Engagement Suite** | Tier 5 modules: Publisher, Reply, Channel for content distribution and customer engagement |
+| **Extended Module** | Tier 4 configurable primitives (Entities, Scheduler, Deadlines, Inventory, Contracts, Tickets, Vault) |
+| **Publisher** | WYSIWYG publishing hub with multi-platform preview and scheduling |
+| **Reply** | Unified inbox with AI-suggested responses and crisis escalation |
+| **Channel** | Omnichannel orchestration layer with visual flow design |
+| **Unified Inbox** | Consolidated view of messages from Social, Email, Website, Messaging, Reviews |
+| **Crisis Escalation** | 4-level protocol for handling negative sentiment and emergencies |
+| **Natural Language Flow** | Describing automation workflows in plain English |
+| **Vertical** | Industry-specific configuration (e.g., Marketing Agency, Legal Services) |
+| **Module Tier** | Hierarchical organization of platform modules (Tiers 1-5) |
 
 ---
 
@@ -914,14 +1387,25 @@ GET  /api/v1/health            - Health check
 
 | Agent | Tools | Category |
 |-------|-------|----------|
-| Instance Onboarding | 32 | Client |
-| Instance Success | 33 | Client |
-| Instance Analytics | 25 | Client |
-| Commercial Agent | 8 | Foundation |
-| Content Agent | 7 | Foundation |
-| Brief Agent | 6 | Foundation |
-| RFP Agent | 5 | Foundation |
+| Instance Onboarding | 32 | Platform & Lifecycle |
+| Instance Success | 33 | Platform & Lifecycle |
+| Instance Analytics | 25 | Platform & Lifecycle |
+| Channel Agent | 12 | Engagement Suite (NEW) |
+| Reply Agent | 10 | Engagement Suite (NEW) |
+| Publisher Agent | 8 | Engagement Suite (NEW) |
+| Commercial Agent | 8 | Business Operations |
+| Content Agent | 7 | Business Operations |
+| Brief Agent | 6 | Business Operations |
+| RFP Agent | 5 | Business Operations |
 | All other agents | 4-6 | Various |
+
+### Engagement Suite Tool Summary
+
+| Agent | Tool Count | Primary Capabilities |
+|-------|------------|---------------------|
+| **Publisher** | 8 | preview_content, schedule_post, manage_queue, publish_now, get_optimal_times, format_for_platform, sync_calendar, validate_content |
+| **Reply** | 10 | unify_inbox, analyze_sentiment, suggest_response, manage_faq, configure_autoresponder, escalate_crisis, route_to_team, trigger_delight, log_interaction, generate_csat |
+| **Channel** | 12 | design_flow, parse_nl_flow, connect_platform, sync_channels, route_message, configure_webhook, manage_queue, reply_anywhere, track_conversation, analyze_channel, set_triggers, handoff_human |
 
 ---
 
@@ -930,25 +1414,161 @@ GET  /api/v1/health            - Health check
 ```
 WEEK 1: Foundation
 ├── Day 1-2: Platform Overview & Agent Fundamentals
-├── Day 3-4: ERP Integration
+├── Day 3-4: ERP Integration + Module Tier Architecture
 └── Day 5: Basic Operations + Labs
 
-WEEK 2: Specialized Track (Choose One)
+WEEK 2: Specialized Track (Choose One: Creative/Media/Operations/Engagement)
 ├── Day 1-2: Track-specific Module 1 & 2
 ├── Day 3-4: Track-specific Module 3 & 4
 └── Day 5: Labs + Assessment Prep
 
+WEEK 2.5: Verticals Track (Optional but Recommended)
+├── Day 1: Module Tier Architecture (Tiers 1-5)
+├── Day 2-3: Engagement Module Assignment (15 verticals)
+└── Day 4: Extended Module Configuration + Labs
+
 WEEK 3: Advanced (For Specialists)
 ├── Day 1: Instance Lifecycle
-├── Day 2: Agent Customization
+├── Day 2: Agent Customization + Engagement Suite
 ├── Day 3: Integration Development
 ├── Day 4: Scaling & Performance
 └── Day 5: Final Assessment + Certification
+
+ENGAGEMENT TRACK SCHEDULE (12 hours)
+├── Day 1 (3 hrs): Publisher Agent - Multi-platform preview, queue management
+├── Day 2 (3 hrs): Reply Agent - Unified inbox, crisis escalation
+├── Day 3 (3 hrs): Channel Agent - Omnichannel orchestration, flow design
+└── Day 4 (3 hrs): Integration Labs - Full engagement pipeline
 ```
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2026-01-06
-**Maintained By**: Platform Team
+## Appendix C: Type Definitions (NEW)
+
+### Engagement Module Types
+
+```typescript
+// Engagement module types (Tier 5)
+export type EngagementModule = "publisher" | "reply" | "channel";
+
+// Extended module types (Tier 4)
+export type ExtendedModule =
+  | "entities"
+  | "scheduler"
+  | "deadlines"
+  | "inventory"
+  | "contracts"
+  | "tickets"
+  | "vault";
+
+// Platform module types
+export type PlatformModule =
+  | "hub" | "team" | "clients" | "admin" | "superadmin"  // Tier 1
+  | "briefs" | "projects" | "boards" | "workflows"       // Tier 2
+  | "time" | "resources" | "leave"                       // Tier 2
+  | "finance" | "crm" | "rfp" | "chat"                   // Tier 2
+  | "studio" | "marketing" | "learning" | "feedback";    // Tier 3
+
+// Vertical configuration now includes engagement and extended modules
+export interface VerticalConfiguration {
+  vertical: IndustryVertical;
+  modules: {
+    core: PlatformModule[];           // Required modules
+    recommended: PlatformModule[];    // Suggested modules
+    optional: PlatformModule[];       // Available add-ons
+    engagement?: EngagementModule[];  // NEW: Tier 5 engagement modules
+    extended?: ExtendedModule[];      // NEW: Tier 4 extended modules
+  };
+  features: VerticalFeatures;
+  branding: VerticalBranding;
+}
+
+// 15 Industry Verticals
+export type IndustryVertical =
+  | "marketing_agency"
+  | "pr_communications"
+  | "creative_studio"
+  | "event_management"
+  | "consulting_firm"
+  | "recruitment_agency"
+  | "it_consulting"
+  | "legal_services"
+  | "accounting_firm"
+  | "hr_consulting"
+  | "architecture_design"
+  | "engineering_consultancy"
+  | "project_management"
+  | "training_development"
+  | "translation_services";
+
+// Publisher preview modes
+export type PublisherPreviewMode =
+  | "website"
+  | "instagram"
+  | "twitter"
+  | "facebook"
+  | "linkedin"
+  | "tiktok"
+  | "email";
+
+// Reply auto-responder trigger types
+export type AutoResponderTrigger =
+  | "time"        // Off-hours, holidays
+  | "keyword"     // FAQ matching
+  | "sentiment"   // Negative/positive detection
+  | "customer";   // VIP, new, at-risk
+
+// Crisis escalation levels
+export type CrisisLevel = 1 | 2 | 3 | 4;
+
+export interface CrisisProtocol {
+  level: CrisisLevel;
+  actions: string[];
+  notify: string[];     // Team members to alert
+  sla: number;          // Response time in minutes
+}
+```
+
+### Publisher Routes
+
+```typescript
+export const PUBLISHER_ROUTES = {
+  base: "/publisher",
+  create: "/publisher/create",
+  drafts: "/publisher/drafts",
+  scheduled: "/publisher/scheduled",
+  preview: "/publisher/preview",
+} as const;
+```
+
+### Reply Routes
+
+```typescript
+export const REPLY_ROUTES = {
+  base: "/reply",
+  inbox: "/reply/inbox",
+  assigned: "/reply/assigned",
+  faq: "/reply/faq",
+  auto: "/reply/auto",
+  escalation: "/reply/escalation",
+} as const;
+```
+
+### Channel Routes
+
+```typescript
+export const CHANNEL_ROUTES = {
+  base: "/channel",
+  inbox: "/channel/inbox",
+  connections: "/channel/connections",
+  flows: "/channel/flows",
+} as const;
+```
+
+---
+
+**Document Version**: 2.0
+**Last Updated**: 2026-01-13
+**Maintained By**: SpokeStack Platform Team
 **Review Cycle**: Quarterly
+**Change Summary**: Added Engagement Suite (Tier 5), Extended Modules (Tier 4), 15 Industry Verticals, 3 new agents (Publisher, Reply, Channel)
