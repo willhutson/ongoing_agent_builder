@@ -1643,7 +1643,1009 @@ async def _build_system_prompt(self, context: AgentContext) -> str:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 9.12 Key Takeaways
+### 9.12 Agent Version Control System
+
+**Problem**: Global updates might break instance-specific optimizations.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     THE VERSION CONTROL PROBLEM                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  SCENARIO: Media Buying Agent v2.3 → v2.4                                  │
+│                                                                             │
+│  Global Update (v2.4):                                                      │
+│  ├── Optimized for: REACH campaigns                                        │
+│  ├── New tool: audience_expansion                                          │
+│  └── Changed: bid_strategy defaults to "maximize_reach"                    │
+│                                                                             │
+│  Instance: E-commerce Agency                                                │
+│  ├── Optimized for: PERFORMANCE/ROAS campaigns                             │
+│  ├── Custom skill: roas_optimizer (compensates for v2.3 blind spot)        │
+│  └── Their clients expect: conversion-focused recommendations              │
+│                                                                             │
+│  RISK: v2.4 update could BREAK their optimized workflow!                   │
+│  ├── roas_optimizer skill might conflict with new reach focus              │
+│  ├── Bid strategy change affects all client campaigns                      │
+│  └── Instance owner has no warning, no way to test first                   │
+│                                                                             │
+│  SOLUTION: Version Control + Sandbox + Notification System                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Version Control Principles
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      VERSION CONTROL PRINCIPLES                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. INSTANCE OWNERS CONTROL THEIR UPGRADES                                 │
+│     ├── Pin to specific version                                            │
+│     ├── Choose update policy (auto, staged, manual)                        │
+│     └── Roll back if needed                                                │
+│                                                                             │
+│  2. TRANSPARENCY BEFORE UPDATES                                            │
+│     ├── What changed (tools, prompts, behavior)                            │
+│     ├── Impact analysis on YOUR instance skills                            │
+│     └── Recommendation (safe to update, review first, potential conflict)  │
+│                                                                             │
+│  3. TEST BEFORE DEPLOY                                                     │
+│     ├── Sandbox environment with real instance data                        │
+│     ├── Side-by-side comparison (current vs new)                           │
+│     └── Approval workflow before promotion                                 │
+│                                                                             │
+│  4. PRESERVE WHAT WORKS                                                    │
+│     ├── Instance skills that outperform global may be kept                 │
+│     ├── Skill-to-core promotion path (good skills → platform features)    │
+│     └── Version branches for different use cases                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.13 Version Data Model
+
+```python
+class AgentVersion(Base):
+    """Tracks versions of core agents."""
+    __tablename__ = "agent_versions"
+
+    id = Column(UUID, primary_key=True)
+    agent_type = Column(String, nullable=False)  # e.g., "media_buying"
+
+    # Semantic versioning
+    version = Column(String, nullable=False)  # e.g., "2.4.0"
+    major = Column(Integer, nullable=False)
+    minor = Column(Integer, nullable=False)
+    patch = Column(Integer, nullable=False)
+
+    # Version metadata
+    release_date = Column(DateTime, nullable=False)
+    release_notes = Column(Text)  # Markdown changelog
+    breaking_changes = Column(Boolean, default=False)
+
+    # What this version optimizes for (capability tags)
+    optimization_tags = Column(ARRAY(String), default=[])
+    # e.g., ["reach", "brand_awareness"] or ["performance", "roas", "conversions"]
+
+    # Detailed changes
+    changes = Column(JSONB, nullable=False)
+    # Structure:
+    # {
+    #   "tools_added": ["audience_expansion"],
+    #   "tools_removed": [],
+    #   "tools_modified": ["bid_strategy"],
+    #   "prompt_changes": ["Added reach optimization guidance"],
+    #   "behavior_changes": ["Default bid strategy now maximize_reach"],
+    #   "deprecations": []
+    # }
+
+    # Compatibility
+    min_platform_version = Column(String)  # Minimum SpokeStack version
+    deprecated = Column(Boolean, default=False)
+    sunset_date = Column(DateTime, nullable=True)
+
+    # Container reference
+    container_image = Column(String)  # e.g., "spokestack/agents:media-buying-2.4.0"
+
+
+class InstanceVersionConfig(Base):
+    """Per-instance version control settings."""
+    __tablename__ = "instance_version_configs"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+    agent_type = Column(String, nullable=False)
+
+    # Version pinning
+    pinned_version = Column(String, nullable=True)  # null = latest
+    update_policy = Column(String, default="staged")
+    # Policies: "auto" (immediate), "staged" (sandbox first), "manual" (explicit approval)
+
+    # Current state
+    current_version = Column(String, nullable=False)
+    sandbox_version = Column(String, nullable=True)  # Version being tested
+
+    # Preferences
+    optimization_preference = Column(ARRAY(String), default=[])
+    # e.g., ["performance", "roas"] - used for conflict detection
+
+    # History
+    version_history = Column(JSONB, default=[])
+    # [{version, activated_at, activated_by, rollback_reason?}]
+
+    # Notifications
+    notify_on_updates = Column(Boolean, default=True)
+    notify_contacts = Column(ARRAY(String), default=[])  # Email addresses
+
+
+class VersionUpdateNotification(Base):
+    """Notifications about available updates."""
+    __tablename__ = "version_update_notifications"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+    agent_type = Column(String, nullable=False)
+
+    # Update details
+    from_version = Column(String, nullable=False)
+    to_version = Column(String, nullable=False)
+
+    # Analysis results
+    impact_analysis = Column(JSONB)
+    # {
+    #   "skill_conflicts": [...],
+    #   "optimization_mismatch": true/false,
+    #   "recommendation": "safe" | "review" | "caution",
+    #   "recommendation_reason": "...",
+    #   "affected_skills": ["roas_optimizer"],
+    # }
+
+    # Status
+    status = Column(String, default="pending")
+    # "pending", "reviewed", "sandbox_testing", "approved", "rejected", "applied"
+
+    reviewed_by = Column(UUID, ForeignKey("users.id"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    review_notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+```
+
+### 9.14 Update Notification & Impact Analysis
+
+```python
+class UpdateAnalyzer:
+    """Analyzes impact of agent updates on instances."""
+
+    async def analyze_update_impact(
+        self,
+        instance_id: str,
+        agent_type: str,
+        from_version: str,
+        to_version: str,
+    ) -> UpdateImpactReport:
+        """
+        Analyze how an update will affect this specific instance.
+        """
+        # Load instance configuration
+        instance_config = await self._load_instance_config(instance_id, agent_type)
+        instance_skills = await self._load_instance_skills(instance_id, agent_type)
+
+        # Load version details
+        from_ver = await self._load_version(agent_type, from_version)
+        to_ver = await self._load_version(agent_type, to_version)
+
+        # Analyze conflicts
+        conflicts = []
+        affected_skills = []
+
+        # 1. Check optimization mismatch
+        optimization_mismatch = self._check_optimization_mismatch(
+            instance_config.optimization_preference,
+            to_ver.optimization_tags,
+        )
+
+        # 2. Check skill conflicts with new/modified tools
+        for skill in instance_skills:
+            conflict = self._check_skill_conflict(skill, to_ver.changes)
+            if conflict:
+                conflicts.append(conflict)
+                affected_skills.append(skill.name)
+
+        # 3. Check for tool removals that skills depend on
+        if to_ver.changes.get("tools_removed"):
+            for skill in instance_skills:
+                if self._skill_depends_on_tools(skill, to_ver.changes["tools_removed"]):
+                    conflicts.append({
+                        "type": "dependency_removed",
+                        "skill": skill.name,
+                        "removed_tools": to_ver.changes["tools_removed"],
+                        "severity": "critical",
+                    })
+
+        # 4. Generate recommendation
+        recommendation = self._generate_recommendation(
+            conflicts,
+            optimization_mismatch,
+            to_ver.breaking_changes,
+        )
+
+        return UpdateImpactReport(
+            instance_id=instance_id,
+            agent_type=agent_type,
+            from_version=from_version,
+            to_version=to_version,
+            skill_conflicts=conflicts,
+            affected_skills=affected_skills,
+            optimization_mismatch=optimization_mismatch,
+            breaking_changes=to_ver.breaking_changes,
+            recommendation=recommendation.level,  # "safe", "review", "caution"
+            recommendation_reason=recommendation.reason,
+            changes_summary=to_ver.changes,
+            release_notes=to_ver.release_notes,
+        )
+
+    def _check_optimization_mismatch(
+        self,
+        instance_prefs: list[str],
+        version_tags: list[str],
+    ) -> bool:
+        """
+        Check if version optimization focus conflicts with instance preferences.
+        """
+        # Define conflicting optimization pairs
+        CONFLICTS = {
+            "reach": ["performance", "roas", "conversions"],
+            "brand_awareness": ["direct_response", "conversions"],
+            "performance": ["reach", "brand_awareness"],
+        }
+
+        for pref in instance_prefs:
+            conflicting = CONFLICTS.get(pref, [])
+            if any(tag in conflicting for tag in version_tags):
+                return True
+        return False
+
+    def _check_skill_conflict(
+        self,
+        skill: InstanceSkill,
+        changes: dict,
+    ) -> dict | None:
+        """
+        Check if a skill conflicts with version changes.
+        """
+        conflicts = []
+
+        # Check if skill name conflicts with new tool
+        if skill.name in changes.get("tools_added", []):
+            return {
+                "type": "name_collision",
+                "skill": skill.name,
+                "reason": f"New core tool '{skill.name}' has same name as your skill",
+                "severity": "critical",
+                "suggestion": "Rename your skill or disable to use core version",
+            }
+
+        # Check if skill does same thing as modified tool
+        modified_tools = changes.get("tools_modified", [])
+        skill_purpose = self._extract_skill_purpose(skill.description)
+
+        for tool in modified_tools:
+            if self._purposes_overlap(skill_purpose, tool):
+                return {
+                    "type": "functionality_overlap",
+                    "skill": skill.name,
+                    "core_tool": tool,
+                    "reason": f"Core tool '{tool}' was modified and may now cover what your skill does",
+                    "severity": "review",
+                    "suggestion": "Test if core tool now meets your needs",
+                }
+
+        # Check if behavior changes affect skill assumptions
+        behavior_changes = changes.get("behavior_changes", [])
+        for change in behavior_changes:
+            if self._skill_assumes_old_behavior(skill, change):
+                return {
+                    "type": "behavior_assumption",
+                    "skill": skill.name,
+                    "change": change,
+                    "reason": "Your skill may assume old behavior that has changed",
+                    "severity": "review",
+                    "suggestion": "Verify skill still works correctly with new behavior",
+                }
+
+        return None
+
+    def _generate_recommendation(
+        self,
+        conflicts: list,
+        optimization_mismatch: bool,
+        breaking_changes: bool,
+    ) -> Recommendation:
+        """Generate update recommendation based on analysis."""
+
+        critical_conflicts = [c for c in conflicts if c.get("severity") == "critical"]
+        review_conflicts = [c for c in conflicts if c.get("severity") == "review"]
+
+        if critical_conflicts:
+            return Recommendation(
+                level="caution",
+                reason=f"{len(critical_conflicts)} critical conflict(s) detected. "
+                       f"Review required before updating. Consider keeping current "
+                       f"version or updating skills first.",
+            )
+
+        if optimization_mismatch:
+            return Recommendation(
+                level="caution",
+                reason="This update optimizes for different goals than your instance. "
+                       "Your performance-focused skills may conflict with new reach-focused behavior. "
+                       "Recommend sandbox testing before deploying.",
+            )
+
+        if breaking_changes or review_conflicts:
+            return Recommendation(
+                level="review",
+                reason=f"{'Breaking changes in this version. ' if breaking_changes else ''}"
+                       f"{len(review_conflicts)} item(s) to review. "
+                       f"Sandbox testing recommended.",
+            )
+
+        return Recommendation(
+            level="safe",
+            reason="No conflicts detected. Update should be safe to apply.",
+        )
+```
+
+### 9.15 Notification Delivery
+
+```python
+class UpdateNotificationService:
+    """Delivers update notifications to instance owners."""
+
+    async def notify_available_update(
+        self,
+        instance_id: str,
+        agent_type: str,
+        to_version: str,
+    ):
+        """
+        Notify instance about available update with impact analysis.
+        """
+        # Get instance config
+        config = await self._get_version_config(instance_id, agent_type)
+        if not config.notify_on_updates:
+            return
+
+        # Run impact analysis
+        impact = await self.analyzer.analyze_update_impact(
+            instance_id,
+            agent_type,
+            config.current_version,
+            to_version,
+        )
+
+        # Create notification record
+        notification = await self._create_notification(
+            instance_id=instance_id,
+            agent_type=agent_type,
+            from_version=config.current_version,
+            to_version=to_version,
+            impact_analysis=impact.to_dict(),
+        )
+
+        # Build notification content
+        content = self._build_notification_content(impact)
+
+        # Send via configured channels
+        for contact in config.notify_contacts:
+            await self._send_email(
+                to=contact,
+                subject=f"[SpokeStack] {agent_type} Agent Update Available: v{to_version}",
+                body=content,
+            )
+
+        # Also create in-app notification
+        await self._create_in_app_notification(instance_id, notification)
+
+    def _build_notification_content(self, impact: UpdateImpactReport) -> str:
+        """Build human-readable notification content."""
+        content = f"""
+## Agent Update Available
+
+**Agent**: {impact.agent_type}
+**Current Version**: {impact.from_version}
+**New Version**: {impact.to_version}
+
+---
+
+### What's New
+
+{impact.release_notes}
+
+### Changes Summary
+
+**Tools Added**: {', '.join(impact.changes_summary.get('tools_added', [])) or 'None'}
+**Tools Modified**: {', '.join(impact.changes_summary.get('tools_modified', [])) or 'None'}
+**Tools Removed**: {', '.join(impact.changes_summary.get('tools_removed', [])) or 'None'}
+
+**Behavior Changes**:
+{chr(10).join('- ' + c for c in impact.changes_summary.get('behavior_changes', [])) or '- None'}
+
+---
+
+### Impact on Your Instance
+
+**Recommendation**: {impact.recommendation.upper()}
+
+{impact.recommendation_reason}
+
+"""
+        if impact.affected_skills:
+            content += f"""
+### Affected Skills
+
+The following custom skills may be affected by this update:
+
+{chr(10).join('- **' + s + '**' for s in impact.affected_skills)}
+
+"""
+        if impact.skill_conflicts:
+            content += """
+### Detailed Conflicts
+
+"""
+            for conflict in impact.skill_conflicts:
+                content += f"""
+**{conflict['skill']}** ({conflict['severity'].upper()})
+- Type: {conflict['type']}
+- Reason: {conflict['reason']}
+- Suggestion: {conflict['suggestion']}
+
+"""
+
+        if impact.optimization_mismatch:
+            content += """
+### ⚠️ Optimization Mismatch
+
+This update focuses on different optimization goals than your instance preferences.
+Your instance is optimized for **performance/ROAS**, but this update emphasizes **reach/awareness**.
+
+We recommend sandbox testing to ensure your workflows aren't negatively impacted.
+
+"""
+
+        content += """
+---
+
+### Next Steps
+
+1. **Review changes** in your SpokeStack dashboard
+2. **Test in sandbox** (if staged update policy)
+3. **Approve or skip** the update
+
+[View in Dashboard →](https://app.spokestack.io/updates)
+"""
+        return content
+```
+
+### 9.16 Sandbox Testing Environment
+
+```python
+class SandboxEnvironment:
+    """
+    Isolated environment for testing agent updates before deploying.
+    """
+
+    async def create_sandbox(
+        self,
+        instance_id: str,
+        agent_type: str,
+        test_version: str,
+    ) -> SandboxSession:
+        """
+        Create a sandbox for testing a new agent version.
+        """
+        # Get current production config
+        prod_config = await self._get_instance_config(instance_id, agent_type)
+        prod_skills = await self._get_instance_skills(instance_id, agent_type)
+
+        # Create isolated sandbox session
+        sandbox_id = str(uuid.uuid4())
+
+        session = SandboxSession(
+            id=sandbox_id,
+            instance_id=instance_id,
+            agent_type=agent_type,
+            production_version=prod_config.current_version,
+            test_version=test_version,
+            created_at=datetime.utcnow(),
+            expires_at=datetime.utcnow() + timedelta(hours=24),
+            status="active",
+        )
+
+        await self._save_sandbox_session(session)
+
+        return session
+
+    async def run_comparison_test(
+        self,
+        sandbox_id: str,
+        test_task: str,
+        test_context: dict,
+    ) -> ComparisonResult:
+        """
+        Run same task on both production and test versions.
+        Compare outputs side-by-side.
+        """
+        session = await self._get_sandbox_session(sandbox_id)
+
+        # Create both agent versions
+        prod_agent = await self.factory.create_agent(
+            agent_type=session.agent_type,
+            instance_id=session.instance_id,
+            version=session.production_version,
+        )
+
+        test_agent = await self.factory.create_agent(
+            agent_type=session.agent_type,
+            instance_id=session.instance_id,
+            version=session.test_version,
+        )
+
+        # Run task on both
+        context = AgentContext(
+            tenant_id=session.instance_id,
+            task=test_task,
+            metadata={**test_context, "sandbox_mode": True},
+        )
+
+        prod_result, test_result = await asyncio.gather(
+            prod_agent.run(context),
+            test_agent.run(context),
+        )
+
+        # Analyze differences
+        diff_analysis = self._analyze_differences(
+            prod_result,
+            test_result,
+            session.agent_type,
+        )
+
+        comparison = ComparisonResult(
+            sandbox_id=sandbox_id,
+            test_task=test_task,
+            production_output=prod_result.output,
+            test_output=test_result.output,
+            production_tools_used=prod_result.metadata.get("tools_used", []),
+            test_tools_used=test_result.metadata.get("tools_used", []),
+            differences=diff_analysis,
+            timestamp=datetime.utcnow(),
+        )
+
+        # Save for review
+        await self._save_comparison_result(comparison)
+
+        return comparison
+
+    def _analyze_differences(
+        self,
+        prod_result: AgentResult,
+        test_result: AgentResult,
+        agent_type: str,
+    ) -> DiffAnalysis:
+        """Analyze differences between production and test outputs."""
+        differences = []
+
+        # Compare tools used
+        prod_tools = set(prod_result.metadata.get("tools_used", []))
+        test_tools = set(test_result.metadata.get("tools_used", []))
+
+        if prod_tools != test_tools:
+            differences.append({
+                "type": "tools_used",
+                "production": list(prod_tools),
+                "test": list(test_tools),
+                "added": list(test_tools - prod_tools),
+                "removed": list(prod_tools - test_tools),
+            })
+
+        # Compare output length/structure
+        if len(test_result.output) != len(prod_result.output):
+            differences.append({
+                "type": "output_length",
+                "production": len(prod_result.output),
+                "test": len(test_result.output),
+                "change_percent": ((len(test_result.output) - len(prod_result.output))
+                                   / len(prod_result.output) * 100),
+            })
+
+        # Agent-specific comparisons
+        if agent_type == "media_buying":
+            differences.extend(self._compare_media_buying_outputs(
+                prod_result, test_result
+            ))
+        elif agent_type == "rfp":
+            differences.extend(self._compare_rfp_outputs(
+                prod_result, test_result
+            ))
+
+        return DiffAnalysis(
+            has_differences=len(differences) > 0,
+            difference_count=len(differences),
+            details=differences,
+            recommendation=self._recommend_from_diff(differences),
+        )
+
+
+class SandboxSession(Base):
+    """Tracks sandbox testing sessions."""
+    __tablename__ = "sandbox_sessions"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+    agent_type = Column(String, nullable=False)
+
+    production_version = Column(String, nullable=False)
+    test_version = Column(String, nullable=False)
+
+    status = Column(String, default="active")  # active, completed, expired, promoted
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime)
+    completed_at = Column(DateTime, nullable=True)
+
+    # Test results summary
+    tests_run = Column(Integer, default=0)
+    tests_passed = Column(Integer, default=0)  # Where outputs were acceptable
+    comparison_results = Column(JSONB, default=[])
+
+    # Decision
+    decision = Column(String, nullable=True)  # "promote", "reject", "defer"
+    decision_by = Column(UUID, ForeignKey("users.id"), nullable=True)
+    decision_reason = Column(Text, nullable=True)
+```
+
+### 9.17 Version Promotion Workflow
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      VERSION PROMOTION WORKFLOW                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 1. NEW VERSION RELEASED                                              │   │
+│  │    SpokeStack releases Media Buying Agent v2.4.0                    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 2. IMPACT ANALYSIS (Automatic)                                       │   │
+│  │    For each instance:                                                │   │
+│  │    ├── Analyze skill conflicts                                       │   │
+│  │    ├── Check optimization mismatch                                   │   │
+│  │    └── Generate recommendation                                       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 3. NOTIFICATION                                                      │   │
+│  │    Instance owner receives:                                          │   │
+│  │    ├── What changed                                                  │   │
+│  │    ├── Impact on their skills                                        │   │
+│  │    └── Recommendation (safe/review/caution)                         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│              ┌─────────────────────┴─────────────────────┐                 │
+│              ▼                                           ▼                 │
+│  ┌──────────────────────┐                 ┌──────────────────────┐        │
+│  │ UPDATE POLICY: AUTO  │                 │ UPDATE POLICY: STAGED│        │
+│  │                      │                 │ or MANUAL             │        │
+│  │ If recommendation    │                 │                      │        │
+│  │ is "safe":           │                 │ 4. SANDBOX TESTING   │        │
+│  │ → Auto-apply         │                 │    ├── Create sandbox│        │
+│  │                      │                 │    ├── Run test tasks │        │
+│  │ Otherwise:           │                 │    ├── Compare outputs│        │
+│  │ → Create sandbox     │                 │    └── Review diffs   │        │
+│  └──────────────────────┘                 └──────────┬───────────┘        │
+│                                                       │                    │
+│                                                       ▼                    │
+│                                    ┌─────────────────────────────────────┐ │
+│                                    │ 5. DECISION                         │ │
+│                                    │    Instance owner chooses:          │ │
+│                                    │    ├── PROMOTE: Apply update        │ │
+│                                    │    ├── REJECT: Stay on current      │ │
+│                                    │    └── DEFER: Review later          │ │
+│                                    └─────────────────────────────────────┘ │
+│                                                       │                    │
+│                                                       ▼                    │
+│                                    ┌─────────────────────────────────────┐ │
+│                                    │ 6. APPLY OR PIN                     │ │
+│                                    │    If PROMOTE:                      │ │
+│                                    │    → Update current_version         │ │
+│                                    │    → Log in version_history         │ │
+│                                    │                                     │ │
+│                                    │    If REJECT:                       │ │
+│                                    │    → Pin to current version         │ │
+│                                    │    → Mark notification rejected     │ │
+│                                    └─────────────────────────────────────┘ │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.18 Version Control API
+
+```python
+# API endpoints for version control
+
+@router.get("/api/v1/instance/{instance_id}/agents/{agent_type}/versions")
+async def list_available_versions(instance_id: str, agent_type: str):
+    """List all available versions for an agent."""
+    return await version_service.list_versions(agent_type)
+
+
+@router.get("/api/v1/instance/{instance_id}/agents/{agent_type}/version")
+async def get_current_version(instance_id: str, agent_type: str):
+    """Get current version configuration for an instance."""
+    return await version_service.get_instance_version_config(instance_id, agent_type)
+
+
+@router.put("/api/v1/instance/{instance_id}/agents/{agent_type}/version")
+async def update_version_config(
+    instance_id: str,
+    agent_type: str,
+    config: VersionConfigUpdate,
+):
+    """
+    Update version configuration.
+
+    Example:
+    {
+        "pinned_version": "2.3.1",  # null to follow latest
+        "update_policy": "staged",  # "auto", "staged", "manual"
+        "optimization_preference": ["performance", "roas"],
+        "notify_on_updates": true,
+        "notify_contacts": ["admin@agency.com"]
+    }
+    """
+    return await version_service.update_config(instance_id, agent_type, config)
+
+
+@router.post("/api/v1/instance/{instance_id}/agents/{agent_type}/version/rollback")
+async def rollback_version(
+    instance_id: str,
+    agent_type: str,
+    request: RollbackRequest,
+):
+    """
+    Roll back to a previous version.
+
+    Example:
+    {
+        "target_version": "2.3.1",
+        "reason": "v2.4.0 caused issues with ROAS optimization"
+    }
+    """
+    return await version_service.rollback(
+        instance_id, agent_type,
+        request.target_version, request.reason
+    )
+
+
+# Notifications
+@router.get("/api/v1/instance/{instance_id}/updates")
+async def list_pending_updates(instance_id: str):
+    """List all pending update notifications."""
+    return await notification_service.list_pending(instance_id)
+
+
+@router.post("/api/v1/instance/{instance_id}/updates/{notification_id}/review")
+async def review_update(
+    instance_id: str,
+    notification_id: str,
+    review: UpdateReview,
+):
+    """
+    Review an update notification.
+
+    Example:
+    {
+        "decision": "sandbox",  # "approve", "reject", "sandbox", "defer"
+        "notes": "Need to test with our ROAS workflows first"
+    }
+    """
+    return await notification_service.review_update(
+        instance_id, notification_id, review
+    )
+
+
+# Sandbox
+@router.post("/api/v1/instance/{instance_id}/sandbox")
+async def create_sandbox(
+    instance_id: str,
+    request: CreateSandboxRequest,
+):
+    """
+    Create a sandbox for testing a version.
+
+    Example:
+    {
+        "agent_type": "media_buying",
+        "test_version": "2.4.0"
+    }
+    """
+    return await sandbox_service.create_sandbox(
+        instance_id, request.agent_type, request.test_version
+    )
+
+
+@router.post("/api/v1/instance/{instance_id}/sandbox/{sandbox_id}/test")
+async def run_sandbox_test(
+    instance_id: str,
+    sandbox_id: str,
+    test: SandboxTestRequest,
+):
+    """
+    Run a comparison test in the sandbox.
+
+    Example:
+    {
+        "task": "Create a media buying recommendation for this campaign brief",
+        "context": {"campaign_type": "ecommerce", "goal": "roas"}
+    }
+    """
+    return await sandbox_service.run_comparison_test(
+        sandbox_id, test.task, test.context
+    )
+
+
+@router.post("/api/v1/instance/{instance_id}/sandbox/{sandbox_id}/promote")
+async def promote_sandbox_version(
+    instance_id: str,
+    sandbox_id: str,
+    request: PromoteRequest,
+):
+    """
+    Promote tested version to production.
+
+    Example:
+    {
+        "confirm": true,
+        "notes": "Tested with 5 real campaign scenarios, all performed well"
+    }
+    """
+    return await sandbox_service.promote_version(sandbox_id, request.notes)
+```
+
+### 9.19 Instance Owner Dashboard View
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    INSTANCE OWNER DASHBOARD: AGENTS                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ MEDIA BUYING AGENT                                          v2.3.1  │   │
+│  │                                                                      │   │
+│  │ Status: ✅ Production                                               │   │
+│  │ Update Policy: Staged                                               │   │
+│  │ Optimization: Performance, ROAS                                     │   │
+│  │                                                                      │   │
+│  │ ┌─────────────────────────────────────────────────────────────────┐ │   │
+│  │ │ ⚠️  UPDATE AVAILABLE: v2.4.0                                    │ │   │
+│  │ │                                                                 │ │   │
+│  │ │ Recommendation: CAUTION                                         │ │   │
+│  │ │                                                                 │ │   │
+│  │ │ This update focuses on REACH optimization, which may conflict  │ │   │
+│  │ │ with your PERFORMANCE/ROAS preferences.                        │ │   │
+│  │ │                                                                 │ │   │
+│  │ │ Affected Skills:                                               │ │   │
+│  │ │ • roas_optimizer (functionality overlap with new bid_strategy) │ │   │
+│  │ │                                                                 │ │   │
+│  │ │ [View Details] [Test in Sandbox] [Skip This Version]           │ │   │
+│  │ └─────────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                      │   │
+│  │ Your Skills (3):                                                    │   │
+│  │ • roas_optimizer - Optimizes bids for ROAS targets                 │   │
+│  │ • audience_excluder - Excludes low-converting audiences            │   │
+│  │ • budget_pacer - Paces budget for consistent daily spend           │   │
+│  │                                                                      │   │
+│  │ Version History:                                                    │   │
+│  │ • v2.3.1 (current) - Activated Jan 5, 2026                         │   │
+│  │ • v2.3.0 - Activated Dec 12, 2025                                  │   │
+│  │ • v2.2.0 - Activated Nov 1, 2025 (rolled back due to bid issues)  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ SANDBOX: Testing v2.4.0                               Active (22h)  │   │
+│  │                                                                      │   │
+│  │ Tests Run: 5                                                        │   │
+│  │ Results:                                                            │   │
+│  │ • Test 1: E-commerce campaign ✅ Similar output                    │   │
+│  │ • Test 2: Brand awareness     ⚠️  Different tool selection         │   │
+│  │ • Test 3: Retargeting         ✅ Similar output                    │   │
+│  │ • Test 4: Prospecting         ⚠️  Higher reach, lower ROAS focus   │   │
+│  │ • Test 5: Lead gen            ✅ Similar output                    │   │
+│  │                                                                      │   │
+│  │ [Run Another Test] [View Comparison Details]                        │   │
+│  │                                                                      │   │
+│  │ Decision: [Promote to Production] [Reject & Stay on v2.3.1]        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.20 Skill-to-Core Promotion Path
+
+When instance skills consistently outperform core functionality:
+
+```python
+class SkillPromotionService:
+    """
+    Identifies high-performing instance skills that could become core features.
+    """
+
+    async def analyze_skill_performance(
+        self,
+        skill_id: str,
+    ) -> SkillPerformanceReport:
+        """
+        Analyze if a skill is outperforming core agent capabilities.
+        """
+        skill = await self._get_skill(skill_id)
+
+        # Get usage metrics
+        usage = await self._get_skill_usage_metrics(skill_id)
+
+        # Get outcome metrics (if tracked)
+        outcomes = await self._get_skill_outcome_metrics(skill_id)
+
+        # Compare to core tool (if similar exists)
+        core_comparison = None
+        similar_core_tool = await self._find_similar_core_tool(skill)
+        if similar_core_tool:
+            core_comparison = await self._compare_to_core(skill, similar_core_tool)
+
+        return SkillPerformanceReport(
+            skill=skill,
+            usage_count=usage.total_calls,
+            success_rate=usage.success_rate,
+            avg_response_time=usage.avg_response_time,
+            core_comparison=core_comparison,
+            promotion_candidate=self._is_promotion_candidate(usage, outcomes, core_comparison),
+        )
+
+    async def submit_for_core_consideration(
+        self,
+        skill_id: str,
+        instance_id: str,
+        notes: str,
+    ) -> PromotionSubmission:
+        """
+        Submit a skill for consideration as a core platform feature.
+        Instance gets credit/recognition if adopted.
+        """
+        skill = await self._get_skill(skill_id)
+        performance = await self.analyze_skill_performance(skill_id)
+
+        submission = PromotionSubmission(
+            skill_id=skill_id,
+            instance_id=instance_id,
+            skill_definition=skill.to_dict(),
+            performance_report=performance.to_dict(),
+            submitter_notes=notes,
+            status="submitted",
+            created_at=datetime.utcnow(),
+        )
+
+        await self._save_submission(submission)
+        await self._notify_platform_team(submission)
+
+        return submission
+```
+
+### 9.21 Key Takeaways (Updated)
 
 | Concern | Solution |
 |---------|----------|
@@ -1654,6 +2656,12 @@ async def _build_system_prompt(self, context: AgentContext) -> str:
 | **Hot reload** | Config loaded on each agent invocation |
 | **Isolation** | Each instance has separate database |
 | **No code changes** | Skills defined via API, not deployment |
+| **Version control** | Pin versions, staged rollouts, rollback support |
+| **Update transparency** | Notifications with impact analysis |
+| **Conflict detection** | Automatic skill vs update conflict checking |
+| **Safe testing** | Sandbox environment with side-by-side comparison |
+| **Optimization alignment** | Match updates to instance goals |
+| **Skill recognition** | Path to promote great skills to core |
 
 ---
 
