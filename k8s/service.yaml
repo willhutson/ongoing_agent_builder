@@ -1,0 +1,63 @@
+# =============================================================================
+# SpokeStack Services
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: spokestack-agents
+  namespace: spokestack
+  labels:
+    app.kubernetes.io/name: spokestack
+    app.kubernetes.io/component: agents
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: spokestack
+    app.kubernetes.io/component: agents
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP
+
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: spokestack-postgres
+  namespace: spokestack
+  labels:
+    app.kubernetes.io/name: spokestack
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: spokestack
+    app.kubernetes.io/component: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: spokestack-redis
+  namespace: spokestack
+  labels:
+    app.kubernetes.io/name: spokestack
+    app.kubernetes.io/component: redis
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: spokestack
+    app.kubernetes.io/component: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP

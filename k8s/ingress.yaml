@@ -1,0 +1,73 @@
+# =============================================================================
+# SpokeStack Ingress
+# =============================================================================
+# Configures external access to the SpokeStack Agent Service.
+# Supports multiple ingress controllers - uncomment the appropriate annotations.
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spokestack-ingress
+  namespace: spokestack
+  labels:
+    app.kubernetes.io/name: spokestack
+    app.kubernetes.io/component: ingress
+  annotations:
+    # --- NGINX Ingress Controller ---
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+    # --- AWS ALB Ingress Controller ---
+    # kubernetes.io/ingress.class: alb
+    # alb.ingress.kubernetes.io/scheme: internet-facing
+    # alb.ingress.kubernetes.io/target-type: ip
+    # alb.ingress.kubernetes.io/healthcheck-path: /health
+
+    # --- GCP GKE Ingress ---
+    # kubernetes.io/ingress.class: gce
+
+    # --- TLS/SSL (cert-manager) ---
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  # TLS configuration (uncomment and configure for HTTPS)
+  # tls:
+  #   - hosts:
+  #       - agents.spokestack.io
+  #     secretName: spokestack-tls
+
+  rules:
+    - host: agents.spokestack.io  # Replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: spokestack-agents
+                port:
+                  number: 80
+
+---
+# Optional: Ingress for API versioning
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spokestack-api-ingress
+  namespace: spokestack
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /api/v1/$2
+spec:
+  rules:
+    - host: api.spokestack.io
+      http:
+        paths:
+          - path: /v1(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: spokestack-agents
+                port:
+                  number: 80

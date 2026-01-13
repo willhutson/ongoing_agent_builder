@@ -1,0 +1,137 @@
+# =============================================================================
+# SpokeStack Agent Service - Docker Compose
+# =============================================================================
+# Local development and production deployment configuration.
+#
+# Usage:
+#   Development:  docker-compose up -d
+#   Production:   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   Logs:         docker-compose logs -f agents
+#   Stop:         docker-compose down
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # Agent Service (Core Application)
+  # ---------------------------------------------------------------------------
+  agents:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spokestack-agents
+    ports:
+      - "${SERVICE_PORT:-8000}:8000"
+    environment:
+      # Claude API
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-opus-4-5-20250514}
+      # Database
+      - DATABASE_URL=postgresql+asyncpg://spokestack:spokestack@postgres:5432/spokestack
+      # Redis
+      - REDIS_URL=redis://redis:6379/0
+      # ERP (if applicable)
+      - ERP_API_BASE_URL=${ERP_API_BASE_URL:-}
+      - ERP_API_KEY=${ERP_API_KEY:-}
+      # Service
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - spokestack-network
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: spokestack-postgres
+    environment:
+      - POSTGRES_USER=spokestack
+      - POSTGRES_PASSWORD=spokestack
+      - POSTGRES_DB=spokestack
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spokestack -d spokestack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - spokestack-network
+
+  # ---------------------------------------------------------------------------
+  # Redis (Task Queue & Cache)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: spokestack-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - spokestack-network
+
+  # ---------------------------------------------------------------------------
+  # Database Migrations (Run Once)
+  # ---------------------------------------------------------------------------
+  migrations:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spokestack-migrations
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        python -c 'from src.db.session import engine; import asyncio; asyncio.run(engine.dispose())' &&
+        alembic upgrade head &&
+        echo 'Migrations complete!'
+      "
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://spokestack:spokestack@postgres:5432/spokestack
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - spokestack-network
+    profiles:
+      - migrations
+
+# -----------------------------------------------------------------------------
+# Networks
+# -----------------------------------------------------------------------------
+networks:
+  spokestack-network:
+    driver: bridge
+
+# -----------------------------------------------------------------------------
+# Volumes
+# -----------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
