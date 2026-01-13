@@ -14,13 +14,14 @@
 6. [System Prompt Design](#6-system-prompt-design)
 7. [Tool Definition & Implementation](#7-tool-definition--implementation)
 8. [Agent Specialization](#8-agent-specialization)
-9. [ERP Integration Patterns](#9-erp-integration-patterns)
-10. [Advanced Patterns](#10-advanced-patterns)
-11. [Testing & Validation](#11-testing--validation)
-12. [Deployment & Operations](#12-deployment--operations)
-13. [Best Practices](#13-best-practices)
-14. [Troubleshooting](#14-troubleshooting)
-15. [Reference](#15-reference)
+9. [**Instance-Level Deployment & Scaling**](#9-instance-level-deployment--scaling) ⭐ NEW
+10. [ERP Integration Patterns](#10-erp-integration-patterns)
+11. [Advanced Patterns](#11-advanced-patterns)
+12. [Testing & Validation](#12-testing--validation)
+13. [Deployment & Operations](#13-deployment--operations)
+14. [Best Practices](#14-best-practices)
+15. [Troubleshooting](#15-troubleshooting)
+16. [Reference](#16-reference)
 
 ---
 
@@ -961,9 +962,704 @@ agent = InfluencerAgent(
 
 ---
 
-## 9. ERP Integration Patterns
+## 9. Instance-Level Deployment & Scaling
 
-### 9.1 HTTP Client Setup
+This section addresses the critical question: **How do agents scale across SpokeStack instances while allowing instance-specific customization?**
+
+### 9.1 The Scaling Challenge
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         THE SCALING CHALLENGE                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  GLOBAL LEVEL (SpokeStack Platform)                                        │
+│  ├── Core agents maintained by SpokeStack team                             │
+│  ├── Bug fixes and improvements pushed to all instances                    │
+│  └── New capabilities added without breaking customizations                │
+│                                                                             │
+│  INSTANCE LEVEL (Per Tenant)                                               │
+│  ├── Custom skills added for specific workflows                            │
+│  ├── Client-specific rules and preferences                                 │
+│  └── Industry/vertical specializations                                     │
+│                                                                             │
+│  QUESTION: How do we update globally WITHOUT breaking instance configs?    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Three-Layer Architecture
+
+SpokeStack uses a **three-layer inheritance model** that separates concerns:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      THREE-LAYER AGENT ARCHITECTURE                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  LAYER 1: CORE AGENTS (Global - Immutable by Instances)                    │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  • Base agent classes (Python code)                                  │   │
+│  │  • Core tools and capabilities                                       │   │
+│  │  • Default system prompts                                            │   │
+│  │  • Deployed via container updates                                    │   │
+│  │  • Version controlled, tested, stable                                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼ inherits                               │
+│  LAYER 2: INSTANCE CONFIGURATION (Per-Tenant - Database)                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  • Enabled/disabled agents per instance                              │   │
+│  │  • Enabled/disabled skills per agent                                 │   │
+│  │  • Instance-level prompt extensions                                  │   │
+│  │  • Custom tool configurations                                        │   │
+│  │  • Stored in tenant database, hot-reloadable                        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼ extends                                │
+│  LAYER 3: SKILL EXTENSIONS (Instance-Defined - Database/Code)              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  • Custom skills (new tools) added by instance                       │   │
+│  │  • Client-specific integrations                                      │   │
+│  │  • Webhook-based tool execution                                      │   │
+│  │  • Can be added without platform deployment                         │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.3 Data Model for Instance Configuration
+
+```python
+# Database schema for instance-level agent configuration
+
+class InstanceAgentConfig(Base):
+    """Per-instance agent configuration stored in database."""
+    __tablename__ = "instance_agent_configs"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+    agent_type = Column(String, nullable=False)  # e.g., "rfp", "copy", "influencer"
+
+    # Enable/disable
+    enabled = Column(Boolean, default=True)
+
+    # Prompt extensions (appended to base system prompt)
+    prompt_extension = Column(Text, nullable=True)
+
+    # Specialization overrides
+    default_vertical = Column(String, nullable=True)
+    default_region = Column(String, nullable=True)
+    default_language = Column(String, default="en")
+
+    # Tool access control
+    disabled_tools = Column(ARRAY(String), default=[])  # Tools to hide
+
+    # Skill extensions (references to InstanceSkill records)
+    skills = relationship("InstanceSkill", back_populates="agent_config")
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+
+
+class InstanceSkill(Base):
+    """Custom skills added at the instance level."""
+    __tablename__ = "instance_skills"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+    agent_config_id = Column(UUID, ForeignKey("instance_agent_configs.id"))
+
+    # Skill definition
+    name = Column(String, nullable=False)  # e.g., "query_custom_crm"
+    description = Column(Text, nullable=False)  # For Claude to understand
+    input_schema = Column(JSONB, nullable=False)  # JSON Schema
+
+    # Execution method
+    execution_type = Column(String, nullable=False)  # "webhook", "internal", "script"
+    webhook_url = Column(String, nullable=True)  # For webhook execution
+    webhook_auth = Column(JSONB, nullable=True)  # Encrypted auth config
+    internal_handler = Column(String, nullable=True)  # For internal execution
+
+    # Access control
+    enabled = Column(Boolean, default=True)
+    requires_approval = Column(Boolean, default=False)
+
+    # Metadata
+    created_by = Column(UUID, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    agent_config = relationship("InstanceAgentConfig", back_populates="skills")
+```
+
+### 9.4 Runtime Agent Assembly
+
+When an agent is invoked, it's **assembled at runtime** from all three layers:
+
+```python
+class AgentFactory:
+    """Factory that assembles agents with instance-specific configuration."""
+
+    def __init__(self, db: AsyncSession, skill_executor: SkillExecutor):
+        self.db = db
+        self.skill_executor = skill_executor
+
+    async def create_agent(
+        self,
+        agent_type: str,
+        instance_id: str,
+        client: AsyncAnthropic,
+        model: str,
+        erp_base_url: str,
+        erp_api_key: str,
+    ) -> BaseAgent:
+        """
+        Assemble an agent with instance-specific configuration.
+
+        1. Load base agent class (Layer 1)
+        2. Load instance config from database (Layer 2)
+        3. Load instance skills (Layer 3)
+        4. Return configured agent
+        """
+        # Layer 1: Get base agent class
+        agent_class = self._get_agent_class(agent_type)
+
+        # Layer 2: Load instance configuration
+        config = await self._load_instance_config(instance_id, agent_type)
+
+        # Layer 3: Load instance skills
+        skills = await self._load_instance_skills(instance_id, agent_type)
+
+        # Create agent with all layers
+        agent = agent_class(
+            client=client,
+            model=model,
+            erp_base_url=erp_base_url,
+            erp_api_key=erp_api_key,
+            # Pass instance configuration
+            instance_config=config,
+            instance_skills=skills,
+            skill_executor=self.skill_executor,
+        )
+
+        return agent
+
+    def _get_agent_class(self, agent_type: str) -> type[BaseAgent]:
+        """Map agent type to class (Layer 1)."""
+        AGENT_REGISTRY = {
+            "rfp": RFPAgent,
+            "copy": CopyAgent,
+            "influencer": InfluencerAgent,
+            "brief": BriefAgent,
+            # ... all agents
+        }
+        return AGENT_REGISTRY[agent_type]
+
+    async def _load_instance_config(
+        self, instance_id: str, agent_type: str
+    ) -> InstanceAgentConfig | None:
+        """Load instance config from database (Layer 2)."""
+        result = await self.db.execute(
+            select(InstanceAgentConfig).where(
+                InstanceAgentConfig.instance_id == instance_id,
+                InstanceAgentConfig.agent_type == agent_type,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def _load_instance_skills(
+        self, instance_id: str, agent_type: str
+    ) -> list[InstanceSkill]:
+        """Load instance skills from database (Layer 3)."""
+        result = await self.db.execute(
+            select(InstanceSkill)
+            .join(InstanceAgentConfig)
+            .where(
+                InstanceAgentConfig.instance_id == instance_id,
+                InstanceAgentConfig.agent_type == agent_type,
+                InstanceSkill.enabled == True,
+            )
+        )
+        return result.scalars().all()
+```
+
+### 9.5 Skill Extension System
+
+Skills are **instance-defined tools** that extend agent capabilities without modifying core code:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SKILL EXTENSION SYSTEM                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  SKILL TYPES:                                                               │
+│                                                                             │
+│  1. WEBHOOK SKILLS                                                          │
+│     ├── Tool calls external HTTP endpoint                                   │
+│     ├── Instance provides URL + auth                                        │
+│     ├── Response mapped back to agent                                       │
+│     └── Example: Query custom CRM, trigger Zapier workflow                  │
+│                                                                             │
+│  2. INTERNAL SKILLS                                                         │
+│     ├── Tool calls registered internal handler                              │
+│     ├── Runs within agent service                                           │
+│     ├── Access to ERP data                                                  │
+│     └── Example: Custom report generator, specialized analyzer              │
+│                                                                             │
+│  3. SCRIPT SKILLS (Future)                                                  │
+│     ├── Sandboxed code execution                                            │
+│     ├── Instance uploads transformation logic                               │
+│     └── Example: Custom data transformations                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Webhook Skill Example
+
+```python
+# Instance adds this skill via API or UI
+
+skill_definition = {
+    "name": "query_hubspot_deals",
+    "description": "Query HubSpot CRM for deal information. Use this when "
+                   "the user asks about sales pipeline, deal status, or "
+                   "revenue projections.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "status": {
+                "type": "string",
+                "enum": ["open", "won", "lost", "all"],
+                "description": "Filter by deal status",
+            },
+            "min_value": {
+                "type": "number",
+                "description": "Minimum deal value",
+            },
+            "owner_email": {
+                "type": "string",
+                "description": "Filter by deal owner email",
+            },
+        },
+    },
+    "execution_type": "webhook",
+    "webhook_url": "https://instance-api.example.com/hubspot/deals",
+    "webhook_auth": {
+        "type": "bearer",
+        "token_env": "HUBSPOT_INTEGRATION_TOKEN",  # Stored encrypted
+    },
+}
+```
+
+#### Skill Executor
+
+```python
+class SkillExecutor:
+    """Executes instance-defined skills."""
+
+    def __init__(self, http_client: httpx.AsyncClient):
+        self.http_client = http_client
+
+    async def execute(
+        self,
+        skill: InstanceSkill,
+        input_data: dict,
+        context: AgentContext,
+    ) -> dict:
+        """Execute a skill based on its type."""
+
+        if skill.execution_type == "webhook":
+            return await self._execute_webhook(skill, input_data, context)
+        elif skill.execution_type == "internal":
+            return await self._execute_internal(skill, input_data, context)
+        else:
+            return {"error": f"Unknown execution type: {skill.execution_type}"}
+
+    async def _execute_webhook(
+        self,
+        skill: InstanceSkill,
+        input_data: dict,
+        context: AgentContext,
+    ) -> dict:
+        """Execute webhook-based skill."""
+        headers = {"Content-Type": "application/json"}
+
+        # Add authentication
+        if skill.webhook_auth:
+            auth_type = skill.webhook_auth.get("type")
+            if auth_type == "bearer":
+                token = await self._get_secret(skill.webhook_auth["token_env"])
+                headers["Authorization"] = f"Bearer {token}"
+            elif auth_type == "api_key":
+                headers[skill.webhook_auth["header"]] = await self._get_secret(
+                    skill.webhook_auth["key_env"]
+                )
+
+        try:
+            response = await self.http_client.post(
+                skill.webhook_url,
+                json={
+                    "input": input_data,
+                    "context": {
+                        "instance_id": context.tenant_id,
+                        "user_id": context.user_id,
+                    },
+                },
+                headers=headers,
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            return response.json()
+
+        except httpx.TimeoutException:
+            return {"error": "Skill webhook timed out", "retry": True}
+        except httpx.HTTPStatusError as e:
+            return {"error": f"Skill webhook error: {e.response.status_code}"}
+```
+
+### 9.6 Agent with Instance Configuration
+
+Here's how a base agent incorporates instance configuration:
+
+```python
+class BaseAgent(ABC):
+    """Base agent with instance configuration support."""
+
+    def __init__(
+        self,
+        client: AsyncAnthropic,
+        model: str,
+        # Instance configuration (Layer 2 & 3)
+        instance_config: InstanceAgentConfig | None = None,
+        instance_skills: list[InstanceSkill] | None = None,
+        skill_executor: SkillExecutor | None = None,
+    ):
+        self.client = client
+        self.model = model
+        self.instance_config = instance_config
+        self.instance_skills = instance_skills or []
+        self.skill_executor = skill_executor
+
+        # Build final tool list (core + instance skills)
+        self.tools = self._build_tools()
+
+    def _build_tools(self) -> list[dict]:
+        """Assemble tools from core + instance skills."""
+        # Start with core tools
+        tools = self._define_tools()
+
+        # Remove disabled tools (from instance config)
+        if self.instance_config and self.instance_config.disabled_tools:
+            tools = [
+                t for t in tools
+                if t["name"] not in self.instance_config.disabled_tools
+            ]
+
+        # Add instance skills as tools
+        for skill in self.instance_skills:
+            tools.append({
+                "name": skill.name,
+                "description": skill.description,
+                "input_schema": skill.input_schema,
+                "_is_instance_skill": True,  # Internal marker
+                "_skill_id": str(skill.id),
+            })
+
+        return tools
+
+    @property
+    def system_prompt(self) -> str:
+        """Build system prompt with instance extensions."""
+        base_prompt = self._base_system_prompt()
+
+        # Add instance prompt extension
+        if self.instance_config and self.instance_config.prompt_extension:
+            base_prompt += f"\n\n## Instance-Specific Instructions\n\n"
+            base_prompt += self.instance_config.prompt_extension
+
+        return base_prompt
+
+    @abstractmethod
+    def _base_system_prompt(self) -> str:
+        """Core system prompt (Layer 1)."""
+        pass
+
+    async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
+        """Execute tool - core or instance skill."""
+        # Check if this is an instance skill
+        for skill in self.instance_skills:
+            if skill.name == tool_name:
+                return await self.skill_executor.execute(
+                    skill, tool_input, self.current_context
+                )
+
+        # Otherwise execute core tool
+        return await self._execute_core_tool(tool_name, tool_input)
+
+    @abstractmethod
+    async def _execute_core_tool(self, tool_name: str, tool_input: dict) -> Any:
+        """Execute core tool (Layer 1)."""
+        pass
+```
+
+### 9.7 Update Propagation Model
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        UPDATE PROPAGATION MODEL                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  GLOBAL UPDATES (Layer 1)                                                   │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  1. SpokeStack team updates core agent code                          │   │
+│  │  2. New container image built and tested                             │   │
+│  │  3. Rolling deployment to all instances                              │   │
+│  │  4. Instance configs (Layer 2) preserved - stored in database       │   │
+│  │  5. Instance skills (Layer 3) preserved - stored in database        │   │
+│  │                                                                       │   │
+│  │  Result: All instances get improvements, customizations intact       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  INSTANCE UPDATES (Layer 2 & 3)                                            │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  1. Instance admin updates config via API/UI                         │   │
+│  │  2. Changes saved to instance database                               │   │
+│  │  3. Next agent invocation picks up new config (hot reload)          │   │
+│  │  4. No platform deployment required                                  │   │
+│  │                                                                       │   │
+│  │  Result: Instance customization without affecting other instances    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  CONFLICT RESOLUTION                                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │  • Instance config EXTENDS, never replaces core behavior            │   │
+│  │  • Disabled tools respected (instance can hide, not add core tools) │   │
+│  │  • Prompt extensions appended, not replaced                         │   │
+│  │  • Skill names must not conflict with core tool names               │   │
+│  │  • Version compatibility checked on deployment                       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.8 Instance Configuration API
+
+```python
+# API endpoints for instance configuration
+
+@router.get("/api/v1/instance/{instance_id}/agents")
+async def list_agent_configs(instance_id: str):
+    """List all agent configurations for an instance."""
+    return await agent_config_service.list_configs(instance_id)
+
+
+@router.put("/api/v1/instance/{instance_id}/agents/{agent_type}")
+async def update_agent_config(
+    instance_id: str,
+    agent_type: str,
+    config: AgentConfigUpdate,
+):
+    """
+    Update agent configuration for an instance.
+
+    Example:
+    {
+        "enabled": true,
+        "prompt_extension": "Always respond in formal British English.",
+        "default_vertical": "luxury_fashion",
+        "default_region": "eu",
+        "disabled_tools": ["generate_budget"]
+    }
+    """
+    return await agent_config_service.update_config(
+        instance_id, agent_type, config
+    )
+
+
+@router.post("/api/v1/instance/{instance_id}/agents/{agent_type}/skills")
+async def add_skill(
+    instance_id: str,
+    agent_type: str,
+    skill: SkillCreate,
+):
+    """
+    Add a custom skill to an agent for this instance.
+
+    Example:
+    {
+        "name": "query_salesforce",
+        "description": "Query Salesforce for opportunity data...",
+        "input_schema": {...},
+        "execution_type": "webhook",
+        "webhook_url": "https://...",
+        "webhook_auth": {"type": "bearer", "token_env": "SF_TOKEN"}
+    }
+    """
+    return await skill_service.create_skill(instance_id, agent_type, skill)
+
+
+@router.delete("/api/v1/instance/{instance_id}/skills/{skill_id}")
+async def remove_skill(instance_id: str, skill_id: str):
+    """Remove a custom skill."""
+    return await skill_service.delete_skill(instance_id, skill_id)
+
+
+@router.post("/api/v1/instance/{instance_id}/skills/{skill_id}/test")
+async def test_skill(instance_id: str, skill_id: str, test_input: dict):
+    """Test a skill with sample input."""
+    return await skill_service.test_skill(instance_id, skill_id, test_input)
+```
+
+### 9.9 Real-World Scaling Example
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    REAL-WORLD SCALING EXAMPLE                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  SPOKESTACK PLATFORM                                                        │
+│  └── Core RFP Agent (v2.3.1)                                               │
+│      ├── Core tools: analyze_rfp, query_projects, draft_response (5 total)│
+│      └── Base prompt: "You are an expert RFP analyst..."                   │
+│                                                                             │
+│  INSTANCE: Agency Alpha (Dubai)                                             │
+│  └── RFP Agent Config:                                                      │
+│      ├── enabled: true                                                      │
+│      ├── default_region: "gcc"                                              │
+│      ├── default_language: "ar"                                             │
+│      ├── prompt_extension: "Focus on government RFP formats common in UAE" │
+│      └── skills: []                                                         │
+│                                                                             │
+│  INSTANCE: Agency Beta (London)                                             │
+│  └── RFP Agent Config:                                                      │
+│      ├── enabled: true                                                      │
+│      ├── default_region: "eu"                                               │
+│      ├── prompt_extension: "Include GDPR compliance considerations"        │
+│      ├── disabled_tools: ["query_competitors"]  # Disabled by choice       │
+│      └── skills:                                                            │
+│          └── "query_salesforce" (webhook to their Salesforce instance)     │
+│                                                                             │
+│  INSTANCE: Agency Gamma (New York)                                          │
+│  └── RFP Agent Config:                                                      │
+│      ├── enabled: true                                                      │
+│      ├── default_vertical: "technology"                                     │
+│      ├── prompt_extension: "Emphasize innovation and digital transformation"│
+│      └── skills:                                                            │
+│          ├── "query_hubspot" (webhook to HubSpot)                          │
+│          └── "check_conflicts" (internal - checks for client conflicts)    │
+│                                                                             │
+│  WHEN SPOKESTACK UPDATES RFP AGENT TO v2.4.0:                              │
+│  ├── New core tool added: "estimate_timeline"                              │
+│  ├── Bug fix in analyze_rfp                                                │
+│  ├── Deploy new container                                                   │
+│  └── All instances automatically get update + keep their customizations    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.10 Client-Specific Agent Rules
+
+For deeper client-specific behavior within an instance:
+
+```python
+class ClientRules(Base):
+    """Client-specific rules within an instance."""
+    __tablename__ = "client_rules"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"))
+    client_id = Column(UUID, ForeignKey("clients.id"))
+    agent_type = Column(String)
+
+    # Rules
+    prompt_additions = Column(Text)  # Added to prompt when working on this client
+    required_approvals = Column(ARRAY(String))  # Tools requiring approval
+    data_restrictions = Column(JSONB)  # Fields to redact/hide
+
+    # Preferences
+    preferred_tone = Column(String)  # "formal", "casual", "technical"
+    preferred_language = Column(String)
+    brand_guidelines_doc_id = Column(UUID)  # Reference to uploaded guidelines
+
+
+# In agent execution
+async def _build_system_prompt(self, context: AgentContext) -> str:
+    prompt = self.system_prompt
+
+    # Add client-specific rules if client_id provided
+    if context.metadata.get("client_id"):
+        client_rules = await self._load_client_rules(
+            context.tenant_id,
+            context.metadata["client_id"],
+        )
+        if client_rules:
+            prompt += f"\n\n## Client-Specific Requirements\n\n"
+            prompt += client_rules.prompt_additions
+            if client_rules.preferred_tone:
+                prompt += f"\n\nTone: {client_rules.preferred_tone}"
+
+    return prompt
+```
+
+### 9.11 Scaling Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SCALING ARCHITECTURE                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│                    ┌──────────────────────────────────┐                    │
+│                    │     SPOKESTACK PLATFORM          │                    │
+│                    │  ┌────────────────────────────┐  │                    │
+│                    │  │   Core Agent Images        │  │                    │
+│                    │  │   (Container Registry)     │  │                    │
+│                    │  │   v2.3.1, v2.4.0, etc.    │  │                    │
+│                    │  └────────────────────────────┘  │                    │
+│                    └──────────────────────────────────┘                    │
+│                                    │                                        │
+│           ┌────────────────────────┼────────────────────────┐              │
+│           │                        │                        │              │
+│           ▼                        ▼                        ▼              │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        │
+│  │ Instance Alpha  │    │ Instance Beta   │    │ Instance Gamma  │        │
+│  │ (Dubai)         │    │ (London)        │    │ (New York)      │        │
+│  ├─────────────────┤    ├─────────────────┤    ├─────────────────┤        │
+│  │ Agent Service   │    │ Agent Service   │    │ Agent Service   │        │
+│  │ (same image)    │    │ (same image)    │    │ (same image)    │        │
+│  ├─────────────────┤    ├─────────────────┤    ├─────────────────┤        │
+│  │ Instance DB     │    │ Instance DB     │    │ Instance DB     │        │
+│  │ ├─ Configs      │    │ ├─ Configs      │    │ ├─ Configs      │        │
+│  │ ├─ Skills       │    │ ├─ Skills       │    │ ├─ Skills       │        │
+│  │ └─ Client Rules │    │ └─ Client Rules │    │ └─ Client Rules │        │
+│  └─────────────────┘    └─────────────────┘    └─────────────────┘        │
+│           │                        │                        │              │
+│           ▼                        ▼                        ▼              │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐        │
+│  │ Skill Webhooks  │    │ Skill Webhooks  │    │ Skill Webhooks  │        │
+│  │ (instance-own)  │    │ ├─ Salesforce   │    │ ├─ HubSpot      │        │
+│  │                 │    │ └─ Custom APIs  │    │ └─ Slack        │        │
+│  └─────────────────┘    └─────────────────┘    └─────────────────┘        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.12 Key Takeaways
+
+| Concern | Solution |
+|---------|----------|
+| **Global updates** | Core agents in container images, deployed to all |
+| **Instance customization** | Configuration stored in instance database |
+| **Custom tools/skills** | Webhook-based skills, added per-instance |
+| **Client-specific rules** | Client rules table, injected at runtime |
+| **Hot reload** | Config loaded on each agent invocation |
+| **Isolation** | Each instance has separate database |
+| **No code changes** | Skills defined via API, not deployment |
+
+---
+
+## 10. ERP Integration Patterns
+
+### 10.1 HTTP Client Setup
 
 ```python
 def __init__(self, client, model: str, erp_base_url: str, erp_api_key: str):
@@ -979,7 +1675,7 @@ def __init__(self, client, model: str, erp_base_url: str, erp_api_key: str):
     )
 ```
 
-### 9.2 Common ERP Operations
+### 10.2 Common ERP Operations
 
 ```python
 # GET - Fetch data
@@ -1012,7 +1708,7 @@ async def _delete_draft(self, draft_id: str) -> dict:
     return {"deleted": response.status_code == 204}
 ```
 
-### 9.3 Module-to-Agent Mapping
+### 10.3 Module-to-Agent Mapping
 
 | ERP Module | Primary Agent(s) | Supporting Agents |
 |------------|------------------|-------------------|
@@ -1028,7 +1724,7 @@ async def _delete_draft(self, draft_id: str) -> dict:
 | `reply` | Reply Agent | CRM, Channel |
 | `channel` | Channel Agent | All gateways |
 
-### 9.4 Error Handling Pattern
+### 10.4 Error Handling Pattern
 
 ```python
 async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
@@ -1058,9 +1754,9 @@ async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
 
 ---
 
-## 10. Advanced Patterns
+## 11. Advanced Patterns
 
-### 10.1 Agent Chaining
+### 11.1 Agent Chaining
 
 Agents can invoke other agents for complex workflows:
 
@@ -1099,7 +1795,7 @@ class OrchestrationAgent(BaseAgent):
             return {"rfp_analysis": result.output}
 ```
 
-### 10.2 Streaming Responses
+### 11.2 Streaming Responses
 
 For real-time feedback:
 
@@ -1119,7 +1815,7 @@ async def handle_streaming_request(request):
     )
 ```
 
-### 10.3 Conditional Tool Access
+### 11.3 Conditional Tool Access
 
 Expose tools based on context:
 
@@ -1150,7 +1846,7 @@ def _define_tools(self) -> list[dict]:
     return tools
 ```
 
-### 10.4 Tool Result Caching
+### 11.4 Tool Result Caching
 
 For expensive operations:
 
@@ -1184,7 +1880,7 @@ class CachingAgent(BaseAgent):
         return result
 ```
 
-### 10.5 Handoff Pattern
+### 11.5 Handoff Pattern
 
 For transitioning between agent phases:
 
@@ -1223,9 +1919,9 @@ For transitioning between agent phases:
 
 ---
 
-## 11. Testing & Validation
+## 12. Testing & Validation
 
-### 11.1 Unit Testing Tools
+### 12.1 Unit Testing Tools
 
 ```python
 import pytest
@@ -1270,7 +1966,7 @@ class TestRFPAgent:
             assert tool["input_schema"]["type"] == "object"
 ```
 
-### 11.2 Integration Testing
+### 12.2 Integration Testing
 
 ```python
 @pytest.mark.integration
@@ -1299,7 +1995,7 @@ class TestRFPAgentIntegration:
         assert "requirements" in result.output.lower()
 ```
 
-### 11.3 Prompt Testing
+### 12.3 Prompt Testing
 
 ```python
 class TestSystemPrompts:
@@ -1323,7 +2019,7 @@ class TestSystemPrompts:
         assert "influencer" in prompt.lower()
 ```
 
-### 11.4 Tool Schema Validation
+### 12.4 Tool Schema Validation
 
 ```python
 import jsonschema
@@ -1345,9 +2041,9 @@ class TestToolSchemas:
 
 ---
 
-## 12. Deployment & Operations
+## 13. Deployment & Operations
 
-### 12.1 Configuration
+### 13.1 Configuration
 
 ```python
 # src/config.py
@@ -1377,7 +2073,7 @@ class Settings(BaseSettings):
 settings = Settings()
 ```
 
-### 12.2 Docker Deployment
+### 13.2 Docker Deployment
 
 ```dockerfile
 FROM python:3.11-slim
@@ -1394,7 +2090,7 @@ EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-### 12.3 Monitoring Metrics
+### 13.3 Monitoring Metrics
 
 ```python
 from prometheus_client import Counter, Histogram
@@ -1430,7 +2126,7 @@ async def run(self, context: AgentContext) -> AgentResult:
             raise
 ```
 
-### 12.4 Health Checks
+### 13.4 Health Checks
 
 ```python
 @router.get("/health")
@@ -1458,9 +2154,9 @@ async def readiness_check():
 
 ---
 
-## 13. Best Practices
+## 14. Best Practices
 
-### 13.1 System Prompt Guidelines
+### 14.1 System Prompt Guidelines
 
 | Do | Don't |
 |-----|-------|
@@ -1470,7 +2166,7 @@ async def readiness_check():
 | Specify error handling behavior | Ignore edge cases |
 | Use structured sections (##) | Write as prose |
 
-### 13.2 Tool Design Guidelines
+### 14.2 Tool Design Guidelines
 
 | Do | Don't |
 |-----|-------|
@@ -1480,7 +2176,7 @@ async def readiness_check():
 | Handle errors gracefully | Let exceptions propagate |
 | Use appropriate timeouts | Use infinite timeouts |
 
-### 13.3 Security Guidelines
+### 14.3 Security Guidelines
 
 ```python
 # ✅ Good: Validate and sanitize inputs
@@ -1510,7 +2206,7 @@ def _define_tools(self) -> list[dict]:
     }]
 ```
 
-### 13.4 Performance Guidelines
+### 14.4 Performance Guidelines
 
 ```python
 # ✅ Good: Parallel tool execution when possible
@@ -1533,9 +2229,9 @@ self.http_client = httpx.AsyncClient(
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
-### 14.1 Common Issues
+### 15.1 Common Issues
 
 | Issue | Symptoms | Solution |
 |-------|----------|----------|
@@ -1546,7 +2242,7 @@ self.http_client = httpx.AsyncClient(
 | **Context loss** | Agent forgets info | Improve context management |
 | **Format errors** | Wrong output format | Add examples to prompt |
 
-### 14.2 Debugging Tools
+### 15.2 Debugging Tools
 
 ```python
 import logging
@@ -1566,7 +2262,7 @@ class DebuggableAgent(BaseAgent):
         return result
 ```
 
-### 14.3 Error Recovery
+### 15.3 Error Recovery
 
 ```python
 async def run(self, context: AgentContext) -> AgentResult:
@@ -1595,9 +2291,9 @@ async def run(self, context: AgentContext) -> AgentResult:
 
 ---
 
-## 15. Reference
+## 16. Reference
 
-### 15.1 Agent Template
+### 16.1 Agent Template
 
 ```python
 """
@@ -1668,7 +2364,7 @@ class MyAgent(BaseAgent):
         await self.http_client.aclose()
 ```
 
-### 15.2 Tool Count by Agent
+### 16.2 Tool Count by Agent
 
 | Agent | Tools | Category |
 |-------|-------|----------|
@@ -1683,7 +2379,7 @@ class MyAgent(BaseAgent):
 | Brief Agent | 6 | Business Operations |
 | RFP Agent | 5 | Business Operations |
 
-### 15.3 API Endpoints
+### 16.3 API Endpoints
 
 ```
 POST /api/v1/agent/execute     - Execute agent task
@@ -1693,7 +2389,7 @@ GET  /api/v1/agents            - List all agents
 GET  /api/v1/health            - Health check
 ```
 
-### 15.4 Execute Request Format
+### 16.4 Execute Request Format
 
 ```json
 {
@@ -1714,7 +2410,7 @@ GET  /api/v1/health            - Health check
 }
 ```
 
-### 15.5 Glossary
+### 16.5 Glossary
 
 | Term | Definition |
 |------|------------|
