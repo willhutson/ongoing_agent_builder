@@ -1,0 +1,33 @@
+# =============================================================================
+# SpokeStack ConfigMap - Non-sensitive configuration
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spokestack-config
+  namespace: spokestack
+  labels:
+    app.kubernetes.io/name: spokestack
+    app.kubernetes.io/component: config
+data:
+  # Claude model
+  CLAUDE_MODEL: "claude-opus-4-5-20250514"
+
+  # Service configuration
+  SERVICE_PORT: "8000"
+  LOG_LEVEL: "INFO"
+
+  # Database connection (password in secret)
+  DB_HOST: "spokestack-postgres"
+  DB_PORT: "5432"
+  DB_NAME: "spokestack"
+  DB_USER: "spokestack"
+
+  # Redis connection (password in secret if needed)
+  REDIS_HOST: "spokestack-redis"
+  REDIS_PORT: "6379"
+
+  # Multi-tenant limits
+  MAX_SKILLS_PER_INSTANCE: "50"
+  MAX_CLIENTS_PER_INSTANCE: "100"
+  DEFAULT_AGENT_TIMEOUT: "300"

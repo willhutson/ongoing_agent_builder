@@ -1,0 +1,53 @@
+# =============================================================================
+# SpokeStack Agent Service - Production Overrides
+# =============================================================================
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# =============================================================================
+
+version: '3.8'
+
+services:
+  agents:
+    # Use pre-built image in production
+    image: ${DOCKER_REGISTRY:-}spokestack-agents:${VERSION:-latest}
+    build:
+      context: .
+      target: production
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+    environment:
+      - LOG_LEVEL=WARNING
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+    environment:
+      # Use stronger password in production
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}

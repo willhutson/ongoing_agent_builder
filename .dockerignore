@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov/
+.tox
+.nox
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Docker
+Dockerfile*
+docker-compose*
+.docker
+
+# Documentation
+*.md
+docs/
+!src/
+
+# Misc
+.DS_Store
+*.log
+tmp/
+temp/
+
+# Local development
+.env.local
+.env.development
+*.local
+
+# Kubernetes (don't include in image)
+k8s/
+
+# Alembic versions (include migrations in image)
+# alembic/versions/

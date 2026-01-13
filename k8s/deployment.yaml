@@ -1,0 +1,121 @@
+# =============================================================================
+# SpokeStack Agent Service Deployment
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spokestack-agents
+  namespace: spokestack
+  labels:
+    app.kubernetes.io/name: spokestack
+    app.kubernetes.io/component: agents
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spokestack
+      app.kubernetes.io/component: agents
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spokestack
+        app.kubernetes.io/component: agents
+    spec:
+      serviceAccountName: spokestack-sa
+      containers:
+        - name: agents
+          image: spokestack-agents:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            # From ConfigMap
+            - name: CLAUDE_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: spokestack-config
+                  key: CLAUDE_MODEL
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: spokestack-config
+                  key: LOG_LEVEL
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: spokestack-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: spokestack-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: spokestack-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: spokestack-config
+                  key: DB_USER
+            # From Secrets
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: spokestack-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: spokestack-secrets
+                  key: DB_PASSWORD
+            # Constructed DATABASE_URL
+            - name: DATABASE_URL
+              value: "postgresql+asyncpg://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)"
+            # Redis
+            - name: REDIS_URL
+              value: "redis://spokestack-redis:6379/0"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: spokestack
+                    app.kubernetes.io/component: agents
+                topologyKey: kubernetes.io/hostname
+
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spokestack-sa
+  namespace: spokestack

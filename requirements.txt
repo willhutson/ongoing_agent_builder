@@ -7,8 +7,16 @@ pydantic-settings>=2.1.0
 # Claude Agent SDK
 anthropic>=0.40.0
 
-# Async HTTP client (for ERP API calls)
+# Async HTTP client (for ERP API calls, skill webhooks)
 httpx>=0.26.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.0
+asyncpg>=0.29.0
+alembic>=1.13.0
+
+# Cache/Queue (for production)
+redis>=5.0.0
 
 # Environment
 python-dotenv>=1.0.0
