@@ -2663,6 +2663,1232 @@ class SkillPromotionService:
 | **Optimization alignment** | Match updates to instance goals |
 | **Skill recognition** | Path to promote great skills to core |
 
+### 9.22 Agent Fine-Tuning Model
+
+Three distinct levels of tuning, each with different permissions and scope:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     THREE-TIER TUNING HIERARCHY                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ TIER 1: AGENT BUILDER (SpokeStack Platform Team)                    │   │
+│  │                                                                      │   │
+│  │ WHO: SpokeStack engineers and AI specialists                        │   │
+│  │ WHAT: Core agent architecture, base prompts, default behaviors      │   │
+│  │ HOW: Code changes, version releases, platform-wide deployment       │   │
+│  │                                                                      │   │
+│  │ Controls:                                                            │   │
+│  │ ├── Base system prompts (the foundation)                            │   │
+│  │ ├── Core tool definitions and implementations                       │   │
+│  │ ├── Default parameters and behaviors                                │   │
+│  │ ├── Model selection and configuration                               │   │
+│  │ ├── Safety guardrails and compliance rules                          │   │
+│  │ └── Performance optimization and cost controls                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼ provides foundation for               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ TIER 2: SPOKESTACK INSTANCE (Agency/Company Admin)                  │   │
+│  │                                                                      │   │
+│  │ WHO: Instance administrators, operations leads                      │   │
+│  │ WHAT: Instance-wide customization, vertical specialization          │   │
+│  │ HOW: Admin UI, API, configuration database                          │   │
+│  │                                                                      │   │
+│  │ Controls:                                                            │   │
+│  │ ├── Prompt extensions (appended to base)                            │   │
+│  │ ├── Default vertical/region/language                                │   │
+│  │ ├── Tool enable/disable per agent                                   │   │
+│  │ ├── Custom skills (webhook tools)                                   │   │
+│  │ ├── Instance-wide brand voice and style                             │   │
+│  │ ├── Approval workflows and governance                               │   │
+│  │ └── Version control preferences                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼ provides foundation for               │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ TIER 3: CLIENT TUNING (Client/Account Manager)                      │   │
+│  │                                                                      │   │
+│  │ WHO: Account managers, client success, client contacts              │   │
+│  │ WHAT: Client-specific preferences, brand rules, feedback            │   │
+│  │ HOW: Client settings UI, feedback buttons, preference forms         │   │
+│  │                                                                      │   │
+│  │ Controls:                                                            │   │
+│  │ ├── Client brand voice and tone                                     │   │
+│  │ ├── Preferred output formats                                        │   │
+│  │ ├── Do/don't rules (topics, competitors, language)                 │   │
+│  │ ├── Reference materials (brand guidelines, past work)               │   │
+│  │ ├── Feedback on outputs (approve/reject/correct)                    │   │
+│  │ └── Client-specific integrations                                    │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.23 What's Tunable at Each Tier
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        TUNING PARAMETER MATRIX                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PARAMETER              │ AGENT BUILDER │ INSTANCE │ CLIENT                │
+│  ───────────────────────┼───────────────┼──────────┼───────────────────────│
+│                                                                             │
+│  SYSTEM PROMPT                                                              │
+│  ├─ Base prompt         │      ✓        │          │                       │
+│  ├─ Instance extension  │               │    ✓     │                       │
+│  └─ Client additions    │               │          │       ✓               │
+│                                                                             │
+│  TOOLS                                                                      │
+│  ├─ Core tools          │      ✓        │          │                       │
+│  ├─ Enable/disable      │               │    ✓     │                       │
+│  ├─ Custom skills       │               │    ✓     │                       │
+│  └─ Client integrations │               │          │       ✓               │
+│                                                                             │
+│  BEHAVIOR                                                                   │
+│  ├─ Default parameters  │      ✓        │          │                       │
+│  ├─ Parameter overrides │               │    ✓     │                       │
+│  └─ Client preferences  │               │          │       ✓               │
+│                                                                             │
+│  OUTPUT                                                                     │
+│  ├─ Format templates    │      ✓        │    ✓     │       ✓               │
+│  ├─ Tone/voice          │               │    ✓     │       ✓               │
+│  └─ Length/detail       │               │    ✓     │       ✓               │
+│                                                                             │
+│  MODEL                                                                      │
+│  ├─ Model selection     │      ✓        │          │                       │
+│  ├─ Temperature         │      ✓        │    ✓*    │                       │
+│  └─ Max tokens          │      ✓        │    ✓*    │                       │
+│                                                                             │
+│  SAFETY                                                                     │
+│  ├─ Guardrails          │      ✓        │          │                       │
+│  ├─ Content filters     │      ✓        │    ✓+    │                       │
+│  └─ Approval gates      │               │    ✓     │                       │
+│                                                                             │
+│  * = within platform limits                                                │
+│  + = can only make more restrictive, not less                              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.24 Tier 1: Agent Builder Tuning
+
+Platform-level tuning done by SpokeStack engineering:
+
+```python
+class AgentBuilderConfig:
+    """
+    Platform-level configuration set by SpokeStack team.
+    Deployed via code changes, versioned releases.
+    """
+
+    # Model configuration
+    default_model: str = "claude-sonnet-4-20250514"
+    fallback_model: str = "claude-3-haiku-20240307"
+    max_tokens: int = 4096
+    temperature: float = 0.7
+
+    # Safety guardrails (cannot be relaxed by instances)
+    safety_config: SafetyConfig = SafetyConfig(
+        max_iterations=25,  # Prevent infinite loops
+        max_tool_calls_per_turn=10,
+        require_tool_confirmation=["delete_*", "publish_*"],
+        blocked_topics=["illegal_activity", "harmful_content"],
+        pii_handling="redact",  # or "warn", "block"
+    )
+
+    # Cost controls
+    cost_config: CostConfig = CostConfig(
+        max_tokens_per_request=8000,
+        max_requests_per_minute=60,
+        cost_tier="standard",  # Instances can upgrade
+    )
+
+    # Base system prompt (the foundation)
+    base_system_prompt: str = """You are an expert {agent_type} agent.
+
+Your role is to help creative agencies {primary_purpose}.
+
+## Core Capabilities
+{capabilities}
+
+## Approach
+Follow the Think → Act → Create paradigm:
+1. THINK: Understand the request, analyze context
+2. ACT: Use tools to gather data, validate, iterate
+3. CREATE: Synthesize into actionable deliverables
+
+## Quality Standards
+- Be accurate and grounded in data
+- Cite sources when making claims
+- Flag uncertainty rather than guessing
+- Respect brand guidelines and preferences
+"""
+
+    # Tool definitions (core functionality)
+    core_tools: list[ToolDefinition]
+
+    # Default behaviors
+    default_behaviors: dict = {
+        "output_format": "markdown",
+        "include_sources": True,
+        "max_output_length": "comprehensive",
+        "error_handling": "graceful_with_explanation",
+    }
+```
+
+### 9.25 Tier 2: Instance Tuning
+
+Instance administrators customize for their agency:
+
+```python
+class InstanceTuningConfig(Base):
+    """
+    Instance-level tuning stored in database.
+    Configured by instance admins via UI/API.
+    """
+    __tablename__ = "instance_tuning_configs"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+    agent_type = Column(String, nullable=False)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # PROMPT TUNING
+    # ═══════════════════════════════════════════════════════════════════════
+
+    # Appended to base system prompt
+    prompt_extension = Column(Text, nullable=True)
+    # Example: "Our agency specializes in luxury brands. Always maintain
+    # an elevated, sophisticated tone. Never use casual language or emojis."
+
+    # Specific instructions that override defaults
+    instruction_overrides = Column(JSONB, default={})
+    # Example: {
+    #   "output_format": "Always structure responses with executive summary first",
+    #   "citation_style": "Include specific project names and dates",
+    # }
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # SPECIALIZATION
+    # ═══════════════════════════════════════════════════════════════════════
+
+    default_vertical = Column(String, nullable=True)  # "luxury", "tech", "healthcare"
+    default_region = Column(String, nullable=True)    # "gcc", "eu", "us"
+    default_language = Column(String, default="en")
+
+    # Vertical-specific knowledge injection
+    vertical_knowledge = Column(Text, nullable=True)
+    # Example: "## Luxury Brand Expertise\n- Understand heritage and craftsmanship...'
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # TOOL CONFIGURATION
+    # ═══════════════════════════════════════════════════════════════════════
+
+    disabled_tools = Column(ARRAY(String), default=[])
+    tool_config_overrides = Column(JSONB, default={})
+    # Example: {
+    #   "search_past_projects": {"default_limit": 10, "include_archived": false},
+    #   "generate_copy": {"max_variations": 5},
+    # }
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # BEHAVIOR TUNING
+    # ═══════════════════════════════════════════════════════════════════════
+
+    behavior_params = Column(JSONB, default={})
+    # Example: {
+    #   "verbosity": "detailed",  # "concise", "standard", "detailed"
+    #   "creativity": "conservative",  # "conservative", "balanced", "creative"
+    #   "proactivity": "high",  # Suggest next steps, alternatives
+    # }
+
+    # Output preferences
+    output_preferences = Column(JSONB, default={})
+    # Example: {
+    #   "default_format": "structured_doc",
+    #   "include_rationale": true,
+    #   "max_length": "no_limit",
+    # }
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # BRAND VOICE (Instance-wide defaults)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    agency_brand_voice = Column(Text, nullable=True)
+    # Example: "We are Apex Creative. Our voice is confident but not arrogant,
+    # innovative but grounded, professional but approachable."
+
+    agency_terminology = Column(JSONB, default={})
+    # Example: {
+    #   "use": ["client partners", "creative solutions", "strategic insights"],
+    #   "avoid": ["customers", "stuff", "basically"],
+    # }
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # GOVERNANCE
+    # ═══════════════════════════════════════════════════════════════════════
+
+    require_approval_for = Column(ARRAY(String), default=[])
+    # Example: ["publish_content", "send_to_client", "create_campaign"]
+
+    audit_all_outputs = Column(Boolean, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+    updated_by = Column(UUID, ForeignKey("users.id"))
+
+
+# Instance Tuning API
+@router.put("/api/v1/instance/{instance_id}/agents/{agent_type}/tuning")
+async def update_instance_tuning(
+    instance_id: str,
+    agent_type: str,
+    tuning: InstanceTuningUpdate,
+):
+    """
+    Update instance-level tuning for an agent.
+
+    Example:
+    {
+        "prompt_extension": "We are a Dubai-based agency specializing in luxury...",
+        "default_vertical": "luxury",
+        "default_region": "gcc",
+        "behavior_params": {
+            "verbosity": "detailed",
+            "creativity": "conservative"
+        },
+        "agency_brand_voice": "Sophisticated, confident, innovative...",
+        "disabled_tools": ["competitor_analysis"]
+    }
+    """
+    return await tuning_service.update_instance_tuning(
+        instance_id, agent_type, tuning
+    )
+```
+
+### 9.26 Tier 3: Client Tuning
+
+Client-specific customization within an instance:
+
+```python
+class ClientTuningConfig(Base):
+    """
+    Client-level tuning within an instance.
+    Configured by account managers, refined by feedback.
+    """
+    __tablename__ = "client_tuning_configs"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+    client_id = Column(UUID, ForeignKey("clients.id"), nullable=False)
+    agent_type = Column(String, nullable=True)  # null = applies to all agents
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # CLIENT BRAND VOICE
+    # ═══════════════════════════════════════════════════════════════════════
+
+    brand_voice = Column(Text, nullable=True)
+    # Example: "Nike's voice is bold, inspirational, and athletic. Use active
+    # verbs, short punchy sentences. Emphasize achievement and perseverance."
+
+    tone_keywords = Column(ARRAY(String), default=[])
+    # Example: ["bold", "inspirational", "empowering", "athletic"]
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # DO/DON'T RULES
+    # ═══════════════════════════════════════════════════════════════════════
+
+    content_rules = Column(JSONB, default={})
+    # Example: {
+    #   "always": [
+    #       "Include 'Just Do It' spirit in messaging",
+    #       "Reference athletic achievement",
+    #       "Use inclusive language"
+    #   ],
+    #   "never": [
+    #       "Mention competitor brands by name",
+    #       "Use passive voice",
+    #       "Reference political topics",
+    #       "Use discount-focused language"
+    #   ],
+    #   "prefer": [
+    #       "Action-oriented headlines",
+    #       "Athlete testimonials over celebrity",
+    #       "Performance benefits over fashion"
+    #   ]
+    # }
+
+    competitor_rules = Column(JSONB, default={})
+    # Example: {
+    #   "never_mention": ["Adidas", "Puma", "Under Armour"],
+    #   "positioning": "Premium performance leader",
+    #   "differentiation": ["Innovation", "Athlete partnerships", "Heritage"]
+    # }
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # OUTPUT PREFERENCES
+    # ═══════════════════════════════════════════════════════════════════════
+
+    format_preferences = Column(JSONB, default={})
+    # Example: {
+    #   "headlines": {"max_words": 8, "style": "imperative"},
+    #   "body_copy": {"max_paragraphs": 3, "reading_level": "8th_grade"},
+    #   "social": {"hashtag_style": "branded", "emoji_usage": "minimal"}
+    # }
+
+    length_preferences = Column(JSONB, default={})
+    # Example: {
+    #   "default": "concise",
+    #   "proposals": "comprehensive",
+    #   "social_copy": "minimal"
+    # }
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # REFERENCE MATERIALS
+    # ═══════════════════════════════════════════════════════════════════════
+
+    brand_guidelines_doc_id = Column(UUID, nullable=True)  # Uploaded PDF
+    style_guide_doc_id = Column(UUID, nullable=True)
+    approved_examples = Column(JSONB, default=[])
+    # Example: [
+    #   {"type": "headline", "text": "Find Your Greatness", "context": "campaign"},
+    #   {"type": "tagline", "text": "Just Do It", "context": "brand"},
+    # ]
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # LEARNED PREFERENCES (from feedback)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    learned_preferences = Column(JSONB, default={})
+    # Auto-populated from feedback patterns:
+    # {
+    #   "preferred_headline_styles": ["imperative", "question"],
+    #   "rejected_patterns": ["discount language", "long sentences"],
+    #   "successful_approaches": ["athlete stories", "challenge framing"],
+    #   "confidence_score": 0.85
+    # }
+
+    feedback_summary = Column(JSONB, default={})
+    # {
+    #   "total_outputs": 150,
+    #   "approved": 120,
+    #   "rejected": 15,
+    #   "corrected": 15,
+    #   "approval_rate": 0.80,
+    #   "common_corrections": ["too formal", "missing CTA"]
+    # }
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
+
+
+# Client Tuning API
+@router.put("/api/v1/instance/{instance_id}/clients/{client_id}/tuning")
+async def update_client_tuning(
+    instance_id: str,
+    client_id: str,
+    tuning: ClientTuningUpdate,
+):
+    """
+    Update client-level tuning.
+
+    Example:
+    {
+        "brand_voice": "Bold, inspirational, athletic...",
+        "tone_keywords": ["bold", "empowering"],
+        "content_rules": {
+            "always": ["Include Just Do It spirit"],
+            "never": ["Mention competitors"]
+        },
+        "format_preferences": {
+            "headlines": {"max_words": 8}
+        }
+    }
+    """
+    return await tuning_service.update_client_tuning(
+        instance_id, client_id, tuning
+    )
+```
+
+### 9.27 Prompt Assembly Pipeline
+
+How the three tiers combine at runtime:
+
+```python
+class PromptAssembler:
+    """
+    Assembles the final system prompt from all three tuning tiers.
+    """
+
+    async def assemble_prompt(
+        self,
+        agent_type: str,
+        instance_id: str,
+        client_id: str | None = None,
+    ) -> str:
+        """
+        Assemble prompt from:
+        1. Base prompt (Agent Builder)
+        2. Instance tuning (SpokeStack Instance)
+        3. Client tuning (Client-specific)
+        """
+        # ═══════════════════════════════════════════════════════════════════
+        # TIER 1: Base prompt from Agent Builder
+        # ═══════════════════════════════════════════════════════════════════
+        base_config = self.get_agent_builder_config(agent_type)
+        prompt = base_config.base_system_prompt
+
+        # ═══════════════════════════════════════════════════════════════════
+        # TIER 2: Instance tuning
+        # ═══════════════════════════════════════════════════════════════════
+        instance_tuning = await self.load_instance_tuning(instance_id, agent_type)
+
+        if instance_tuning:
+            # Add instance prompt extension
+            if instance_tuning.prompt_extension:
+                prompt += f"\n\n## Agency-Specific Guidelines\n\n"
+                prompt += instance_tuning.prompt_extension
+
+            # Add vertical knowledge
+            if instance_tuning.vertical_knowledge:
+                prompt += f"\n\n## Industry Expertise\n\n"
+                prompt += instance_tuning.vertical_knowledge
+
+            # Add agency brand voice
+            if instance_tuning.agency_brand_voice:
+                prompt += f"\n\n## Agency Voice\n\n"
+                prompt += instance_tuning.agency_brand_voice
+
+            # Add behavior instructions
+            if instance_tuning.behavior_params:
+                prompt += self._format_behavior_instructions(
+                    instance_tuning.behavior_params
+                )
+
+        # ═══════════════════════════════════════════════════════════════════
+        # TIER 3: Client tuning
+        # ═══════════════════════════════════════════════════════════════════
+        if client_id:
+            client_tuning = await self.load_client_tuning(
+                instance_id, client_id, agent_type
+            )
+
+            if client_tuning:
+                prompt += f"\n\n## Client: {client_tuning.client_name}\n\n"
+
+                # Add brand voice
+                if client_tuning.brand_voice:
+                    prompt += f"### Brand Voice\n{client_tuning.brand_voice}\n\n"
+
+                # Add tone keywords
+                if client_tuning.tone_keywords:
+                    prompt += f"### Tone\n"
+                    prompt += f"Key attributes: {', '.join(client_tuning.tone_keywords)}\n\n"
+
+                # Add content rules
+                if client_tuning.content_rules:
+                    prompt += self._format_content_rules(client_tuning.content_rules)
+
+                # Add competitor rules
+                if client_tuning.competitor_rules:
+                    prompt += self._format_competitor_rules(
+                        client_tuning.competitor_rules
+                    )
+
+                # Add format preferences
+                if client_tuning.format_preferences:
+                    prompt += self._format_output_preferences(
+                        client_tuning.format_preferences
+                    )
+
+                # Add learned preferences (from feedback)
+                if client_tuning.learned_preferences:
+                    prompt += self._format_learned_preferences(
+                        client_tuning.learned_preferences
+                    )
+
+                # Add approved examples
+                if client_tuning.approved_examples:
+                    prompt += self._format_examples(client_tuning.approved_examples)
+
+        return prompt
+
+    def _format_content_rules(self, rules: dict) -> str:
+        """Format do/don't rules for the prompt."""
+        output = "### Content Rules\n\n"
+
+        if rules.get("always"):
+            output += "**Always:**\n"
+            for rule in rules["always"]:
+                output += f"- {rule}\n"
+            output += "\n"
+
+        if rules.get("never"):
+            output += "**Never:**\n"
+            for rule in rules["never"]:
+                output += f"- {rule}\n"
+            output += "\n"
+
+        if rules.get("prefer"):
+            output += "**Prefer:**\n"
+            for rule in rules["prefer"]:
+                output += f"- {rule}\n"
+            output += "\n"
+
+        return output
+
+    def _format_learned_preferences(self, learned: dict) -> str:
+        """Format preferences learned from feedback."""
+        output = "### Learned from Feedback\n\n"
+        output += "*These preferences were learned from past approvals/corrections:*\n\n"
+
+        if learned.get("preferred_headline_styles"):
+            output += f"- Preferred headline styles: {', '.join(learned['preferred_headline_styles'])}\n"
+
+        if learned.get("successful_approaches"):
+            output += f"- Approaches that work well: {', '.join(learned['successful_approaches'])}\n"
+
+        if learned.get("rejected_patterns"):
+            output += f"- Patterns to avoid: {', '.join(learned['rejected_patterns'])}\n"
+
+        return output + "\n"
+```
+
+### 9.28 Feedback Loop System
+
+How client feedback improves tuning over time:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        FEEDBACK LOOP SYSTEM                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 1. AGENT OUTPUT                                                      │   │
+│  │    Agent generates content/recommendation for client                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 2. USER FEEDBACK                                                     │   │
+│  │                                                                      │   │
+│  │    ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐       │   │
+│  │    │    👍    │  │    👎    │  │   ✏️    │  │  💬 Comment  │       │   │
+│  │    │ Approve  │  │  Reject  │  │  Correct │  │              │       │   │
+│  │    └──────────┘  └──────────┘  └──────────┘  └──────────────┘       │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 3. FEEDBACK STORAGE                                                  │   │
+│  │                                                                      │   │
+│  │    feedback_records: [                                               │   │
+│  │      {                                                               │   │
+│  │        output_id: "...",                                            │   │
+│  │        agent_type: "copy",                                          │   │
+│  │        client_id: "nike",                                           │   │
+│  │        output_text: "Find Your Inner Champion...",                  │   │
+│  │        feedback_type: "approved",                                   │   │
+│  │        corrections: null,                                           │   │
+│  │        comment: "Great energy, on brand",                           │   │
+│  │        feedback_by: "account_manager_1",                            │   │
+│  │        feedback_at: "2026-01-13T10:30:00Z"                         │   │
+│  │      },                                                              │   │
+│  │      {                                                               │   │
+│  │        output_id: "...",                                            │   │
+│  │        feedback_type: "corrected",                                  │   │
+│  │        original_text: "Get 20% off today...",                       │   │
+│  │        corrected_text: "Unlock your potential...",                  │   │
+│  │        correction_reason: "Nike doesn't use discount language",     │   │
+│  │      }                                                               │   │
+│  │    ]                                                                 │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 4. PATTERN ANALYSIS (Automatic)                                      │   │
+│  │                                                                      │   │
+│  │    Analyze feedback to identify patterns:                            │   │
+│  │    ├── What gets approved consistently?                              │   │
+│  │    ├── What gets rejected? Why?                                      │   │
+│  │    ├── Common corrections (indicates missing rules)                 │   │
+│  │    └── Emerging preferences                                         │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 5. TUNING SUGGESTIONS                                                │   │
+│  │                                                                      │   │
+│  │    System suggests tuning updates:                                   │   │
+│  │                                                                      │   │
+│  │    "Based on 15 corrections for Nike, we suggest adding:            │   │
+│  │     • Never rule: 'discount language'                               │   │
+│  │     • Prefer rule: 'achievement framing'                            │   │
+│  │                                                                      │   │
+│  │    [Apply Suggestions] [Review Details] [Dismiss]"                  │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 6. LEARNED PREFERENCES UPDATE                                        │   │
+│  │                                                                      │   │
+│  │    Auto-update or human-approved update to:                         │   │
+│  │    ClientTuningConfig.learned_preferences                           │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                    │                                        │
+│                                    ▼                                        │
+│                          IMPROVED FUTURE OUTPUTS                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.29 Feedback Data Model
+
+```python
+class AgentOutputFeedback(Base):
+    """Stores feedback on agent outputs for learning."""
+    __tablename__ = "agent_output_feedback"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+    client_id = Column(UUID, ForeignKey("clients.id"), nullable=True)
+
+    # What was generated
+    agent_type = Column(String, nullable=False)
+    task_id = Column(UUID, nullable=False)  # Reference to original task
+    output_text = Column(Text, nullable=False)
+    output_metadata = Column(JSONB, default={})  # Tools used, context, etc.
+
+    # Feedback
+    feedback_type = Column(String, nullable=False)
+    # "approved", "rejected", "corrected", "partial_approved"
+
+    # For corrections
+    corrected_text = Column(Text, nullable=True)
+    correction_reason = Column(Text, nullable=True)
+    correction_category = Column(String, nullable=True)
+    # "tone", "factual", "format", "brand_voice", "missing_info", "too_long", etc.
+
+    # For rejections
+    rejection_reason = Column(Text, nullable=True)
+    rejection_category = Column(String, nullable=True)
+
+    # Optional detailed feedback
+    comment = Column(Text, nullable=True)
+    rating = Column(Integer, nullable=True)  # 1-5 stars
+
+    # Who gave feedback
+    feedback_by = Column(UUID, ForeignKey("users.id"), nullable=False)
+    feedback_at = Column(DateTime, default=datetime.utcnow)
+
+    # Analysis (populated by pattern analyzer)
+    analysis = Column(JSONB, default={})
+    # {
+    #   "identified_patterns": ["discount_language", "passive_voice"],
+    #   "suggested_rules": [...],
+    #   "similar_corrections": [...]
+    # }
+
+
+class FeedbackPatternAnalysis(Base):
+    """Aggregated pattern analysis from feedback."""
+    __tablename__ = "feedback_pattern_analysis"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+    client_id = Column(UUID, ForeignKey("clients.id"), nullable=True)
+    agent_type = Column(String, nullable=True)
+
+    # Analysis period
+    period_start = Column(DateTime, nullable=False)
+    period_end = Column(DateTime, nullable=False)
+
+    # Metrics
+    total_outputs = Column(Integer, default=0)
+    approved_count = Column(Integer, default=0)
+    rejected_count = Column(Integer, default=0)
+    corrected_count = Column(Integer, default=0)
+    approval_rate = Column(Float, default=0.0)
+
+    # Identified patterns
+    common_corrections = Column(JSONB, default=[])
+    # [{"pattern": "discount language", "count": 15, "examples": [...]}]
+
+    common_rejections = Column(JSONB, default=[])
+    successful_patterns = Column(JSONB, default=[])
+
+    # Suggested tuning changes
+    suggested_rules = Column(JSONB, default=[])
+    # [
+    #   {"type": "never", "rule": "Use discount language", "confidence": 0.9},
+    #   {"type": "prefer", "rule": "Achievement framing", "confidence": 0.85}
+    # ]
+
+    suggestion_status = Column(String, default="pending")
+    # "pending", "applied", "dismissed", "partial_applied"
+
+    applied_by = Column(UUID, ForeignKey("users.id"), nullable=True)
+    applied_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+```
+
+### 9.30 Feedback Analysis Service
+
+```python
+class FeedbackAnalyzer:
+    """Analyzes feedback to identify patterns and suggest tuning."""
+
+    async def analyze_client_feedback(
+        self,
+        instance_id: str,
+        client_id: str,
+        lookback_days: int = 30,
+    ) -> FeedbackAnalysisReport:
+        """
+        Analyze recent feedback for a client to identify patterns.
+        """
+        # Get recent feedback
+        feedback = await self._get_recent_feedback(
+            instance_id, client_id, lookback_days
+        )
+
+        if len(feedback) < 10:
+            return FeedbackAnalysisReport(
+                status="insufficient_data",
+                message="Need at least 10 feedback items for analysis",
+            )
+
+        # Calculate metrics
+        metrics = self._calculate_metrics(feedback)
+
+        # Identify patterns in corrections
+        correction_patterns = await self._analyze_corrections(
+            [f for f in feedback if f.feedback_type == "corrected"]
+        )
+
+        # Identify patterns in rejections
+        rejection_patterns = await self._analyze_rejections(
+            [f for f in feedback if f.feedback_type == "rejected"]
+        )
+
+        # Identify successful patterns
+        success_patterns = await self._analyze_successes(
+            [f for f in feedback if f.feedback_type == "approved"]
+        )
+
+        # Generate suggestions
+        suggestions = self._generate_suggestions(
+            correction_patterns,
+            rejection_patterns,
+            success_patterns,
+        )
+
+        return FeedbackAnalysisReport(
+            status="complete",
+            period_start=datetime.utcnow() - timedelta(days=lookback_days),
+            period_end=datetime.utcnow(),
+            metrics=metrics,
+            correction_patterns=correction_patterns,
+            rejection_patterns=rejection_patterns,
+            success_patterns=success_patterns,
+            suggestions=suggestions,
+        )
+
+    async def _analyze_corrections(
+        self,
+        corrections: list[AgentOutputFeedback],
+    ) -> list[Pattern]:
+        """Use Claude to identify patterns in corrections."""
+        if not corrections:
+            return []
+
+        # Prepare examples for analysis
+        examples = [
+            {
+                "original": c.output_text[:500],
+                "corrected": c.corrected_text[:500] if c.corrected_text else None,
+                "reason": c.correction_reason,
+                "category": c.correction_category,
+            }
+            for c in corrections[:50]  # Limit for analysis
+        ]
+
+        # Use Claude to identify patterns
+        response = await self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            system="""You are analyzing corrections made to AI-generated content.
+            Identify patterns in what was corrected and why.
+            Output structured JSON with identified patterns.""",
+            messages=[{
+                "role": "user",
+                "content": f"""Analyze these corrections and identify patterns:
+
+{json.dumps(examples, indent=2)}
+
+Return JSON with:
+- patterns: list of {{pattern_name, description, frequency, examples}}
+- suggested_rules: list of {{type: "always"|"never"|"prefer", rule, confidence}}
+"""
+            }],
+        )
+
+        return self._parse_pattern_response(response)
+
+    def _generate_suggestions(
+        self,
+        correction_patterns: list,
+        rejection_patterns: list,
+        success_patterns: list,
+    ) -> list[TuningSuggestion]:
+        """Generate tuning suggestions from patterns."""
+        suggestions = []
+
+        # High-frequency corrections → "never" rules
+        for pattern in correction_patterns:
+            if pattern.frequency >= 3 and pattern.confidence >= 0.8:
+                suggestions.append(TuningSuggestion(
+                    type="never",
+                    rule=pattern.description,
+                    confidence=pattern.confidence,
+                    evidence_count=pattern.frequency,
+                    examples=pattern.examples[:3],
+                ))
+
+        # High-frequency rejections → "never" rules
+        for pattern in rejection_patterns:
+            if pattern.frequency >= 3 and pattern.confidence >= 0.8:
+                suggestions.append(TuningSuggestion(
+                    type="never",
+                    rule=pattern.description,
+                    confidence=pattern.confidence,
+                    evidence_count=pattern.frequency,
+                    examples=pattern.examples[:3],
+                ))
+
+        # Success patterns → "prefer" rules
+        for pattern in success_patterns:
+            if pattern.frequency >= 5 and pattern.confidence >= 0.7:
+                suggestions.append(TuningSuggestion(
+                    type="prefer",
+                    rule=pattern.description,
+                    confidence=pattern.confidence,
+                    evidence_count=pattern.frequency,
+                    examples=pattern.examples[:3],
+                ))
+
+        return sorted(suggestions, key=lambda s: s.confidence, reverse=True)
+```
+
+### 9.31 Tuning Governance
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        TUNING GOVERNANCE MODEL                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  WHO CAN TUNE WHAT                                                          │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ ROLE                     │ TIER 1 │ TIER 2 │ TIER 3                 │   │
+│  │                          │ (Core) │ (Inst) │ (Client)               │   │
+│  │──────────────────────────┼────────┼────────┼────────────────────────│   │
+│  │ SpokeStack Engineer      │   ✓    │   ✓*   │   ✓*                   │   │
+│  │ Instance Admin           │        │   ✓    │   ✓                    │   │
+│  │ Instance Manager         │        │   👁    │   ✓                    │   │
+│  │ Account Manager          │        │        │   ✓                    │   │
+│  │ Client Contact           │        │        │   ✓**                  │   │
+│  │                                                                      │   │
+│  │ ✓* = for support/debugging only                                     │   │
+│  │ ✓** = limited to feedback, approved examples, preferences           │   │
+│  │ 👁 = view only                                                       │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  CHANGE APPROVAL REQUIREMENTS                                               │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ CHANGE TYPE                         │ APPROVAL NEEDED               │   │
+│  │─────────────────────────────────────┼──────────────────────────────│   │
+│  │ Core agent prompt change            │ Engineering + QA review       │   │
+│  │ New core tool                       │ Engineering + Security review │   │
+│  │ Instance prompt extension           │ Instance Admin                │   │
+│  │ Instance skill addition             │ Instance Admin                │   │
+│  │ Client brand voice update           │ Account Manager               │   │
+│  │ Client "never" rule                 │ Account Manager               │   │
+│  │ Auto-learned preference             │ Auto or Account Manager*      │   │
+│  │                                                                      │   │
+│  │ * Configurable: auto_apply_learned_preferences = true/false        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  AUDIT TRAIL                                                                │
+│                                                                             │
+│  All tuning changes logged with:                                           │
+│  ├── Who made the change                                                   │
+│  ├── What was changed (before/after)                                       │
+│  ├── When it was changed                                                   │
+│  ├── Why (optional reason/ticket)                                          │
+│  └── Impact assessment (which clients affected)                            │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+```python
+class TuningAuditLog(Base):
+    """Audit trail for all tuning changes."""
+    __tablename__ = "tuning_audit_logs"
+
+    id = Column(UUID, primary_key=True)
+    instance_id = Column(UUID, ForeignKey("instances.id"), nullable=False)
+
+    # What tier was changed
+    tier = Column(String, nullable=False)  # "agent_builder", "instance", "client"
+
+    # What was changed
+    entity_type = Column(String, nullable=False)  # "prompt", "tool", "rule", "preference"
+    entity_id = Column(String, nullable=True)
+    agent_type = Column(String, nullable=True)
+    client_id = Column(UUID, nullable=True)
+
+    # Change details
+    change_type = Column(String, nullable=False)  # "create", "update", "delete"
+    field_changed = Column(String, nullable=True)
+    old_value = Column(JSONB, nullable=True)
+    new_value = Column(JSONB, nullable=True)
+
+    # Who and why
+    changed_by = Column(UUID, ForeignKey("users.id"), nullable=False)
+    change_reason = Column(Text, nullable=True)
+    ticket_reference = Column(String, nullable=True)
+
+    # Impact
+    affected_clients = Column(ARRAY(UUID), default=[])
+    requires_review = Column(Boolean, default=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# Governance enforcement
+class TuningGovernance:
+    """Enforces tuning governance rules."""
+
+    PERMISSIONS = {
+        "spokestack_engineer": {
+            "agent_builder": ["read", "write"],
+            "instance": ["read", "write_support"],
+            "client": ["read", "write_support"],
+        },
+        "instance_admin": {
+            "agent_builder": ["read"],
+            "instance": ["read", "write"],
+            "client": ["read", "write"],
+        },
+        "instance_manager": {
+            "agent_builder": ["read"],
+            "instance": ["read"],
+            "client": ["read", "write"],
+        },
+        "account_manager": {
+            "agent_builder": [],
+            "instance": [],
+            "client": ["read", "write"],
+        },
+        "client_contact": {
+            "agent_builder": [],
+            "instance": [],
+            "client": ["read", "write_limited"],  # Only feedback, examples
+        },
+    }
+
+    async def check_permission(
+        self,
+        user_id: str,
+        tier: str,
+        action: str,
+        instance_id: str = None,
+        client_id: str = None,
+    ) -> bool:
+        """Check if user has permission for tuning action."""
+        user = await self._get_user(user_id)
+        role = user.role
+
+        permissions = self.PERMISSIONS.get(role, {})
+        tier_permissions = permissions.get(tier, [])
+
+        if action in tier_permissions:
+            return True
+
+        # Check for limited write permissions
+        if action == "write" and "write_limited" in tier_permissions:
+            # Only allow specific fields
+            return False  # Caller must use write_limited endpoint
+
+        return False
+```
+
+### 9.32 Tuning UI Wireframe
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         CLIENT TUNING DASHBOARD                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Client: Nike                                           [Edit] [History]   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ BRAND VOICE                                                          │   │
+│  │                                                                      │   │
+│  │ ┌─────────────────────────────────────────────────────────────────┐ │   │
+│  │ │ Bold, inspirational, and athletic. Use active verbs, short      │ │   │
+│  │ │ punchy sentences. Emphasize achievement and perseverance.       │ │   │
+│  │ │ The Nike voice challenges and empowers.                         │ │   │
+│  │ └─────────────────────────────────────────────────────────────────┘ │   │
+│  │                                                                      │   │
+│  │ Tone Keywords: [bold] [inspirational] [empowering] [+ Add]          │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ CONTENT RULES                                                        │   │
+│  │                                                                      │   │
+│  │ ✅ Always                           ❌ Never                        │   │
+│  │ ├─ Include "Just Do It" spirit      ├─ Mention competitor brands    │   │
+│  │ ├─ Reference athletic achievement   ├─ Use discount language        │   │
+│  │ ├─ Use inclusive language           ├─ Use passive voice            │   │
+│  │ └─ [+ Add rule]                     └─ [+ Add rule]                 │   │
+│  │                                                                      │   │
+│  │ ⭐ Prefer                                                           │   │
+│  │ ├─ Action-oriented headlines                                        │   │
+│  │ ├─ Athlete testimonials over celebrity                              │   │
+│  │ └─ [+ Add rule]                                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 💡 SUGGESTED IMPROVEMENTS                          Based on feedback │   │
+│  │                                                                      │   │
+│  │ ┌─────────────────────────────────────────────────────────────────┐ │   │
+│  │ │ ⚠️  Add "Never" rule: "Use urgency language (limited time)"    │ │   │
+│  │ │                                                                 │ │   │
+│  │ │ Based on 8 corrections in the last 30 days where urgency       │ │   │
+│  │ │ language was removed.                                          │ │   │
+│  │ │                                                                 │ │   │
+│  │ │ Examples:                                                       │ │   │
+│  │ │ • "Hurry, sale ends soon" → "Elevate your game"               │ │   │
+│  │ │ • "Don't miss out" → "Step into greatness"                    │ │   │
+│  │ │                                                                 │ │   │
+│  │ │ [Apply Rule] [Dismiss] [View All 8]                            │ │   │
+│  │ └─────────────────────────────────────────────────────────────────┘ │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 📊 FEEDBACK METRICS                                    Last 30 days │   │
+│  │                                                                      │   │
+│  │ Approval Rate: ████████████████████░░░░ 82%                         │   │
+│  │                                                                      │   │
+│  │ Total Outputs: 145    Approved: 119    Corrected: 18    Rejected: 8│   │
+│  │                                                                      │   │
+│  │ Top Correction Reasons:                                             │   │
+│  │ 1. Too formal (6)                                                   │   │
+│  │ 2. Missing CTA (5)                                                  │   │
+│  │ 3. Urgency language (4)                                             │   │
+│  │                                                                      │   │
+│  │ [View Detailed Analysis]                                            │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ 📝 APPROVED EXAMPLES                                                 │   │
+│  │                                                                      │   │
+│  │ Headline: "Find Your Greatness" ⭐ Campaign: Summer 2025            │   │
+│  │ Headline: "Victory Loves Preparation" ⭐ Campaign: Training         │   │
+│  │ Tagline: "Just Do It" ⭐ Brand                                      │   │
+│  │                                                                      │   │
+│  │ [+ Add Example]                                                     │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 9.33 Tuning API Summary
+
+```python
+# ═══════════════════════════════════════════════════════════════════════════
+# TIER 2: INSTANCE TUNING API
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Get/update instance tuning
+GET  /api/v1/instance/{instance_id}/tuning
+PUT  /api/v1/instance/{instance_id}/tuning
+
+# Per-agent instance tuning
+GET  /api/v1/instance/{instance_id}/agents/{agent_type}/tuning
+PUT  /api/v1/instance/{instance_id}/agents/{agent_type}/tuning
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TIER 3: CLIENT TUNING API
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Get/update client tuning
+GET  /api/v1/instance/{instance_id}/clients/{client_id}/tuning
+PUT  /api/v1/instance/{instance_id}/clients/{client_id}/tuning
+
+# Client rules management
+POST /api/v1/instance/{instance_id}/clients/{client_id}/rules
+DELETE /api/v1/instance/{instance_id}/clients/{client_id}/rules/{rule_id}
+
+# Approved examples
+POST /api/v1/instance/{instance_id}/clients/{client_id}/examples
+DELETE /api/v1/instance/{instance_id}/clients/{client_id}/examples/{example_id}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# FEEDBACK API
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Submit feedback on output
+POST /api/v1/instance/{instance_id}/feedback
+# Body: {output_id, feedback_type, corrected_text?, comment?, rating?}
+
+# Get feedback analysis
+GET  /api/v1/instance/{instance_id}/clients/{client_id}/feedback/analysis
+
+# Apply suggested tuning from feedback
+POST /api/v1/instance/{instance_id}/clients/{client_id}/feedback/apply-suggestions
+# Body: {suggestion_ids: [...]}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AUDIT API
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Get tuning change history
+GET  /api/v1/instance/{instance_id}/tuning/audit
+GET  /api/v1/instance/{instance_id}/clients/{client_id}/tuning/audit
+
+# Rollback tuning change
+POST /api/v1/instance/{instance_id}/tuning/rollback/{audit_id}
+```
+
+### 9.34 Key Takeaways: Fine-Tuning Model
+
+| Tier | Who | What They Tune | How |
+|------|-----|----------------|-----|
+| **Agent Builder** | SpokeStack Engineers | Core prompts, tools, defaults, guardrails | Code + releases |
+| **Instance** | Agency Admins | Prompt extensions, specialization, skills, brand voice | Admin UI/API |
+| **Client** | Account Managers | Brand voice, do/don't rules, format prefs, examples | Client UI/API |
+
+| Feature | Description |
+|---------|-------------|
+| **Prompt Assembly** | Three tiers merge at runtime: base + instance + client |
+| **Feedback Loop** | Approve/reject/correct → pattern analysis → suggestions |
+| **Auto-Learning** | System suggests tuning rules from feedback patterns |
+| **Governance** | Role-based permissions, audit trail, approval workflows |
+| **Client Isolation** | Each client's tuning is separate within an instance |
+
 ---
 
 ## 10. ERP Integration Patterns
