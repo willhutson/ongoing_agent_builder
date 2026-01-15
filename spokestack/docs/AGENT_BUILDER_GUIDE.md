@@ -4151,6 +4151,140 @@ For transitioning between agent phases:
 }
 ```
 
+### 11.6 Browser Automation Skill
+
+For agents that need to interact with web pages, SpokeStack provides the `AgentBrowserSkill` - a Python wrapper around the `agent-browser` CLI that reduces context by 93% using a Snapshot + Refs pattern.
+
+#### Installation
+
+```bash
+# Install the agent-browser CLI globally
+npm install -g @anthropic-ai/agent-browser
+```
+
+#### Basic Usage
+
+```python
+from src.skills.agent_browser import AgentBrowserSkill
+
+class SocialListeningAgent(BaseAgent):
+    """Agent with browser automation capability."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Each agent gets an isolated browser session
+        self.browser = AgentBrowserSkill(session_name="social-listener")
+
+    async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
+        if tool_name == "scrape_trending":
+            return await self._scrape_trending(tool_input["platform"])
+        ...
+
+    async def _scrape_trending(self, platform: str):
+        """Scrape trending content using browser automation."""
+        urls = {
+            "instagram": "https://instagram.com/explore",
+            "tiktok": "https://tiktok.com/discover",
+        }
+
+        # 1. Navigate
+        await self.browser.open(urls[platform])
+
+        # 2. Snapshot (returns refs like @e1, @e2, @e3)
+        snapshot = await self.browser.snapshot(interactive_only=True)
+
+        # 3. Interact using refs
+        await self.browser.click("@e3")
+        text = await self.browser.get_text("@e5")
+
+        # 4. Capture proof
+        await self.browser.screenshot(f"trending_{platform}.png")
+
+        # 5. Cleanup
+        await self.browser.close()
+
+        return {"snapshot": snapshot.raw, "extracted": text}
+```
+
+#### Key Concepts
+
+**Snapshot + Refs Pattern**:
+- `snapshot()` returns element refs like `@e1`, `@e2`, `@e3`
+- Refs are deterministic selectors that work until page changes
+- Use `-i` flag (interactive_only) for 93% context reduction
+
+```python
+# Minimal context - only interactive elements
+snapshot = await browser.snapshot(interactive_only=True)
+# Output: @e1 button "Sign In", @e2 textbox "Email", @e3 button "Submit"
+
+# Full tree for content extraction
+snapshot = await browser.snapshot(interactive_only=False)
+```
+
+**Session Isolation for Multi-Tenancy**:
+```python
+# Instance A's agents run in isolated sessions
+instance_a_social = AgentBrowserSkill(session_name="inst_a_social")
+instance_a_competitor = AgentBrowserSkill(session_name="inst_a_competitor")
+
+# Instance B's agents are completely isolated
+instance_b_social = AgentBrowserSkill(session_name="inst_b_social")
+
+# All can run simultaneously
+await asyncio.gather(
+    instance_a_social.open("https://instagram.com"),
+    instance_a_competitor.open("https://similarweb.com"),
+    instance_b_social.open("https://tiktok.com"),
+)
+```
+
+#### Available Methods
+
+| Method | Description |
+|--------|-------------|
+| `open(url)` | Navigate to URL |
+| `snapshot(interactive_only, compact)` | Get element refs |
+| `click(ref)` | Click element by ref |
+| `fill(ref, text)` | Fill input field |
+| `get_text(ref)` | Extract text content |
+| `screenshot(path)` | Capture screenshot |
+| `wait_for_text(text)` | Wait for content |
+| `capture_proof(url, dir, prefix)` | Timestamped proof screenshot |
+
+#### Agent Use Cases
+
+| Agent | Browser Capability |
+|-------|-------------------|
+| Social Listening | Scrape trending content, competitor posts |
+| Competitor | Navigate SimilarWeb, Meta Ad Library, SpyFu |
+| Media Buying | Verify campaign setup, screenshot live ads |
+| QA | Visual regression testing, landing page verification |
+| Instance Onboarding | OAuth flow automation, platform verification |
+| CRM | Contact enrichment from LinkedIn, company sites |
+| Legal | Capture T&C pages, compliance documentation |
+
+#### Proof-of-Work Pattern
+
+```python
+async def verify_and_document(self, campaign_id: str, url: str):
+    """Capture proof that work was done."""
+    await self.browser.open(url)
+    await self.browser.wait(2000)  # Let page settle
+
+    # Timestamped proof screenshot
+    filepath = await self.browser.capture_proof(
+        url=url,
+        output_dir=f"/proofs/campaign_{campaign_id}",
+        prefix="live_ad"
+    )
+    # Returns: /proofs/campaign_123/live_ad_20260115_143022.png
+
+    return {"verified": True, "proof": filepath}
+```
+
+See `knowledge/agents/skills/BROWSER_SKILL.md` for full command reference and `knowledge/BROWSER_ENABLED_CAPABILITIES.md` for advanced multi-tenant patterns.
+
 ---
 
 ## 12. Testing & Validation
