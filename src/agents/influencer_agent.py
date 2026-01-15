@@ -5,7 +5,21 @@ from src.skills.agent_browser import AgentBrowserSkill
 
 
 class InfluencerAgent(BaseAgent):
-    """Agent for influencer marketing. Specializable by vertical/region."""
+    """
+    Agent for influencer marketing. Specializable by vertical/region.
+
+    Capabilities:
+    - Discover and analyze influencers (API)
+    - Create and manage campaigns (API)
+    - Track performance and ROI (API)
+    - Scrape influencer profiles (Browser)
+    - Capture post engagement proof (Browser)
+    - Verify follower counts (Browser)
+    - Scrape SocialBlade analytics (Browser)
+    - Scrape HypeAuditor public data (Browser)
+    - Check influencer authenticity (Browser)
+    - Monitor influencer content (Browser)
+    """
 
     def __init__(self, client, model: str, erp_base_url: str, erp_api_key: str, vertical: str = None, region: str = None, client_id: str = None, instance_id: str = None):
         self.erp_base_url = erp_base_url
@@ -32,7 +46,14 @@ class InfluencerAgent(BaseAgent):
     def system_prompt(self) -> str:
         prompt = """You are an influencer marketing expert. Discover, manage, and measure influencer campaigns.
 
-You have browser automation to scrape influencer profiles, capture post engagement proof, and verify follower counts."""
+You have browser automation to:
+- Scrape influencer profiles from Instagram, TikTok, YouTube, Twitter
+- Capture post engagement as proof for clients
+- Verify follower counts directly from platforms
+- Check SocialBlade for growth trends and analytics
+- Review HypeAuditor for audience quality metrics
+- Detect fake followers and engagement
+- Monitor influencer content for brand safety"""
         if self.vertical:
             prompt += f"\n\nSpecialized in {self.vertical} vertical."
         if self.region:
@@ -50,6 +71,13 @@ You have browser automation to scrape influencer profiles, capture post engageme
             {"name": "scrape_influencer_profile", "description": "Scrape influencer social profile via browser.", "input_schema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["instagram", "tiktok", "youtube", "twitter"]}, "profile_url": {"type": "string"}, "capture_screenshot": {"type": "boolean", "default": True}}, "required": ["platform", "profile_url"]}},
             {"name": "capture_post_engagement", "description": "Screenshot post as engagement proof.", "input_schema": {"type": "object", "properties": {"post_url": {"type": "string"}, "campaign_id": {"type": "string"}}, "required": ["post_url"]}},
             {"name": "verify_follower_count", "description": "Verify follower count via browser.", "input_schema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["instagram", "tiktok", "youtube", "twitter"]}, "profile_url": {"type": "string"}}, "required": ["platform", "profile_url"]}},
+            # Extended Browser Tools
+            {"name": "scrape_socialblade", "description": "Scrape SocialBlade for influencer growth trends and analytics.", "input_schema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["instagram", "tiktok", "youtube", "twitter"]}, "username": {"type": "string"}, "capture_screenshot": {"type": "boolean", "default": True}}, "required": ["platform", "username"]}},
+            {"name": "scrape_hypeauditor", "description": "Scrape HypeAuditor for audience quality metrics.", "input_schema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["instagram", "tiktok", "youtube"]}, "username": {"type": "string"}, "capture_screenshot": {"type": "boolean", "default": True}}, "required": ["platform", "username"]}},
+            {"name": "check_fake_followers", "description": "Check for fake followers using FakeCheck.co or similar.", "input_schema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["instagram", "twitter"]}, "username": {"type": "string"}, "capture_screenshot": {"type": "boolean", "default": True}}, "required": ["platform", "username"]}},
+            {"name": "scrape_influencer_feed", "description": "Scrape recent posts from influencer feed for brand safety check.", "input_schema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["instagram", "tiktok", "youtube", "twitter"]}, "profile_url": {"type": "string"}, "scroll_count": {"type": "integer", "default": 3}}, "required": ["platform", "profile_url"]}},
+            {"name": "capture_story_highlight", "description": "Capture influencer story highlights as proof.", "input_schema": {"type": "object", "properties": {"highlight_url": {"type": "string"}, "influencer_name": {"type": "string"}}, "required": ["highlight_url"]}},
+            {"name": "scrape_modash", "description": "Scrape Modash for influencer discovery data.", "input_schema": {"type": "object", "properties": {"search_query": {"type": "string"}, "platform": {"type": "string", "enum": ["instagram", "tiktok", "youtube"]}, "capture_screenshot": {"type": "boolean", "default": True}}, "required": ["search_query"]}},
         ]
 
     async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
@@ -80,6 +108,19 @@ You have browser automation to scrape influencer profiles, capture post engageme
                 return await self._capture_post(tool_input["post_url"], tool_input.get("campaign_id"))
             elif tool_name == "verify_follower_count":
                 return await self._verify_followers(tool_input["platform"], tool_input["profile_url"])
+            # Extended Browser Tools
+            elif tool_name == "scrape_socialblade":
+                return await self._scrape_socialblade(tool_input["platform"], tool_input["username"], tool_input.get("capture_screenshot", True))
+            elif tool_name == "scrape_hypeauditor":
+                return await self._scrape_hypeauditor(tool_input["platform"], tool_input["username"], tool_input.get("capture_screenshot", True))
+            elif tool_name == "check_fake_followers":
+                return await self._check_fake_followers(tool_input["platform"], tool_input["username"], tool_input.get("capture_screenshot", True))
+            elif tool_name == "scrape_influencer_feed":
+                return await self._scrape_feed(tool_input["platform"], tool_input["profile_url"], tool_input.get("scroll_count", 3))
+            elif tool_name == "capture_story_highlight":
+                return await self._capture_highlight(tool_input["highlight_url"], tool_input.get("influencer_name", "influencer"))
+            elif tool_name == "scrape_modash":
+                return await self._scrape_modash(tool_input["search_query"], tool_input.get("platform"), tool_input.get("capture_screenshot", True))
             return {"error": f"Unknown tool: {tool_name}"}
         except Exception as e:
             return {"error": str(e)}
@@ -112,6 +153,163 @@ You have browser automation to scrape influencer profiles, capture post engageme
             return {"platform": platform, "snapshot": snapshot.raw, "screenshot": screenshot_path, "timestamp": snapshot.timestamp.isoformat()}
         except Exception as e:
             return {"error": str(e)}
+
+    # =========================================================================
+    # Extended Browser Implementations
+    # =========================================================================
+
+    async def _scrape_socialblade(self, platform: str, username: str, capture: bool = True) -> dict:
+        """Scrape SocialBlade for growth trends and analytics."""
+        platform_map = {"instagram": "instagram", "youtube": "youtube", "twitter": "twitter", "tiktok": "tiktok"}
+        sb_platform = platform_map.get(platform, platform)
+        url = f"https://socialblade.com/{sb_platform}/user/{username}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(3000)
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "platform": platform,
+                "username": username,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url, output_dir="/tmp/influencer_proofs", prefix=f"socialblade_{platform}_{username}"
+                )
+
+            return result
+        except Exception as e:
+            return {"error": f"SocialBlade scrape failed: {str(e)}"}
+
+    async def _scrape_hypeauditor(self, platform: str, username: str, capture: bool = True) -> dict:
+        """Scrape HypeAuditor for audience quality metrics."""
+        platform_map = {"instagram": "instagram", "youtube": "youtube", "tiktok": "tiktok"}
+        ha_platform = platform_map.get(platform, "instagram")
+        url = f"https://hypeauditor.com/{ha_platform}/{username}/"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(3000)
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "platform": platform,
+                "username": username,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url, output_dir="/tmp/influencer_proofs", prefix=f"hypeauditor_{platform}_{username}"
+                )
+
+            return result
+        except Exception as e:
+            return {"error": f"HypeAuditor scrape failed: {str(e)}"}
+
+    async def _check_fake_followers(self, platform: str, username: str, capture: bool = True) -> dict:
+        """Check for fake followers using FakeCheck."""
+        # Use different fake check tools based on platform
+        if platform == "instagram":
+            url = f"https://www.modash.io/fake-follower-check?handle={username}"
+        else:
+            url = f"https://sparktoro.com/tools/fake-followers-audit?username={username}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(4000)  # These tools take time to analyze
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "platform": platform,
+                "username": username,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url, output_dir="/tmp/influencer_proofs", prefix=f"fake_check_{platform}_{username}"
+                )
+
+            return result
+        except Exception as e:
+            return {"error": f"Fake follower check failed: {str(e)}"}
+
+    async def _scrape_feed(self, platform: str, url: str, scroll_count: int = 3) -> dict:
+        """Scrape influencer feed for brand safety check."""
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2000)
+
+            # Scroll to load more content
+            for _ in range(scroll_count):
+                await self.browser.scroll(direction="down", pixels=800)
+                await self.browser.wait(1500)
+
+            snapshot = await self.browser.snapshot(interactive_only=False)
+            screenshot_path = await self.browser.capture_proof(
+                url=url, output_dir="/tmp/influencer_proofs", prefix=f"feed_{platform}"
+            )
+
+            return {
+                "platform": platform,
+                "profile_url": url,
+                "scroll_count": scroll_count,
+                "snapshot": snapshot.raw,
+                "screenshot": screenshot_path,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+        except Exception as e:
+            return {"error": f"Feed scrape failed: {str(e)}"}
+
+    async def _capture_highlight(self, url: str, name: str) -> dict:
+        """Capture story highlight."""
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2500)
+            screenshot_path = await self.browser.capture_proof(
+                url=url, output_dir="/tmp/influencer_proofs", prefix=f"highlight_{name}"
+            )
+            return {"url": url, "influencer": name, "screenshot": screenshot_path, "success": True}
+        except Exception as e:
+            return {"error": f"Highlight capture failed: {str(e)}"}
+
+    async def _scrape_modash(self, query: str, platform: str = None, capture: bool = True) -> dict:
+        """Scrape Modash for influencer discovery."""
+        url = f"https://www.modash.io/search?query={query}"
+        if platform:
+            url += f"&platform={platform}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(3000)
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "query": query,
+                "platform": platform,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url, output_dir="/tmp/influencer_proofs", prefix=f"modash_{query.replace(' ', '_')}"
+                )
+
+            return result
+        except Exception as e:
+            return {"error": f"Modash scrape failed: {str(e)}"}
 
     async def close(self):
         await self.http_client.aclose()

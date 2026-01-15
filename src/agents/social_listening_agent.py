@@ -16,6 +16,12 @@ class SocialListeningAgent(BaseAgent):
     - Alert on issues (via API)
     - Scrape trending content (Browser)
     - Capture social proof screenshots (Browser)
+    - Scrape Reddit threads and subreddits (Browser)
+    - Scrape Twitter/X search results (Browser)
+    - Scrape Google News mentions (Browser)
+    - Scrape YouTube search results (Browser)
+    - Scrape HackerNews discussions (Browser)
+    - Scrape Product Hunt launches (Browser)
     """
 
     def __init__(
@@ -56,9 +62,11 @@ Your role is to track and analyze social conversations:
 4. Track competitor activity
 5. Alert on potential issues
 
-You have browser automation capabilities to scrape trending content from platforms
-that don't expose this data via API. Use the scrape_* tools when you need real-time
-trending data or competitor posts that aren't available through standard APIs.
+You have browser automation capabilities to scrape content from:
+- Social platforms: Instagram, TikTok, Twitter/X, LinkedIn, Facebook
+- Community forums: Reddit, HackerNews, Product Hunt
+- News sources: Google News, YouTube
+- Use scrape_* tools when you need real-time data not available via APIs
 
 When using browser tools:
 - Always capture screenshots as proof of findings
@@ -226,6 +234,99 @@ When using browser tools:
                     "required": ["url"],
                 },
             },
+            # ===== Extended Browser Tools =====
+            {
+                "name": "scrape_reddit",
+                "description": "Scrape Reddit for brand mentions, subreddit discussions, or search results.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "search_query": {"type": "string", "description": "Search term or brand name"},
+                        "subreddit": {"type": "string", "description": "Specific subreddit to search (optional)"},
+                        "sort": {"type": "string", "enum": ["relevance", "hot", "top", "new", "comments"], "default": "relevance"},
+                        "time_filter": {"type": "string", "enum": ["hour", "day", "week", "month", "year", "all"], "default": "week"},
+                        "capture_screenshot": {"type": "boolean", "default": True},
+                    },
+                    "required": ["search_query"],
+                },
+            },
+            {
+                "name": "scrape_twitter_search",
+                "description": "Scrape Twitter/X search results for keywords, mentions, or hashtags.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query (supports Twitter search operators)"},
+                        "filter": {"type": "string", "enum": ["top", "latest", "people", "photos", "videos"], "default": "top"},
+                        "capture_screenshot": {"type": "boolean", "default": True},
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "scrape_google_news",
+                "description": "Scrape Google News for brand/topic mentions and press coverage.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"},
+                        "time_range": {"type": "string", "enum": ["hour", "day", "week", "month", "year"], "default": "week"},
+                        "capture_screenshot": {"type": "boolean", "default": True},
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "scrape_youtube_search",
+                "description": "Scrape YouTube search results for video mentions and discussions.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"},
+                        "filter": {"type": "string", "enum": ["relevance", "upload_date", "view_count", "rating"], "default": "relevance"},
+                        "capture_screenshot": {"type": "boolean", "default": True},
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "scrape_hackernews",
+                "description": "Scrape HackerNews for tech industry discussions and mentions.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"},
+                        "search_type": {"type": "string", "enum": ["story", "comment", "all"], "default": "all"},
+                        "sort": {"type": "string", "enum": ["popularity", "date"], "default": "popularity"},
+                        "capture_screenshot": {"type": "boolean", "default": True},
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "scrape_product_hunt",
+                "description": "Scrape Product Hunt for product launches and discussions.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query or product name"},
+                        "capture_screenshot": {"type": "boolean", "default": True},
+                    },
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "scrape_quora",
+                "description": "Scrape Quora for Q&A discussions about a brand or topic.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Search query"},
+                        "capture_screenshot": {"type": "boolean", "default": True},
+                    },
+                    "required": ["query"],
+                },
+            },
         ]
 
     async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
@@ -295,6 +396,57 @@ When using browser tools:
                 return await self._capture_proof(
                     url=tool_input["url"],
                     prefix=tool_input.get("output_prefix", "social_proof"),
+                )
+
+            # ===== Extended Browser Tools =====
+            elif tool_name == "scrape_reddit":
+                return await self._scrape_reddit(
+                    query=tool_input["search_query"],
+                    subreddit=tool_input.get("subreddit"),
+                    sort=tool_input.get("sort", "relevance"),
+                    time_filter=tool_input.get("time_filter", "week"),
+                    capture=tool_input.get("capture_screenshot", True),
+                )
+
+            elif tool_name == "scrape_twitter_search":
+                return await self._scrape_twitter_search(
+                    query=tool_input["query"],
+                    filter_type=tool_input.get("filter", "top"),
+                    capture=tool_input.get("capture_screenshot", True),
+                )
+
+            elif tool_name == "scrape_google_news":
+                return await self._scrape_google_news(
+                    query=tool_input["query"],
+                    time_range=tool_input.get("time_range", "week"),
+                    capture=tool_input.get("capture_screenshot", True),
+                )
+
+            elif tool_name == "scrape_youtube_search":
+                return await self._scrape_youtube(
+                    query=tool_input["query"],
+                    filter_type=tool_input.get("filter", "relevance"),
+                    capture=tool_input.get("capture_screenshot", True),
+                )
+
+            elif tool_name == "scrape_hackernews":
+                return await self._scrape_hackernews(
+                    query=tool_input["query"],
+                    search_type=tool_input.get("search_type", "all"),
+                    sort=tool_input.get("sort", "popularity"),
+                    capture=tool_input.get("capture_screenshot", True),
+                )
+
+            elif tool_name == "scrape_product_hunt":
+                return await self._scrape_product_hunt(
+                    query=tool_input["query"],
+                    capture=tool_input.get("capture_screenshot", True),
+                )
+
+            elif tool_name == "scrape_quora":
+                return await self._scrape_quora(
+                    query=tool_input["query"],
+                    capture=tool_input.get("capture_screenshot", True),
                 )
 
             return {"error": f"Unknown tool: {tool_name}"}
@@ -456,6 +608,282 @@ When using browser tools:
             }
         except Exception as e:
             return {"error": f"Screenshot capture failed: {str(e)}"}
+
+    # =========================================================================
+    # Extended Browser Implementations
+    # =========================================================================
+
+    async def _scrape_reddit(
+        self,
+        query: str,
+        subreddit: Optional[str] = None,
+        sort: str = "relevance",
+        time_filter: str = "week",
+        capture: bool = True
+    ) -> dict:
+        """Scrape Reddit search results or subreddit."""
+        if subreddit:
+            url = f"https://www.reddit.com/r/{subreddit}/search?q={query}&restrict_sr=1&sort={sort}&t={time_filter}"
+        else:
+            url = f"https://www.reddit.com/search?q={query}&sort={sort}&t={time_filter}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2500)
+
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "query": query,
+                "subreddit": subreddit,
+                "sort": sort,
+                "time_filter": time_filter,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                prefix = f"reddit_{subreddit}" if subreddit else f"reddit_{query.replace(' ', '_')}"
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url,
+                    output_dir="/tmp/social_proofs",
+                    prefix=prefix
+                )
+
+            return result
+
+        except Exception as e:
+            return {"error": f"Reddit scrape failed: {str(e)}"}
+
+    async def _scrape_twitter_search(
+        self,
+        query: str,
+        filter_type: str = "top",
+        capture: bool = True
+    ) -> dict:
+        """Scrape Twitter/X search results."""
+        # Map filter to Twitter URL param
+        filter_map = {
+            "top": "",
+            "latest": "&f=live",
+            "people": "&f=user",
+            "photos": "&f=image",
+            "videos": "&f=video",
+        }
+        filter_param = filter_map.get(filter_type, "")
+        url = f"https://twitter.com/search?q={query}{filter_param}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(3000)
+
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "query": query,
+                "filter": filter_type,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url,
+                    output_dir="/tmp/social_proofs",
+                    prefix=f"twitter_{query.replace(' ', '_')}"
+                )
+
+            return result
+
+        except Exception as e:
+            return {"error": f"Twitter scrape failed: {str(e)}"}
+
+    async def _scrape_google_news(
+        self,
+        query: str,
+        time_range: str = "week",
+        capture: bool = True
+    ) -> dict:
+        """Scrape Google News for mentions."""
+        # Map time range to Google News param
+        time_map = {
+            "hour": "qdr:h",
+            "day": "qdr:d",
+            "week": "qdr:w",
+            "month": "qdr:m",
+            "year": "qdr:y",
+        }
+        tbs = time_map.get(time_range, "qdr:w")
+        url = f"https://www.google.com/search?q={query}&tbm=nws&tbs={tbs}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2000)
+
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "query": query,
+                "time_range": time_range,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url,
+                    output_dir="/tmp/social_proofs",
+                    prefix=f"google_news_{query.replace(' ', '_')}"
+                )
+
+            return result
+
+        except Exception as e:
+            return {"error": f"Google News scrape failed: {str(e)}"}
+
+    async def _scrape_youtube(
+        self,
+        query: str,
+        filter_type: str = "relevance",
+        capture: bool = True
+    ) -> dict:
+        """Scrape YouTube search results."""
+        # Map filter to YouTube sort param
+        filter_map = {
+            "relevance": "",
+            "upload_date": "&sp=CAI%253D",
+            "view_count": "&sp=CAM%253D",
+            "rating": "&sp=CAE%253D",
+        }
+        filter_param = filter_map.get(filter_type, "")
+        url = f"https://www.youtube.com/results?search_query={query}{filter_param}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2500)
+
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "query": query,
+                "filter": filter_type,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url,
+                    output_dir="/tmp/social_proofs",
+                    prefix=f"youtube_{query.replace(' ', '_')}"
+                )
+
+            return result
+
+        except Exception as e:
+            return {"error": f"YouTube scrape failed: {str(e)}"}
+
+    async def _scrape_hackernews(
+        self,
+        query: str,
+        search_type: str = "all",
+        sort: str = "popularity",
+        capture: bool = True
+    ) -> dict:
+        """Scrape HackerNews via Algolia search."""
+        # Use HN Algolia search
+        type_filter = "" if search_type == "all" else f"&type={search_type}"
+        sort_param = "byPopularity" if sort == "popularity" else "byDate"
+        url = f"https://hn.algolia.com/?dateRange=all&page=0&prefix=true&query={query}&sort={sort_param}{type_filter}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2000)
+
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "query": query,
+                "search_type": search_type,
+                "sort": sort,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url,
+                    output_dir="/tmp/social_proofs",
+                    prefix=f"hackernews_{query.replace(' ', '_')}"
+                )
+
+            return result
+
+        except Exception as e:
+            return {"error": f"HackerNews scrape failed: {str(e)}"}
+
+    async def _scrape_product_hunt(self, query: str, capture: bool = True) -> dict:
+        """Scrape Product Hunt search results."""
+        url = f"https://www.producthunt.com/search?q={query}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2500)
+
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "query": query,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url,
+                    output_dir="/tmp/social_proofs",
+                    prefix=f"producthunt_{query.replace(' ', '_')}"
+                )
+
+            return result
+
+        except Exception as e:
+            return {"error": f"Product Hunt scrape failed: {str(e)}"}
+
+    async def _scrape_quora(self, query: str, capture: bool = True) -> dict:
+        """Scrape Quora search results."""
+        url = f"https://www.quora.com/search?q={query}"
+
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2500)
+
+            snapshot = await self.browser.snapshot(interactive_only=False)
+
+            result = {
+                "query": query,
+                "url": url,
+                "snapshot": snapshot.raw,
+                "timestamp": snapshot.timestamp.isoformat(),
+            }
+
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(
+                    url=url,
+                    output_dir="/tmp/social_proofs",
+                    prefix=f"quora_{query.replace(' ', '_')}"
+                )
+
+            return result
+
+        except Exception as e:
+            return {"error": f"Quora scrape failed: {str(e)}"}
 
     async def close(self):
         """Cleanup resources."""
