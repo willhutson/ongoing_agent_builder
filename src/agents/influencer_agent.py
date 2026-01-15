@@ -1,18 +1,22 @@
 from typing import Any
 import httpx
 from .base import BaseAgent
+from src.skills.agent_browser import AgentBrowserSkill
 
 
 class InfluencerAgent(BaseAgent):
     """Agent for influencer marketing. Specializable by vertical/region."""
 
-    def __init__(self, client, model: str, erp_base_url: str, erp_api_key: str, vertical: str = None, region: str = None, client_id: str = None):
+    def __init__(self, client, model: str, erp_base_url: str, erp_api_key: str, vertical: str = None, region: str = None, client_id: str = None, instance_id: str = None):
         self.erp_base_url = erp_base_url
         self.erp_api_key = erp_api_key
         self.vertical = vertical
         self.region = region
         self.client_specific_id = client_id
+        self.instance_id = instance_id
         self.http_client = httpx.AsyncClient(base_url=erp_base_url, headers={"Authorization": f"Bearer {erp_api_key}"}, timeout=60.0)
+        session_name = f"influencer_{instance_id}" if instance_id else "influencer"
+        self.browser = AgentBrowserSkill(session_name=session_name)
         super().__init__(client, model)
 
     @property
@@ -26,7 +30,9 @@ class InfluencerAgent(BaseAgent):
 
     @property
     def system_prompt(self) -> str:
-        prompt = """You are an influencer marketing expert. Discover, manage, and measure influencer campaigns."""
+        prompt = """You are an influencer marketing expert. Discover, manage, and measure influencer campaigns.
+
+You have browser automation to scrape influencer profiles, capture post engagement proof, and verify follower counts."""
         if self.vertical:
             prompt += f"\n\nSpecialized in {self.vertical} vertical."
         if self.region:
@@ -41,6 +47,9 @@ class InfluencerAgent(BaseAgent):
             {"name": "manage_contract", "description": "Manage influencer contract.", "input_schema": {"type": "object", "properties": {"influencer_id": {"type": "string"}, "terms": {"type": "object"}}, "required": ["influencer_id"]}},
             {"name": "track_performance", "description": "Track campaign performance.", "input_schema": {"type": "object", "properties": {"campaign_id": {"type": "string"}}, "required": ["campaign_id"]}},
             {"name": "calculate_roi", "description": "Calculate influencer ROI.", "input_schema": {"type": "object", "properties": {"campaign_id": {"type": "string"}}, "required": ["campaign_id"]}},
+            {"name": "scrape_influencer_profile", "description": "Scrape influencer social profile via browser.", "input_schema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["instagram", "tiktok", "youtube", "twitter"]}, "profile_url": {"type": "string"}, "capture_screenshot": {"type": "boolean", "default": True}}, "required": ["platform", "profile_url"]}},
+            {"name": "capture_post_engagement", "description": "Screenshot post as engagement proof.", "input_schema": {"type": "object", "properties": {"post_url": {"type": "string"}, "campaign_id": {"type": "string"}}, "required": ["post_url"]}},
+            {"name": "verify_follower_count", "description": "Verify follower count via browser.", "input_schema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["instagram", "tiktok", "youtube", "twitter"]}, "profile_url": {"type": "string"}}, "required": ["platform", "profile_url"]}},
         ]
 
     async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
@@ -65,9 +74,45 @@ class InfluencerAgent(BaseAgent):
             elif tool_name == "calculate_roi":
                 response = await self.http_client.get(f"/api/v1/influencers/campaigns/{tool_input['campaign_id']}/roi")
                 return response.json() if response.status_code == 200 else {"roi": None}
+            elif tool_name == "scrape_influencer_profile":
+                return await self._scrape_profile(tool_input["platform"], tool_input["profile_url"], tool_input.get("capture_screenshot", True))
+            elif tool_name == "capture_post_engagement":
+                return await self._capture_post(tool_input["post_url"], tool_input.get("campaign_id"))
+            elif tool_name == "verify_follower_count":
+                return await self._verify_followers(tool_input["platform"], tool_input["profile_url"])
             return {"error": f"Unknown tool: {tool_name}"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def _scrape_profile(self, platform: str, url: str, capture: bool = True) -> dict:
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2000)
+            snapshot = await self.browser.snapshot(interactive_only=False)
+            result = {"platform": platform, "profile_url": url, "snapshot": snapshot.raw, "timestamp": snapshot.timestamp.isoformat()}
+            if capture:
+                result["screenshot"] = await self.browser.capture_proof(url=url, output_dir="/tmp/influencer_proofs", prefix=f"profile_{platform}")
+            return result
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def _capture_post(self, url: str, campaign_id: str = None) -> dict:
+        try:
+            screenshot_path = await self.browser.capture_proof(url=url, output_dir="/tmp/influencer_proofs", prefix=f"post_{campaign_id}" if campaign_id else "post")
+            return {"post_url": url, "screenshot": screenshot_path, "success": True}
+        except Exception as e:
+            return {"error": str(e)}
+
+    async def _verify_followers(self, platform: str, url: str) -> dict:
+        try:
+            await self.browser.open(url)
+            await self.browser.wait(2000)
+            snapshot = await self.browser.snapshot(interactive_only=False)
+            screenshot_path = await self.browser.capture_proof(url=url, output_dir="/tmp/influencer_proofs", prefix=f"followers_{platform}")
+            return {"platform": platform, "snapshot": snapshot.raw, "screenshot": screenshot_path, "timestamp": snapshot.timestamp.isoformat()}
         except Exception as e:
             return {"error": str(e)}
 
     async def close(self):
         await self.http_client.aclose()
+        await self.browser.close()
