@@ -6,6 +6,7 @@ Real-world agency scenarios to test agent capabilities with Claude API.
 """
 import asyncio
 import sys
+import os
 from pathlib import Path
 from datetime import datetime
 
@@ -14,6 +15,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import anthropic
 from src.config import get_settings
 from src.agents.base import AgentContext
+
+
+def get_api_key():
+    """Get API key from env var or settings."""
+    # Check environment variable first
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if key:
+        return key
+    # Fall back to settings
+    settings = get_settings()
+    return settings.anthropic_api_key
 
 # =============================================================================
 # USER STORIES - Real agency scenarios for each browser-enabled agent
@@ -244,12 +256,13 @@ def get_agent_instance(agent_name: str, client: anthropic.AsyncAnthropic, settin
 async def run_story(agent_name: str, story: dict, stream: bool = True):
     """Run a single user story."""
     settings = get_settings()
+    api_key = get_api_key()
 
-    if not settings.anthropic_api_key:
-        print("ERROR: ANTHROPIC_API_KEY not set. Add to .env file.")
+    if not api_key:
+        print("ERROR: ANTHROPIC_API_KEY not set. Set env var or add to .env file.")
         sys.exit(1)
 
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = anthropic.AsyncAnthropic(api_key=api_key)
     agent = get_agent_instance(agent_name, client, settings)
 
     print("\n" + "=" * 80)
