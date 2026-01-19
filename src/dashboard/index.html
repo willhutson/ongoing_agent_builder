@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Dashboard | SpokeStack</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        opus: '#8B5CF6',
+                        sonnet: '#3B82F6',
+                        haiku: '#10B981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .tier-opus { background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%); }
+        .tier-sonnet { background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); }
+        .tier-haiku { background: linear-gradient(135deg, #10B981 0%, #059669 100%); }
+        .agent-card:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .llm-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; }
+        .llm-higgsfield { background: #FF6B6B; color: white; }
+        .llm-openai_dalle { background: #00A67E; color: white; }
+        .llm-replicate_flux { background: #7C3AED; color: white; }
+        .llm-stability { background: #8B5CF6; color: white; }
+        .llm-elevenlabs { background: #F97316; color: white; }
+        .llm-openai_whisper { background: #00A67E; color: white; }
+        .llm-openai_tts { background: #00A67E; color: white; }
+        .llm-openai_vision { background: #00A67E; color: white; }
+        .llm-beautiful_ai { background: #EC4899; color: white; }
+        .llm-gamma { background: #6366F1; color: white; }
+        .llm-perplexity { background: #0EA5E9; color: white; }
+        .llm-runway { background: #EF4444; color: white; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold text-gray-900">Agent Dashboard</h1>
+                    <span id="health-badge" class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                        <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                        Healthy
+                    </span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="text-sm text-gray-500" id="agent-count">46 Agents</span>
+                    <button onclick="refreshData()" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition">
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Model Tier Summary -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-3 h-3 rounded-full bg-opus"></div>
+                    <h3 class="font-semibold text-gray-900">Opus Tier</h3>
+                </div>
+                <p class="text-3xl font-bold text-opus" id="opus-count">0</p>
+                <p class="text-sm text-gray-500">Complex reasoning agents</p>
+            </div>
+            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-3 h-3 rounded-full bg-sonnet"></div>
+                    <h3 class="font-semibold text-gray-900">Sonnet Tier</h3>
+                </div>
+                <p class="text-3xl font-bold text-sonnet" id="sonnet-count">0</p>
+                <p class="text-sm text-gray-500">Balanced performance agents</p>
+            </div>
+            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-3 h-3 rounded-full bg-haiku"></div>
+                    <h3 class="font-semibold text-gray-900">Haiku Tier</h3>
+                </div>
+                <p class="text-3xl font-bold text-haiku" id="haiku-count">0</p>
+                <p class="text-sm text-gray-500">Fast, simple operations</p>
+            </div>
+        </div>
+
+        <!-- External LLM Providers -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
+            <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                <h2 class="font-semibold text-gray-900">External LLM Providers</h2>
+                <span id="llm-status" class="text-sm text-gray-500">Loading...</span>
+            </div>
+            <div id="llm-providers" class="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                <!-- Providers will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Prompt Assistant -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
+            <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                    <h2 class="font-semibold text-gray-900">Prompt Assistant</h2>
+                    <p class="text-xs text-gray-500">Claude Sonnet helps craft better prompts for visual/video tools</p>
+                </div>
+                <span class="px-2 py-1 rounded-full text-xs font-medium bg-sonnet/10 text-sonnet">Powered by Sonnet</span>
+            </div>
+            <div class="p-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Prompt Type</label>
+                        <select id="prompt-type" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sonnet focus:border-sonnet">
+                            <option value="video">Video Generation (Higgsfield, Runway)</option>
+                            <option value="image">Image Generation (DALL-E, Flux)</option>
+                            <option value="presentation">Presentation (Beautiful.ai, Gamma)</option>
+                            <option value="voice">Voice Description (ElevenLabs)</option>
+                            <option value="storyboard">Video Storyboard</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="toggleAssistantExpand()" id="expand-btn" class="text-sm text-sonnet hover:text-sonnet/80 transition">
+                            Show Examples
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Your Idea</label>
+                    <textarea id="prompt-input" rows="3" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sonnet focus:border-sonnet" placeholder="Describe what you want to create (e.g., 'product video of sneakers')"></textarea>
+                </div>
+                <div id="prompt-context-section" class="mt-4 hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Additional Context (optional)</label>
+                    <textarea id="prompt-context" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sonnet focus:border-sonnet" placeholder="Campaign info, brand guidelines, target audience..."></textarea>
+                </div>
+                <div class="mt-4 flex gap-3">
+                    <button onclick="enhancePrompt()" id="enhance-btn" class="flex-1 px-4 py-2 bg-sonnet text-white rounded-lg hover:bg-sonnet/90 transition font-medium text-sm">
+                        Enhance Prompt
+                    </button>
+                    <button onclick="getSuggestions()" class="px-4 py-2 border border-sonnet text-sonnet rounded-lg hover:bg-sonnet/5 transition font-medium text-sm">
+                        Get 3 Variations
+                    </button>
+                    <button onclick="toggleContext()" class="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition text-sm" title="Add context">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                    </button>
+                </div>
+                <!-- Results -->
+                <div id="prompt-result" class="mt-4 hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Enhanced Prompt</label>
+                    <div id="prompt-output" class="bg-gray-50 rounded-lg p-4 text-sm text-gray-900 whitespace-pre-wrap font-mono"></div>
+                    <div class="mt-2 flex items-center justify-between">
+                        <span id="prompt-tokens" class="text-xs text-gray-400"></span>
+                        <button onclick="copyPrompt()" class="text-sm text-sonnet hover:text-sonnet/80 transition flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+                            </svg>
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                <!-- Variations -->
+                <div id="prompt-variations" class="mt-4 hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Prompt Variations</label>
+                    <div id="variations-list" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Running Tasks -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="font-semibold text-gray-900">Running Tasks</h2>
+            </div>
+            <div id="tasks-container" class="p-4">
+                <p class="text-gray-500 text-sm">No active tasks</p>
+            </div>
+        </div>
+
+        <!-- Agents by Layer -->
+        <div id="agents-container">
+            <!-- Agents will be rendered here by layer -->
+        </div>
+    </main>
+
+    <!-- Agent Detail Modal -->
+    <div id="agent-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-auto">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h2 id="modal-agent-name" class="text-xl font-bold text-gray-900">Agent Name</h2>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">Description</label>
+                        <p id="modal-description" class="text-gray-900">-</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">Layer</label>
+                        <p id="modal-layer" class="text-gray-900">-</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">Model Tier</label>
+                        <div class="flex items-center gap-3 mt-1">
+                            <span id="modal-tier-badge" class="px-3 py-1 rounded-full text-white text-sm font-medium">-</span>
+                            <select id="tier-select" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" onchange="updateAgentTier()">
+                                <option value="opus">Opus (Complex)</option>
+                                <option value="sonnet">Sonnet (Balanced)</option>
+                                <option value="haiku">Haiku (Fast)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">Model ID</label>
+                        <code id="modal-model-id" class="block bg-gray-100 rounded px-3 py-2 text-sm font-mono">-</code>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">External LLMs</label>
+                        <div id="modal-external-llms" class="flex flex-wrap gap-2 mt-1">
+                            <span class="text-gray-400 text-sm">None</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+                <button onclick="testAgent()" class="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition">
+                    Test Agent
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let agents = [];
+        let modelTiers = {};
+        let externalProviders = [];
+        let currentAgent = null;
+
+        const llmLabels = {
+            'higgsfield': 'Higgsfield',
+            'openai_dalle': 'DALL-E 3',
+            'replicate_flux': 'Flux',
+            'stability': 'Stability',
+            'elevenlabs': 'ElevenLabs',
+            'openai_whisper': 'Whisper',
+            'openai_tts': 'OpenAI TTS',
+            'openai_vision': 'GPT-4V',
+            'beautiful_ai': 'Beautiful.ai',
+            'gamma': 'Gamma',
+            'perplexity': 'Perplexity',
+            'runway': 'Runway',
+        };
+
+        const layerColors = {
+            foundation: 'bg-blue-50 border-blue-200',
+            studio: 'bg-purple-50 border-purple-200',
+            video: 'bg-pink-50 border-pink-200',
+            distribution: 'bg-green-50 border-green-200',
+            gateway: 'bg-yellow-50 border-yellow-200',
+            brand: 'bg-orange-50 border-orange-200',
+            operations: 'bg-cyan-50 border-cyan-200',
+            client: 'bg-indigo-50 border-indigo-200',
+            media: 'bg-red-50 border-red-200',
+            social: 'bg-teal-50 border-teal-200',
+            performance: 'bg-emerald-50 border-emerald-200',
+            finance: 'bg-lime-50 border-lime-200',
+            quality: 'bg-amber-50 border-amber-200',
+            knowledge: 'bg-violet-50 border-violet-200',
+            specialized: 'bg-rose-50 border-rose-200',
+        };
+
+        const layerLabels = {
+            foundation: 'Foundation Layer',
+            studio: 'Studio Layer',
+            video: 'Video Production',
+            distribution: 'Distribution',
+            gateway: 'Gateways',
+            brand: 'Brand',
+            operations: 'Operations',
+            client: 'Client Management',
+            media: 'Media & Advertising',
+            social: 'Social',
+            performance: 'Performance & Analytics',
+            finance: 'Finance',
+            quality: 'Quality & Compliance',
+            knowledge: 'Knowledge & Learning',
+            specialized: 'Specialized',
+        };
+
+        async function fetchAgents() {
+            try {
+                const response = await fetch('/api/v1/agents');
+                const data = await response.json();
+                agents = data.agents;
+                modelTiers = data.model_tiers;
+                renderAgents();
+                updateCounts();
+            } catch (error) {
+                console.error('Failed to fetch agents:', error);
+            }
+        }
+
+        async function fetchHealth() {
+            try {
+                const response = await fetch('/api/v1/health');
+                const data = await response.json();
+                const badge = document.getElementById('health-badge');
+                if (data.status === 'healthy') {
+                    badge.className = 'px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800';
+                    badge.innerHTML = '<span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>Healthy';
+                } else {
+                    badge.className = 'px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800';
+                    badge.innerHTML = '<span class="inline-block w-2 h-2 bg-red-500 rounded-full mr-2"></span>Unhealthy';
+                }
+            } catch (error) {
+                const badge = document.getElementById('health-badge');
+                badge.className = 'px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800';
+                badge.innerHTML = '<span class="inline-block w-2 h-2 bg-gray-500 rounded-full mr-2"></span>Offline';
+            }
+        }
+
+        async function fetchExternalProviders() {
+            try {
+                const response = await fetch('/api/v1/external-llms/providers');
+                const data = await response.json();
+                externalProviders = data.providers;
+                renderExternalProviders(data);
+            } catch (error) {
+                console.error('Failed to fetch external providers:', error);
+                document.getElementById('llm-status').textContent = 'Error loading';
+            }
+        }
+
+        function renderExternalProviders(data) {
+            const container = document.getElementById('llm-providers');
+            const status = document.getElementById('llm-status');
+            status.textContent = `${data.configured_count}/${data.total_count} configured`;
+
+            container.innerHTML = data.providers.map(p => `
+                <div class="flex items-center gap-2 p-2 rounded-lg ${p.configured ? 'bg-green-50' : 'bg-gray-50'}">
+                    <span class="w-2 h-2 rounded-full ${p.configured ? 'bg-green-500' : 'bg-gray-300'}"></span>
+                    <span class="text-sm ${p.configured ? 'text-gray-900' : 'text-gray-400'}">${p.name}</span>
+                </div>
+            `).join('');
+        }
+
+        function updateCounts() {
+            const counts = { opus: 0, sonnet: 0, haiku: 0 };
+            agents.forEach(agent => {
+                if (agent.model_tier) counts[agent.model_tier]++;
+            });
+            document.getElementById('opus-count').textContent = counts.opus;
+            document.getElementById('sonnet-count').textContent = counts.sonnet;
+            document.getElementById('haiku-count').textContent = counts.haiku;
+            document.getElementById('agent-count').textContent = `${agents.length} Agents`;
+        }
+
+        function renderAgents() {
+            const container = document.getElementById('agents-container');
+            container.innerHTML = '';
+
+            // Group by layer
+            const layers = {};
+            agents.forEach(agent => {
+                if (!layers[agent.layer]) layers[agent.layer] = [];
+                layers[agent.layer].push(agent);
+            });
+
+            // Render each layer
+            const layerOrder = ['foundation', 'studio', 'video', 'distribution', 'gateway', 'brand', 'operations', 'client', 'media', 'social', 'performance', 'finance', 'quality', 'knowledge', 'specialized'];
+
+            layerOrder.forEach(layer => {
+                if (!layers[layer]) return;
+
+                const section = document.createElement('div');
+                section.className = 'mb-8';
+                section.innerHTML = `
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">${layerLabels[layer] || layer}</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="layer-${layer}"></div>
+                `;
+                container.appendChild(section);
+
+                const grid = document.getElementById(`layer-${layer}`);
+                layers[layer].forEach(agent => {
+                    grid.appendChild(createAgentCard(agent));
+                });
+            });
+        }
+
+        function createAgentCard(agent) {
+            const card = document.createElement('div');
+            card.className = `agent-card bg-white rounded-xl border border-gray-200 p-4 cursor-pointer transition-all duration-200 hover:shadow-lg ${layerColors[agent.layer] || ''}`;
+            card.onclick = () => openModal(agent);
+
+            const tierClass = `tier-${agent.model_tier}`;
+            const externalLlms = agent.external_llms || [];
+            const llmBadges = externalLlms.slice(0, 2).map(llm =>
+                `<span class="llm-badge llm-${llm}">${llmLabels[llm] || llm}</span>`
+            ).join('');
+            const moreCount = externalLlms.length > 2 ? `<span class="text-xs text-gray-400">+${externalLlms.length - 2}</span>` : '';
+
+            card.innerHTML = `
+                <div class="flex items-start justify-between mb-2">
+                    <div class="flex-1">
+                        <h3 class="font-semibold text-gray-900 text-sm">${agent.name}</h3>
+                    </div>
+                    <span class="px-2 py-0.5 rounded-full text-white text-xs font-medium ${tierClass}">${agent.model_tier}</span>
+                </div>
+                <p class="text-gray-500 text-xs line-clamp-2 mb-2">${agent.description}</p>
+                ${externalLlms.length > 0 ? `<div class="flex flex-wrap gap-1 mb-2">${llmBadges}${moreCount}</div>` : ''}
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-400">${agent.type}</span>
+                    <span class="inline-block w-2 h-2 bg-green-500 rounded-full" title="Available"></span>
+                </div>
+            `;
+
+            return card;
+        }
+
+        function openModal(agent) {
+            currentAgent = agent;
+            document.getElementById('modal-agent-name').textContent = agent.name;
+            document.getElementById('modal-description').textContent = agent.description;
+            document.getElementById('modal-layer').textContent = layerLabels[agent.layer] || agent.layer;
+
+            const tierBadge = document.getElementById('modal-tier-badge');
+            tierBadge.textContent = agent.model_tier;
+            tierBadge.className = `px-3 py-1 rounded-full text-white text-sm font-medium tier-${agent.model_tier}`;
+
+            document.getElementById('tier-select').value = agent.model_tier;
+            document.getElementById('modal-model-id').textContent = modelTiers[agent.model_tier] || '-';
+
+            // External LLMs
+            const externalLlmsContainer = document.getElementById('modal-external-llms');
+            const externalLlms = agent.external_llms || [];
+            if (externalLlms.length > 0) {
+                externalLlmsContainer.innerHTML = externalLlms.map(llm =>
+                    `<span class="llm-badge llm-${llm}">${llmLabels[llm] || llm}</span>`
+                ).join('');
+            } else {
+                externalLlmsContainer.innerHTML = '<span class="text-gray-400 text-sm">Claude only</span>';
+            }
+
+            document.getElementById('agent-modal').classList.remove('hidden');
+            document.getElementById('agent-modal').classList.add('flex');
+        }
+
+        function closeModal() {
+            document.getElementById('agent-modal').classList.add('hidden');
+            document.getElementById('agent-modal').classList.remove('flex');
+            currentAgent = null;
+        }
+
+        async function updateAgentTier() {
+            if (!currentAgent) return;
+            const newTier = document.getElementById('tier-select').value;
+
+            // Update UI immediately
+            const tierBadge = document.getElementById('modal-tier-badge');
+            tierBadge.textContent = newTier;
+            tierBadge.className = `px-3 py-1 rounded-full text-white text-sm font-medium tier-${newTier}`;
+            document.getElementById('modal-model-id').textContent = modelTiers[newTier] || '-';
+
+            // Update in agents array
+            const agentIndex = agents.findIndex(a => a.type === currentAgent.type);
+            if (agentIndex >= 0) {
+                agents[agentIndex].model_tier = newTier;
+                updateCounts();
+                renderAgents();
+            }
+        }
+
+        async function testAgent() {
+            if (!currentAgent) return;
+            alert(`Testing ${currentAgent.name}...\n\nThis would execute a test task for the agent using the /api/v1/agent/execute endpoint.`);
+        }
+
+        function refreshData() {
+            fetchAgents();
+            fetchHealth();
+            fetchExternalProviders();
+        }
+
+        // Prompt Assistant functions
+        let currentEnhancedPrompt = '';
+
+        function toggleContext() {
+            const section = document.getElementById('prompt-context-section');
+            section.classList.toggle('hidden');
+        }
+
+        function toggleAssistantExpand() {
+            const btn = document.getElementById('expand-btn');
+            const promptType = document.getElementById('prompt-type').value;
+            const examples = {
+                video: { input: 'product video of sneakers', output: 'Cinematic product shot of premium white sneakers rotating on a minimalist circular platform...' },
+                image: { input: 'a cat wearing sunglasses', output: 'A sophisticated orange tabby cat wearing oversized vintage aviator sunglasses...' },
+                presentation: { input: 'quarterly sales presentation', output: 'Presentation Brief: Q4 Sales Review...' },
+                voice: { input: 'voice for a meditation app', output: 'Calm, soothing female voice in her 30s-40s with a neutral American accent...' },
+                storyboard: { input: '30 second ad for a fitness app', output: 'STORYBOARD: Fitness App Ad (30 seconds)...' }
+            };
+            const example = examples[promptType];
+            if (example) {
+                document.getElementById('prompt-input').placeholder = `e.g., "${example.input}"`;
+            }
+        }
+
+        async function enhancePrompt() {
+            const promptType = document.getElementById('prompt-type').value;
+            const userInput = document.getElementById('prompt-input').value.trim();
+            const context = document.getElementById('prompt-context').value.trim() || null;
+
+            if (!userInput) {
+                alert('Please enter your idea first');
+                return;
+            }
+
+            const btn = document.getElementById('enhance-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="pulse">Enhancing...</span>';
+
+            try {
+                const response = await fetch('/api/v1/prompt-assistant/enhance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt_type: promptType,
+                        user_input: userInput,
+                        context: context,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentEnhancedPrompt = data.enhanced_prompt;
+                    document.getElementById('prompt-output').textContent = data.enhanced_prompt;
+                    document.getElementById('prompt-tokens').textContent = `Tokens: ${data.tokens_used.input} in / ${data.tokens_used.output} out`;
+                    document.getElementById('prompt-result').classList.remove('hidden');
+                    document.getElementById('prompt-variations').classList.add('hidden');
+                } else {
+                    alert(`Error: ${data.detail || 'Failed to enhance prompt'}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Enhance Prompt';
+            }
+        }
+
+        async function getSuggestions() {
+            const promptType = document.getElementById('prompt-type').value;
+            const userInput = document.getElementById('prompt-input').value.trim();
+
+            if (!userInput) {
+                alert('Please enter your idea first');
+                return;
+            }
+
+            const btn = document.querySelector('button[onclick="getSuggestions()"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="pulse">Generating...</span>';
+
+            try {
+                const response = await fetch('/api/v1/prompt-assistant/suggestions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prompt_type: promptType,
+                        user_input: userInput,
+                        num_variations: 3,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const list = document.getElementById('variations-list');
+                    list.innerHTML = data.variations.map((v, i) => `
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-medium text-gray-500">Variation ${i + 1}</span>
+                                <button onclick="useVariation(${i})" class="text-xs text-sonnet hover:text-sonnet/80">Use this</button>
+                            </div>
+                            <p class="text-sm text-gray-900 whitespace-pre-wrap font-mono">${v}</p>
+                        </div>
+                    `).join('');
+                    window.currentVariations = data.variations;
+                    document.getElementById('prompt-variations').classList.remove('hidden');
+                    document.getElementById('prompt-result').classList.add('hidden');
+                } else {
+                    alert(`Error: ${data.detail || 'Failed to generate suggestions'}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        function useVariation(index) {
+            if (window.currentVariations && window.currentVariations[index]) {
+                currentEnhancedPrompt = window.currentVariations[index];
+                document.getElementById('prompt-output').textContent = currentEnhancedPrompt;
+                document.getElementById('prompt-tokens').textContent = '';
+                document.getElementById('prompt-result').classList.remove('hidden');
+            }
+        }
+
+        function copyPrompt() {
+            if (currentEnhancedPrompt) {
+                navigator.clipboard.writeText(currentEnhancedPrompt).then(() => {
+                    const btn = document.querySelector('button[onclick="copyPrompt()"]');
+                    const originalHTML = btn.innerHTML;
+                    btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Copied!';
+                    setTimeout(() => { btn.innerHTML = originalHTML; }, 2000);
+                });
+            }
+        }
+
+        // Initial load
+        refreshData();
+
+        // Auto-refresh every 30 seconds
+        setInterval(fetchHealth, 30000);
+        setInterval(fetchExternalProviders, 60000);
+    </script>
+</body>
+</html>
