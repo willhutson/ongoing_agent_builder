@@ -16,6 +16,7 @@ from .beautiful_ai import BeautifulAIClient
 from .gamma import GammaClient
 from .perplexity import PerplexityClient
 from .presenton import PresentonClient
+from .xai import XAIClient, GrokResponse, AuroraImage, grok_chat, grok_image, grok_realtime
 from .factory import (
     ExternalLLMFactory,
     get_llm_factory,
@@ -80,6 +81,12 @@ __all__ = [
     "GammaClient",
     "PerplexityClient",
     "PresentonClient",
+    "XAIClient",
+    "GrokResponse",
+    "AuroraImage",
+    "grok_chat",
+    "grok_image",
+    "grok_realtime",
     # Factory
     "ExternalLLMFactory",
     "get_llm_factory",

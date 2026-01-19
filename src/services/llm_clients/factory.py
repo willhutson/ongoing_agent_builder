@@ -20,6 +20,7 @@ from .beautiful_ai import BeautifulAIClient
 from .gamma import GammaClient
 from .perplexity import PerplexityClient
 from .presenton import PresentonClient
+from .xai import XAIClient
 from .base import BaseExternalLLMClient
 
 
@@ -163,6 +164,18 @@ class ExternalLLMFactory:
             )
         return self._clients[ExternalLLMProvider.PERPLEXITY]
 
+    def get_xai(self) -> Optional[XAIClient]:
+        """Get xAI client for Grok chat and Aurora images."""
+        xai_api_key = getattr(self._settings, 'xai_api_key', None)
+        if not xai_api_key:
+            return None
+
+        if "xai" not in self._clients:
+            self._clients["xai"] = XAIClient(
+                api_key=xai_api_key,
+            )
+        return self._clients["xai"]
+
     def get_presenton(self) -> Optional[PresentonClient]:
         """
         Get Presenton client for self-hosted presentations.
@@ -291,6 +304,9 @@ def get_image_clients() -> dict[str, BaseExternalLLMClient]:
         clients["flux"] = factory.get_replicate()
     if factory.is_configured(ExternalLLMProvider.STABILITY):
         clients["stability"] = factory.get_stability()
+    xai = factory.get_xai()
+    if xai:
+        clients["aurora"] = xai
     return clients
 
 

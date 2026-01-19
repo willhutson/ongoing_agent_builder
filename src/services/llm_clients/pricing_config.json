@@ -103,6 +103,9 @@
           "1024x1792": {"standard": 0.080, "hd": 0.120}
         }
       },
+      "xai": {
+        "aurora": {"per_image": 0.040}
+      },
       "replicate": {
         "flux-1.1-pro": {"per_image": 0.040},
         "flux-schnell": {"per_image": 0.003},
@@ -174,6 +177,10 @@
       "claude-3-5-sonnet": {"input_per_1k": 0.003, "output_per_1k": 0.015},
       "claude-sonnet-4": {"input_per_1k": 0.003, "output_per_1k": 0.015},
       "gemini-2.0-flash": {"input_per_1k": 0.0001, "output_per_1k": 0.0004},
+      "grok-3": {"input_per_1k": 0.003, "output_per_1k": 0.015},
+      "grok-3-fast": {"input_per_1k": 0.001, "output_per_1k": 0.005},
+      "grok-2": {"input_per_1k": 0.002, "output_per_1k": 0.010},
+      "grok-2-mini": {"input_per_1k": 0.0005, "output_per_1k": 0.0025},
       "ollama": {"input_per_1k": 0, "output_per_1k": 0}
     },
 
@@ -195,7 +202,7 @@
     "studio": {
       "name": "Creative Studio",
       "description": "Images, presentations, design",
-      "providers": ["openai", "replicate", "stability", "beautiful_ai", "gamma", "presenton"]
+      "providers": ["openai", "replicate", "stability", "xai", "beautiful_ai", "gamma", "presenton"]
     },
     "voice": {
       "name": "Voice & Audio",
