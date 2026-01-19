@@ -7,7 +7,14 @@ import anthropic
 import uuid
 import asyncio
 
-from ..config import get_settings
+from ..config import get_settings, ClaudeModelTier, CLAUDE_MODELS
+from ..services.model_registry import (
+    get_model_for_agent,
+    get_agent_tier,
+    get_model_info,
+    list_agents_by_tier,
+    AGENT_MODEL_RECOMMENDATIONS,
+)
 from ..agents import (
     # Foundation
     RFPAgent, BriefAgent, ContentAgent, CommercialAgent,
@@ -129,6 +136,8 @@ class ExecuteRequest(BaseModel):
     client_id: Optional[str] = Field(default=None, description="Client ID for client-specific agents")
     vertical: Optional[str] = Field(default=None, description="Vertical specialization")
     region: Optional[str] = Field(default=None, description="Region specialization")
+    # Model tier override (optional - uses agent's recommended tier if not set)
+    model_tier: Optional[str] = Field(default=None, description="Override model tier: 'opus', 'sonnet', or 'haiku'")
 
 
 class ExecuteResponse(BaseModel):
@@ -148,14 +157,18 @@ class TaskStatus(BaseModel):
     error: Optional[str] = None
 
 
-def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None, vertical: str = None, region: str = None):
-    """Factory to create agent instances."""
+def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None, vertical: str = None, region: str = None, model_override: ClaudeModelTier = None):
+    """Factory to create agent instances with per-agent model selection."""
     settings = get_settings()
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
+    # Get the appropriate model for this specific agent
+    agent_name = f"{agent_type.value}_agent"
+    model = get_model_for_agent(agent_name, instance_override=model_override)
+
     base_kwargs = {
         "client": client,
-        "model": settings.claude_model,
+        "model": model,
         "erp_base_url": settings.erp_api_base_url,
         "erp_api_key": settings.erp_api_key,
     }
@@ -274,11 +287,20 @@ async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTas
         metadata=request.metadata,
     )
 
+    # Parse model tier override if provided
+    model_override = None
+    if request.model_tier:
+        try:
+            model_override = ClaudeModelTier(request.model_tier)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid model tier: {request.model_tier}. Use 'opus', 'sonnet', or 'haiku'.")
+
     agent_kwargs = {
         "language": request.language,
         "client_id": request.client_id,
         "vertical": request.vertical,
         "region": request.region,
+        "model_override": model_override,
     }
 
     if request.stream:
@@ -340,76 +362,84 @@ async def cancel_task(task_id: str):
 
 @router.get("/agents")
 async def list_agents():
-    """List available agent types and their capabilities."""
+    """List available agent types and their capabilities, including model tier."""
+    def get_tier(agent_type: str) -> str:
+        """Get model tier for agent type."""
+        agent_name = f"{agent_type}_agent"
+        return get_agent_tier(agent_name).value
+
     return {
         "agents": [
             # Foundation
-            {"type": "rfp", "name": "RFP Agent", "layer": "foundation", "description": "Analyze RFPs, extract requirements, draft proposals", "status": "available"},
-            {"type": "brief", "name": "Brief Agent", "layer": "foundation", "description": "AI-assisted brief intake and requirement extraction", "status": "available"},
-            {"type": "content", "name": "Content Agent", "layer": "foundation", "description": "Generate documents, proposals, reports", "status": "available"},
-            {"type": "commercial", "name": "Commercial Agent", "layer": "foundation", "description": "Pricing intelligence and commercial proposals", "status": "available"},
+            {"type": "rfp", "name": "RFP Agent", "layer": "foundation", "description": "Analyze RFPs, extract requirements, draft proposals", "status": "available", "model_tier": get_tier("rfp")},
+            {"type": "brief", "name": "Brief Agent", "layer": "foundation", "description": "AI-assisted brief intake and requirement extraction", "status": "available", "model_tier": get_tier("brief")},
+            {"type": "content", "name": "Content Agent", "layer": "foundation", "description": "Generate documents, proposals, reports", "status": "available", "model_tier": get_tier("content")},
+            {"type": "commercial", "name": "Commercial Agent", "layer": "foundation", "description": "Pricing intelligence and commercial proposals", "status": "available", "model_tier": get_tier("commercial")},
             # Studio
-            {"type": "presentation", "name": "Presentation Agent", "layer": "studio", "description": "Generate presentations and pitch decks", "status": "available"},
-            {"type": "copy", "name": "Copy Agent", "layer": "studio", "description": "Generate copy (EN/AR/multi-lang)", "status": "available"},
-            {"type": "image", "name": "Image Agent", "layer": "studio", "description": "Generate and manage images", "status": "available"},
+            {"type": "presentation", "name": "Presentation Agent", "layer": "studio", "description": "Generate presentations and pitch decks", "status": "available", "model_tier": get_tier("presentation")},
+            {"type": "copy", "name": "Copy Agent", "layer": "studio", "description": "Generate copy (EN/AR/multi-lang)", "status": "available", "model_tier": get_tier("copy")},
+            {"type": "image", "name": "Image Agent", "layer": "studio", "description": "Generate and manage images", "status": "available", "model_tier": get_tier("image")},
             # Video
-            {"type": "video_script", "name": "Video Script Agent", "layer": "video", "description": "Generate video scripts", "status": "available"},
-            {"type": "video_storyboard", "name": "Video Storyboard Agent", "layer": "video", "description": "Generate storyboards", "status": "available"},
-            {"type": "video_production", "name": "Video Production Agent", "layer": "video", "description": "Manage video production", "status": "available"},
+            {"type": "video_script", "name": "Video Script Agent", "layer": "video", "description": "Generate video scripts", "status": "available", "model_tier": get_tier("video_script")},
+            {"type": "video_storyboard", "name": "Video Storyboard Agent", "layer": "video", "description": "Generate storyboards", "status": "available", "model_tier": get_tier("video_storyboard")},
+            {"type": "video_production", "name": "Video Production Agent", "layer": "video", "description": "Manage video production", "status": "available", "model_tier": get_tier("video_production")},
             # Distribution
-            {"type": "report", "name": "Report Agent", "layer": "distribution", "description": "Generate and distribute reports", "status": "available"},
-            {"type": "approve", "name": "Approve Agent", "layer": "distribution", "description": "Manage approvals and feedback", "status": "available"},
-            {"type": "brief_update", "name": "Brief Update Agent", "layer": "distribution", "description": "Handle brief updates and changes", "status": "available"},
+            {"type": "report", "name": "Report Agent", "layer": "distribution", "description": "Generate and distribute reports", "status": "available", "model_tier": get_tier("report")},
+            {"type": "approve", "name": "Approve Agent", "layer": "distribution", "description": "Manage approvals and feedback", "status": "available", "model_tier": get_tier("approve")},
+            {"type": "brief_update", "name": "Brief Update Agent", "layer": "distribution", "description": "Handle brief updates and changes", "status": "available", "model_tier": get_tier("brief_update")},
             # Gateways
-            {"type": "gateway_whatsapp", "name": "WhatsApp Gateway", "layer": "gateway", "description": "WhatsApp message delivery", "status": "available"},
-            {"type": "gateway_email", "name": "Email Gateway", "layer": "gateway", "description": "Email delivery", "status": "available"},
-            {"type": "gateway_slack", "name": "Slack Gateway", "layer": "gateway", "description": "Slack integration", "status": "available"},
-            {"type": "gateway_sms", "name": "SMS Gateway", "layer": "gateway", "description": "SMS delivery", "status": "available"},
+            {"type": "gateway_whatsapp", "name": "WhatsApp Gateway", "layer": "gateway", "description": "WhatsApp message delivery", "status": "available", "model_tier": get_tier("gateway_whatsapp")},
+            {"type": "gateway_email", "name": "Email Gateway", "layer": "gateway", "description": "Email delivery", "status": "available", "model_tier": get_tier("gateway_email")},
+            {"type": "gateway_slack", "name": "Slack Gateway", "layer": "gateway", "description": "Slack integration", "status": "available", "model_tier": get_tier("gateway_slack")},
+            {"type": "gateway_sms", "name": "SMS Gateway", "layer": "gateway", "description": "SMS delivery", "status": "available", "model_tier": get_tier("gateway_sms")},
             # Brand
-            {"type": "brand_voice", "name": "Brand Voice Agent", "layer": "brand", "description": "Manage brand voice and tone", "status": "available"},
-            {"type": "brand_visual", "name": "Brand Visual Agent", "layer": "brand", "description": "Manage visual identity", "status": "available"},
-            {"type": "brand_guidelines", "name": "Brand Guidelines Agent", "layer": "brand", "description": "Manage brand guidelines", "status": "available"},
+            {"type": "brand_voice", "name": "Brand Voice Agent", "layer": "brand", "description": "Manage brand voice and tone", "status": "available", "model_tier": get_tier("brand_voice")},
+            {"type": "brand_visual", "name": "Brand Visual Agent", "layer": "brand", "description": "Manage visual identity", "status": "available", "model_tier": get_tier("brand_visual")},
+            {"type": "brand_guidelines", "name": "Brand Guidelines Agent", "layer": "brand", "description": "Manage brand guidelines", "status": "available", "model_tier": get_tier("brand_guidelines")},
             # Operations
-            {"type": "resource", "name": "Resource Agent", "layer": "operations", "description": "Resource management", "status": "available"},
-            {"type": "workflow", "name": "Workflow Agent", "layer": "operations", "description": "Workflow automation", "status": "available"},
-            {"type": "ops_reporting", "name": "Ops Reporting Agent", "layer": "operations", "description": "Operations reporting", "status": "available"},
+            {"type": "resource", "name": "Resource Agent", "layer": "operations", "description": "Resource management", "status": "available", "model_tier": get_tier("resource")},
+            {"type": "workflow", "name": "Workflow Agent", "layer": "operations", "description": "Workflow automation", "status": "available", "model_tier": get_tier("workflow")},
+            {"type": "ops_reporting", "name": "Ops Reporting Agent", "layer": "operations", "description": "Operations reporting", "status": "available", "model_tier": get_tier("ops_reporting")},
             # Client
-            {"type": "crm", "name": "CRM Agent", "layer": "client", "description": "Client relationship management", "status": "available"},
-            {"type": "scope", "name": "Scope Agent", "layer": "client", "description": "Scope management", "status": "available"},
-            {"type": "onboarding", "name": "Onboarding Agent", "layer": "client", "description": "Client onboarding", "status": "available"},
-            {"type": "instance_onboarding", "name": "Instance Onboarding Agent", "layer": "client", "description": "New ERP instance setup with infrastructure, platform credentials, and sample data", "status": "available"},
-            {"type": "instance_analytics", "name": "Instance Analytics Agent", "layer": "client", "description": "Platform-level analytics, health scoring, benchmarking, forecasting", "status": "available"},
-            {"type": "instance_success", "name": "Instance Success Agent", "layer": "client", "description": "Customer success management, churn prevention, expansion, QBR prep", "status": "available"},
+            {"type": "crm", "name": "CRM Agent", "layer": "client", "description": "Client relationship management", "status": "available", "model_tier": get_tier("crm")},
+            {"type": "scope", "name": "Scope Agent", "layer": "client", "description": "Scope management", "status": "available", "model_tier": get_tier("scope")},
+            {"type": "onboarding", "name": "Onboarding Agent", "layer": "client", "description": "Client onboarding", "status": "available", "model_tier": get_tier("onboarding")},
+            {"type": "instance_onboarding", "name": "Instance Onboarding Agent", "layer": "client", "description": "New ERP instance setup with infrastructure, platform credentials, and sample data", "status": "available", "model_tier": get_tier("instance_onboarding")},
+            {"type": "instance_analytics", "name": "Instance Analytics Agent", "layer": "client", "description": "Platform-level analytics, health scoring, benchmarking, forecasting", "status": "available", "model_tier": get_tier("instance_analytics")},
+            {"type": "instance_success", "name": "Instance Success Agent", "layer": "client", "description": "Customer success management, churn prevention, expansion, QBR prep", "status": "available", "model_tier": get_tier("instance_success")},
             # Media
-            {"type": "media_buying", "name": "Media Buying Agent", "layer": "media", "description": "Media buying and planning", "status": "available"},
-            {"type": "campaign", "name": "Campaign Agent", "layer": "media", "description": "Campaign management", "status": "available"},
+            {"type": "media_buying", "name": "Media Buying Agent", "layer": "media", "description": "Media buying and planning", "status": "available", "model_tier": get_tier("media_buying")},
+            {"type": "campaign", "name": "Campaign Agent", "layer": "media", "description": "Campaign management", "status": "available", "model_tier": get_tier("campaign")},
             # Social
-            {"type": "social_listening", "name": "Social Listening Agent", "layer": "social", "description": "Social media monitoring", "status": "available"},
-            {"type": "community", "name": "Community Agent", "layer": "social", "description": "Community management", "status": "available"},
-            {"type": "social_analytics", "name": "Social Analytics Agent", "layer": "social", "description": "Social media analytics", "status": "available"},
+            {"type": "social_listening", "name": "Social Listening Agent", "layer": "social", "description": "Social media monitoring", "status": "available", "model_tier": get_tier("social_listening")},
+            {"type": "community", "name": "Community Agent", "layer": "social", "description": "Community management", "status": "available", "model_tier": get_tier("community")},
+            {"type": "social_analytics", "name": "Social Analytics Agent", "layer": "social", "description": "Social media analytics", "status": "available", "model_tier": get_tier("social_analytics")},
             # Performance
-            {"type": "brand_performance", "name": "Brand Performance Agent", "layer": "performance", "description": "Brand performance tracking", "status": "available"},
-            {"type": "campaign_analytics", "name": "Campaign Analytics Agent", "layer": "performance", "description": "Campaign analytics", "status": "available"},
-            {"type": "competitor", "name": "Competitor Agent", "layer": "performance", "description": "Competitor analysis", "status": "available"},
+            {"type": "brand_performance", "name": "Brand Performance Agent", "layer": "performance", "description": "Brand performance tracking", "status": "available", "model_tier": get_tier("brand_performance")},
+            {"type": "campaign_analytics", "name": "Campaign Analytics Agent", "layer": "performance", "description": "Campaign analytics", "status": "available", "model_tier": get_tier("campaign_analytics")},
+            {"type": "competitor", "name": "Competitor Agent", "layer": "performance", "description": "Competitor analysis", "status": "available", "model_tier": get_tier("competitor")},
             # Finance
-            {"type": "invoice", "name": "Invoice Agent", "layer": "finance", "description": "Invoice management", "status": "available"},
-            {"type": "forecast", "name": "Forecast Agent", "layer": "finance", "description": "Financial forecasting", "status": "available"},
-            {"type": "budget", "name": "Budget Agent", "layer": "finance", "description": "Budget management", "status": "available"},
+            {"type": "invoice", "name": "Invoice Agent", "layer": "finance", "description": "Invoice management", "status": "available", "model_tier": get_tier("invoice")},
+            {"type": "forecast", "name": "Forecast Agent", "layer": "finance", "description": "Financial forecasting", "status": "available", "model_tier": get_tier("forecast")},
+            {"type": "budget", "name": "Budget Agent", "layer": "finance", "description": "Budget management", "status": "available", "model_tier": get_tier("budget")},
             # Quality
-            {"type": "qa", "name": "QA Agent", "layer": "quality", "description": "Quality assurance", "status": "available"},
-            {"type": "legal", "name": "Legal Agent", "layer": "quality", "description": "Legal compliance", "status": "available"},
+            {"type": "qa", "name": "QA Agent", "layer": "quality", "description": "Quality assurance", "status": "available", "model_tier": get_tier("qa")},
+            {"type": "legal", "name": "Legal Agent", "layer": "quality", "description": "Legal compliance", "status": "available", "model_tier": get_tier("legal")},
             # Knowledge
-            {"type": "knowledge", "name": "Knowledge Agent", "layer": "knowledge", "description": "Knowledge management", "status": "available"},
-            {"type": "training", "name": "Training Agent", "layer": "knowledge", "description": "Training and learning", "status": "available"},
+            {"type": "knowledge", "name": "Knowledge Agent", "layer": "knowledge", "description": "Knowledge management", "status": "available", "model_tier": get_tier("knowledge")},
+            {"type": "training", "name": "Training Agent", "layer": "knowledge", "description": "Training and learning", "status": "available", "model_tier": get_tier("training")},
             # Specialized
-            {"type": "influencer", "name": "Influencer Agent", "layer": "specialized", "description": "Influencer marketing (vertical/region specializable)", "status": "available"},
-            {"type": "pr", "name": "PR Agent", "layer": "specialized", "description": "Public relations", "status": "available"},
-            {"type": "events", "name": "Events Agent", "layer": "specialized", "description": "Event planning", "status": "available"},
-            {"type": "localization", "name": "Localization Agent", "layer": "specialized", "description": "Multi-market localization", "status": "available"},
-            {"type": "accessibility", "name": "Accessibility Agent", "layer": "specialized", "description": "WCAG compliance", "status": "available"},
+            {"type": "influencer", "name": "Influencer Agent", "layer": "specialized", "description": "Influencer marketing (vertical/region specializable)", "status": "available", "model_tier": get_tier("influencer")},
+            {"type": "pr", "name": "PR Agent", "layer": "specialized", "description": "Public relations", "status": "available", "model_tier": get_tier("pr")},
+            {"type": "events", "name": "Events Agent", "layer": "specialized", "description": "Event planning", "status": "available", "model_tier": get_tier("events")},
+            {"type": "localization", "name": "Localization Agent", "layer": "specialized", "description": "Multi-market localization", "status": "available", "model_tier": get_tier("localization")},
+            {"type": "accessibility", "name": "Accessibility Agent", "layer": "specialized", "description": "WCAG compliance", "status": "available", "model_tier": get_tier("accessibility")},
         ],
         "total_agents": 46,
         "layers": ["foundation", "studio", "video", "distribution", "gateway", "brand", "operations", "client", "media", "social", "performance", "finance", "quality", "knowledge", "specialized"],
+        "model_tiers": {
+            tier.value: CLAUDE_MODELS[tier] for tier in ClaudeModelTier
+        },
     }
 # ============================================
 # Chat Session Support
@@ -510,6 +540,76 @@ async def delete_chat_session(session_id: str):
     return {"message": "Session deleted", "session_id": session_id}
 
 
+
+
+# ============================================
+# Model Management Endpoints
+# ============================================
+
+class ModelTierRequest(BaseModel):
+    """Request to set global model tier."""
+    tier: str = Field(..., description="Model tier: 'opus', 'sonnet', or 'haiku'")
+
+
+class AgentModelOverrideRequest(BaseModel):
+    """Request to override model for a specific agent."""
+    agent_name: str = Field(..., description="Agent name (e.g., 'rfp_agent')")
+    tier: str = Field(..., description="Model tier: 'opus', 'sonnet', or 'haiku'")
+
+
+@router.get("/models/info")
+async def get_models_info():
+    """
+    Get information about all model tiers and agent assignments.
+
+    Returns model tiers, their descriptions, and which agents use each tier.
+    """
+    info = get_model_info()
+    settings = get_settings()
+
+    return {
+        **info,
+        "current_settings": {
+            "force_model_tier": settings.force_model_tier,
+            "default_model": settings.claude_model,
+        }
+    }
+
+
+@router.get("/models/agents")
+async def get_agents_by_model():
+    """
+    List all agents grouped by their recommended model tier.
+    """
+    agents_by_tier = list_agents_by_tier()
+    return {
+        tier.value: {
+            "model_id": CLAUDE_MODELS[tier],
+            "agents": agents,
+            "count": len(agents),
+        }
+        for tier, agents in agents_by_tier.items()
+    }
+
+
+@router.get("/models/agent/{agent_name}")
+async def get_agent_model(agent_name: str):
+    """
+    Get the model tier and ID for a specific agent.
+    """
+    # Normalize agent name
+    if not agent_name.endswith("_agent"):
+        agent_name = f"{agent_name}_agent"
+
+    tier = get_agent_tier(agent_name)
+    model_id = get_model_for_agent(agent_name)
+
+    return {
+        "agent_name": agent_name,
+        "recommended_tier": tier.value,
+        "model_id": model_id,
+        "in_registry": agent_name in AGENT_MODEL_RECOMMENDATIONS,
+    }
 
 
 @router.get("/health")
