@@ -1,6 +1,6 @@
 # Ongoing Agent Builder
 
-Standalone API agent service for [TeamLMTD ERP](https://github.com/willhutson/erp_staging_lmtd) - built on the **Claude Agent SDK**.
+Standalone API agent service for [SpokeStack](https://github.com/willhutson/erp_staging_lmtd) - built on the **Claude Agent SDK**.
 
 ## Vision
 
