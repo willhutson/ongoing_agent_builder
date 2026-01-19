@@ -38,20 +38,29 @@ from .billing import (
     get_full_pricing_summary,
 )
 from .credits import (
-    UserTier,
-    Module,
-    MonthlyPlan,
+    # Data classes
     CreditUsage,
-    PLANS,
+    PlanInfo,
+    # Config access
+    get_config,
+    get_tier_config,
+    get_plan_config,
+    reload_pricing_config,
+    update_pricing,
+    # Credit conversion
     cost_to_credits,
     credits_to_revenue,
+    get_margin,
+    # Credit calculations
     calculate_video_credits,
     calculate_image_credits,
     calculate_voice_credits,
     calculate_presentation_credits,
     calculate_research_credits,
+    # Reference functions
+    get_all_plans,
+    get_all_tiers,
     get_credit_estimates,
-    get_plan_comparison,
     estimate_monthly_usage,
 )
 
@@ -90,20 +99,28 @@ __all__ = [
     "calculate_presentation_cost",
     "suggest_client_pricing",
     "get_full_pricing_summary",
-    # Credits
-    "UserTier",
-    "Module",
-    "MonthlyPlan",
+    # Credits - Data classes
     "CreditUsage",
-    "PLANS",
+    "PlanInfo",
+    # Credits - Config access
+    "get_config",
+    "get_tier_config",
+    "get_plan_config",
+    "reload_pricing_config",
+    "update_pricing",
+    # Credits - Conversion
     "cost_to_credits",
     "credits_to_revenue",
+    "get_margin",
+    # Credits - Calculations
     "calculate_video_credits",
     "calculate_image_credits",
     "calculate_voice_credits",
     "calculate_presentation_credits",
     "calculate_research_credits",
+    # Credits - Reference
+    "get_all_plans",
+    "get_all_tiers",
     "get_credit_estimates",
-    "get_plan_comparison",
     "estimate_monthly_usage",
 ]
