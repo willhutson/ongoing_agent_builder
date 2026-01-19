@@ -15,6 +15,20 @@ from ..services.model_registry import (
     list_agents_by_tier,
     AGENT_MODEL_RECOMMENDATIONS,
 )
+from ..services.external_llm_registry import (
+    get_external_llms_for_agent,
+    get_configured_providers,
+    get_provider_status,
+    get_agent_llm_summary,
+    list_unconfigured_for_agent,
+    AGENT_EXTERNAL_LLMS,
+)
+from ..services.prompt_assistant import (
+    PromptAssistant,
+    PromptType,
+    get_prompt_templates,
+    get_prompt_assistant,
+)
 from ..agents import (
     # Foundation
     RFPAgent, BriefAgent, ContentAgent, CommercialAgent,
@@ -362,78 +376,84 @@ async def cancel_task(task_id: str):
 
 @router.get("/agents")
 async def list_agents():
-    """List available agent types and their capabilities, including model tier."""
+    """List available agent types and their capabilities, including model tier and external LLMs."""
     def get_tier(agent_type: str) -> str:
         """Get model tier for agent type."""
         agent_name = f"{agent_type}_agent"
         return get_agent_tier(agent_name).value
 
+    def get_external(agent_type: str) -> list[str]:
+        """Get external LLM providers for agent type."""
+        agent_name = f"{agent_type}_agent"
+        providers = AGENT_EXTERNAL_LLMS.get(agent_name, [])
+        return [p.value for p in providers]
+
     return {
         "agents": [
             # Foundation
-            {"type": "rfp", "name": "RFP Agent", "layer": "foundation", "description": "Analyze RFPs, extract requirements, draft proposals", "status": "available", "model_tier": get_tier("rfp")},
-            {"type": "brief", "name": "Brief Agent", "layer": "foundation", "description": "AI-assisted brief intake and requirement extraction", "status": "available", "model_tier": get_tier("brief")},
-            {"type": "content", "name": "Content Agent", "layer": "foundation", "description": "Generate documents, proposals, reports", "status": "available", "model_tier": get_tier("content")},
-            {"type": "commercial", "name": "Commercial Agent", "layer": "foundation", "description": "Pricing intelligence and commercial proposals", "status": "available", "model_tier": get_tier("commercial")},
+            {"type": "rfp", "name": "RFP Agent", "layer": "foundation", "description": "Analyze RFPs, extract requirements, draft proposals", "status": "available", "model_tier": get_tier("rfp"), "external_llms": get_external("rfp")},
+            {"type": "brief", "name": "Brief Agent", "layer": "foundation", "description": "AI-assisted brief intake and requirement extraction", "status": "available", "model_tier": get_tier("brief"), "external_llms": get_external("brief")},
+            {"type": "content", "name": "Content Agent", "layer": "foundation", "description": "Generate documents, proposals, reports", "status": "available", "model_tier": get_tier("content"), "external_llms": get_external("content")},
+            {"type": "commercial", "name": "Commercial Agent", "layer": "foundation", "description": "Pricing intelligence and commercial proposals", "status": "available", "model_tier": get_tier("commercial"), "external_llms": get_external("commercial")},
             # Studio
-            {"type": "presentation", "name": "Presentation Agent", "layer": "studio", "description": "Generate presentations and pitch decks", "status": "available", "model_tier": get_tier("presentation")},
-            {"type": "copy", "name": "Copy Agent", "layer": "studio", "description": "Generate copy (EN/AR/multi-lang)", "status": "available", "model_tier": get_tier("copy")},
-            {"type": "image", "name": "Image Agent", "layer": "studio", "description": "Generate and manage images", "status": "available", "model_tier": get_tier("image")},
+            {"type": "presentation", "name": "Presentation Agent", "layer": "studio", "description": "Generate presentations and pitch decks", "status": "available", "model_tier": get_tier("presentation"), "external_llms": get_external("presentation")},
+            {"type": "copy", "name": "Copy Agent", "layer": "studio", "description": "Generate copy (EN/AR/multi-lang)", "status": "available", "model_tier": get_tier("copy"), "external_llms": get_external("copy")},
+            {"type": "image", "name": "Image Agent", "layer": "studio", "description": "Generate and manage images", "status": "available", "model_tier": get_tier("image"), "external_llms": get_external("image")},
             # Video
-            {"type": "video_script", "name": "Video Script Agent", "layer": "video", "description": "Generate video scripts", "status": "available", "model_tier": get_tier("video_script")},
-            {"type": "video_storyboard", "name": "Video Storyboard Agent", "layer": "video", "description": "Generate storyboards", "status": "available", "model_tier": get_tier("video_storyboard")},
-            {"type": "video_production", "name": "Video Production Agent", "layer": "video", "description": "Manage video production", "status": "available", "model_tier": get_tier("video_production")},
+            {"type": "video_script", "name": "Video Script Agent", "layer": "video", "description": "Generate video scripts", "status": "available", "model_tier": get_tier("video_script"), "external_llms": get_external("video_script")},
+            {"type": "video_storyboard", "name": "Video Storyboard Agent", "layer": "video", "description": "Generate storyboards", "status": "available", "model_tier": get_tier("video_storyboard"), "external_llms": get_external("video_storyboard")},
+            {"type": "video_production", "name": "Video Production Agent", "layer": "video", "description": "Manage video production", "status": "available", "model_tier": get_tier("video_production"), "external_llms": get_external("video_production")},
             # Distribution
-            {"type": "report", "name": "Report Agent", "layer": "distribution", "description": "Generate and distribute reports", "status": "available", "model_tier": get_tier("report")},
-            {"type": "approve", "name": "Approve Agent", "layer": "distribution", "description": "Manage approvals and feedback", "status": "available", "model_tier": get_tier("approve")},
-            {"type": "brief_update", "name": "Brief Update Agent", "layer": "distribution", "description": "Handle brief updates and changes", "status": "available", "model_tier": get_tier("brief_update")},
+            {"type": "report", "name": "Report Agent", "layer": "distribution", "description": "Generate and distribute reports", "status": "available", "model_tier": get_tier("report"), "external_llms": get_external("report")},
+            {"type": "approve", "name": "Approve Agent", "layer": "distribution", "description": "Manage approvals and feedback", "status": "available", "model_tier": get_tier("approve"), "external_llms": get_external("approve")},
+            {"type": "brief_update", "name": "Brief Update Agent", "layer": "distribution", "description": "Handle brief updates and changes", "status": "available", "model_tier": get_tier("brief_update"), "external_llms": get_external("brief_update")},
             # Gateways
-            {"type": "gateway_whatsapp", "name": "WhatsApp Gateway", "layer": "gateway", "description": "WhatsApp message delivery", "status": "available", "model_tier": get_tier("gateway_whatsapp")},
-            {"type": "gateway_email", "name": "Email Gateway", "layer": "gateway", "description": "Email delivery", "status": "available", "model_tier": get_tier("gateway_email")},
-            {"type": "gateway_slack", "name": "Slack Gateway", "layer": "gateway", "description": "Slack integration", "status": "available", "model_tier": get_tier("gateway_slack")},
-            {"type": "gateway_sms", "name": "SMS Gateway", "layer": "gateway", "description": "SMS delivery", "status": "available", "model_tier": get_tier("gateway_sms")},
+            {"type": "gateway_whatsapp", "name": "WhatsApp Gateway", "layer": "gateway", "description": "WhatsApp message delivery", "status": "available", "model_tier": get_tier("gateway_whatsapp"), "external_llms": get_external("gateway_whatsapp")},
+            {"type": "gateway_email", "name": "Email Gateway", "layer": "gateway", "description": "Email delivery", "status": "available", "model_tier": get_tier("gateway_email"), "external_llms": get_external("gateway_email")},
+            {"type": "gateway_slack", "name": "Slack Gateway", "layer": "gateway", "description": "Slack integration", "status": "available", "model_tier": get_tier("gateway_slack"), "external_llms": get_external("gateway_slack")},
+            {"type": "gateway_sms", "name": "SMS Gateway", "layer": "gateway", "description": "SMS delivery", "status": "available", "model_tier": get_tier("gateway_sms"), "external_llms": get_external("gateway_sms")},
             # Brand
-            {"type": "brand_voice", "name": "Brand Voice Agent", "layer": "brand", "description": "Manage brand voice and tone", "status": "available", "model_tier": get_tier("brand_voice")},
-            {"type": "brand_visual", "name": "Brand Visual Agent", "layer": "brand", "description": "Manage visual identity", "status": "available", "model_tier": get_tier("brand_visual")},
-            {"type": "brand_guidelines", "name": "Brand Guidelines Agent", "layer": "brand", "description": "Manage brand guidelines", "status": "available", "model_tier": get_tier("brand_guidelines")},
+            {"type": "brand_voice", "name": "Brand Voice Agent", "layer": "brand", "description": "Manage brand voice and tone", "status": "available", "model_tier": get_tier("brand_voice"), "external_llms": get_external("brand_voice")},
+            {"type": "brand_visual", "name": "Brand Visual Agent", "layer": "brand", "description": "Manage visual identity", "status": "available", "model_tier": get_tier("brand_visual"), "external_llms": get_external("brand_visual")},
+            {"type": "brand_guidelines", "name": "Brand Guidelines Agent", "layer": "brand", "description": "Manage brand guidelines", "status": "available", "model_tier": get_tier("brand_guidelines"), "external_llms": get_external("brand_guidelines")},
             # Operations
-            {"type": "resource", "name": "Resource Agent", "layer": "operations", "description": "Resource management", "status": "available", "model_tier": get_tier("resource")},
-            {"type": "workflow", "name": "Workflow Agent", "layer": "operations", "description": "Workflow automation", "status": "available", "model_tier": get_tier("workflow")},
-            {"type": "ops_reporting", "name": "Ops Reporting Agent", "layer": "operations", "description": "Operations reporting", "status": "available", "model_tier": get_tier("ops_reporting")},
+            {"type": "resource", "name": "Resource Agent", "layer": "operations", "description": "Resource management", "status": "available", "model_tier": get_tier("resource"), "external_llms": get_external("resource")},
+            {"type": "workflow", "name": "Workflow Agent", "layer": "operations", "description": "Workflow automation", "status": "available", "model_tier": get_tier("workflow"), "external_llms": get_external("workflow")},
+            {"type": "ops_reporting", "name": "Ops Reporting Agent", "layer": "operations", "description": "Operations reporting", "status": "available", "model_tier": get_tier("ops_reporting"), "external_llms": get_external("ops_reporting")},
             # Client
-            {"type": "crm", "name": "CRM Agent", "layer": "client", "description": "Client relationship management", "status": "available", "model_tier": get_tier("crm")},
-            {"type": "scope", "name": "Scope Agent", "layer": "client", "description": "Scope management", "status": "available", "model_tier": get_tier("scope")},
-            {"type": "onboarding", "name": "Onboarding Agent", "layer": "client", "description": "Client onboarding", "status": "available", "model_tier": get_tier("onboarding")},
-            {"type": "instance_onboarding", "name": "Instance Onboarding Agent", "layer": "client", "description": "New ERP instance setup with infrastructure, platform credentials, and sample data", "status": "available", "model_tier": get_tier("instance_onboarding")},
-            {"type": "instance_analytics", "name": "Instance Analytics Agent", "layer": "client", "description": "Platform-level analytics, health scoring, benchmarking, forecasting", "status": "available", "model_tier": get_tier("instance_analytics")},
-            {"type": "instance_success", "name": "Instance Success Agent", "layer": "client", "description": "Customer success management, churn prevention, expansion, QBR prep", "status": "available", "model_tier": get_tier("instance_success")},
+            {"type": "crm", "name": "CRM Agent", "layer": "client", "description": "Client relationship management", "status": "available", "model_tier": get_tier("crm"), "external_llms": get_external("crm")},
+            {"type": "scope", "name": "Scope Agent", "layer": "client", "description": "Scope management", "status": "available", "model_tier": get_tier("scope"), "external_llms": get_external("scope")},
+            {"type": "onboarding", "name": "Onboarding Agent", "layer": "client", "description": "Client onboarding", "status": "available", "model_tier": get_tier("onboarding"), "external_llms": get_external("onboarding")},
+            {"type": "instance_onboarding", "name": "Instance Onboarding Agent", "layer": "client", "description": "New ERP instance setup with infrastructure, platform credentials, and sample data", "status": "available", "model_tier": get_tier("instance_onboarding"), "external_llms": get_external("instance_onboarding")},
+            {"type": "instance_analytics", "name": "Instance Analytics Agent", "layer": "client", "description": "Platform-level analytics, health scoring, benchmarking, forecasting", "status": "available", "model_tier": get_tier("instance_analytics"), "external_llms": get_external("instance_analytics")},
+            {"type": "instance_success", "name": "Instance Success Agent", "layer": "client", "description": "Customer success management, churn prevention, expansion, QBR prep", "status": "available", "model_tier": get_tier("instance_success"), "external_llms": get_external("instance_success")},
             # Media
-            {"type": "media_buying", "name": "Media Buying Agent", "layer": "media", "description": "Media buying and planning", "status": "available", "model_tier": get_tier("media_buying")},
-            {"type": "campaign", "name": "Campaign Agent", "layer": "media", "description": "Campaign management", "status": "available", "model_tier": get_tier("campaign")},
+            {"type": "media_buying", "name": "Media Buying Agent", "layer": "media", "description": "Media buying and planning", "status": "available", "model_tier": get_tier("media_buying"), "external_llms": get_external("media_buying")},
+            {"type": "campaign", "name": "Campaign Agent", "layer": "media", "description": "Campaign management", "status": "available", "model_tier": get_tier("campaign"), "external_llms": get_external("campaign")},
             # Social
-            {"type": "social_listening", "name": "Social Listening Agent", "layer": "social", "description": "Social media monitoring", "status": "available", "model_tier": get_tier("social_listening")},
-            {"type": "community", "name": "Community Agent", "layer": "social", "description": "Community management", "status": "available", "model_tier": get_tier("community")},
-            {"type": "social_analytics", "name": "Social Analytics Agent", "layer": "social", "description": "Social media analytics", "status": "available", "model_tier": get_tier("social_analytics")},
+            {"type": "social_listening", "name": "Social Listening Agent", "layer": "social", "description": "Social media monitoring", "status": "available", "model_tier": get_tier("social_listening"), "external_llms": get_external("social_listening")},
+            {"type": "community", "name": "Community Agent", "layer": "social", "description": "Community management", "status": "available", "model_tier": get_tier("community"), "external_llms": get_external("community")},
+            {"type": "social_analytics", "name": "Social Analytics Agent", "layer": "social", "description": "Social media analytics", "status": "available", "model_tier": get_tier("social_analytics"), "external_llms": get_external("social_analytics")},
             # Performance
-            {"type": "brand_performance", "name": "Brand Performance Agent", "layer": "performance", "description": "Brand performance tracking", "status": "available", "model_tier": get_tier("brand_performance")},
-            {"type": "campaign_analytics", "name": "Campaign Analytics Agent", "layer": "performance", "description": "Campaign analytics", "status": "available", "model_tier": get_tier("campaign_analytics")},
-            {"type": "competitor", "name": "Competitor Agent", "layer": "performance", "description": "Competitor analysis", "status": "available", "model_tier": get_tier("competitor")},
+            {"type": "brand_performance", "name": "Brand Performance Agent", "layer": "performance", "description": "Brand performance tracking", "status": "available", "model_tier": get_tier("brand_performance"), "external_llms": get_external("brand_performance")},
+            {"type": "campaign_analytics", "name": "Campaign Analytics Agent", "layer": "performance", "description": "Campaign analytics", "status": "available", "model_tier": get_tier("campaign_analytics"), "external_llms": get_external("campaign_analytics")},
+            {"type": "competitor", "name": "Competitor Agent", "layer": "performance", "description": "Competitor analysis", "status": "available", "model_tier": get_tier("competitor"), "external_llms": get_external("competitor")},
             # Finance
-            {"type": "invoice", "name": "Invoice Agent", "layer": "finance", "description": "Invoice management", "status": "available", "model_tier": get_tier("invoice")},
-            {"type": "forecast", "name": "Forecast Agent", "layer": "finance", "description": "Financial forecasting", "status": "available", "model_tier": get_tier("forecast")},
-            {"type": "budget", "name": "Budget Agent", "layer": "finance", "description": "Budget management", "status": "available", "model_tier": get_tier("budget")},
+            {"type": "invoice", "name": "Invoice Agent", "layer": "finance", "description": "Invoice management", "status": "available", "model_tier": get_tier("invoice"), "external_llms": get_external("invoice")},
+            {"type": "forecast", "name": "Forecast Agent", "layer": "finance", "description": "Financial forecasting", "status": "available", "model_tier": get_tier("forecast"), "external_llms": get_external("forecast")},
+            {"type": "budget", "name": "Budget Agent", "layer": "finance", "description": "Budget management", "status": "available", "model_tier": get_tier("budget"), "external_llms": get_external("budget")},
             # Quality
-            {"type": "qa", "name": "QA Agent", "layer": "quality", "description": "Quality assurance", "status": "available", "model_tier": get_tier("qa")},
-            {"type": "legal", "name": "Legal Agent", "layer": "quality", "description": "Legal compliance", "status": "available", "model_tier": get_tier("legal")},
+            {"type": "qa", "name": "QA Agent", "layer": "quality", "description": "Quality assurance", "status": "available", "model_tier": get_tier("qa"), "external_llms": get_external("qa")},
+            {"type": "legal", "name": "Legal Agent", "layer": "quality", "description": "Legal compliance", "status": "available", "model_tier": get_tier("legal"), "external_llms": get_external("legal")},
             # Knowledge
-            {"type": "knowledge", "name": "Knowledge Agent", "layer": "knowledge", "description": "Knowledge management", "status": "available", "model_tier": get_tier("knowledge")},
-            {"type": "training", "name": "Training Agent", "layer": "knowledge", "description": "Training and learning", "status": "available", "model_tier": get_tier("training")},
+            {"type": "knowledge", "name": "Knowledge Agent", "layer": "knowledge", "description": "Knowledge management", "status": "available", "model_tier": get_tier("knowledge"), "external_llms": get_external("knowledge")},
+            {"type": "training", "name": "Training Agent", "layer": "knowledge", "description": "Training and learning", "status": "available", "model_tier": get_tier("training"), "external_llms": get_external("training")},
             # Specialized
-            {"type": "influencer", "name": "Influencer Agent", "layer": "specialized", "description": "Influencer marketing (vertical/region specializable)", "status": "available", "model_tier": get_tier("influencer")},
-            {"type": "pr", "name": "PR Agent", "layer": "specialized", "description": "Public relations", "status": "available", "model_tier": get_tier("pr")},
-            {"type": "events", "name": "Events Agent", "layer": "specialized", "description": "Event planning", "status": "available", "model_tier": get_tier("events")},
-            {"type": "localization", "name": "Localization Agent", "layer": "specialized", "description": "Multi-market localization", "status": "available", "model_tier": get_tier("localization")},
-            {"type": "accessibility", "name": "Accessibility Agent", "layer": "specialized", "description": "WCAG compliance", "status": "available", "model_tier": get_tier("accessibility")},
+            {"type": "influencer", "name": "Influencer Agent", "layer": "specialized", "description": "Influencer marketing (vertical/region specializable)", "status": "available", "model_tier": get_tier("influencer"), "external_llms": get_external("influencer")},
+            {"type": "pr", "name": "PR Agent", "layer": "specialized", "description": "Public relations", "status": "available", "model_tier": get_tier("pr"), "external_llms": get_external("pr")},
+            {"type": "events", "name": "Events Agent", "layer": "specialized", "description": "Event planning", "status": "available", "model_tier": get_tier("events"), "external_llms": get_external("events")},
+            {"type": "localization", "name": "Localization Agent", "layer": "specialized", "description": "Multi-market localization", "status": "available", "model_tier": get_tier("localization"), "external_llms": get_external("localization")},
+            {"type": "accessibility", "name": "Accessibility Agent", "layer": "specialized", "description": "WCAG compliance", "status": "available", "model_tier": get_tier("accessibility"), "external_llms": get_external("accessibility")},
         ],
         "total_agents": 46,
         "layers": ["foundation", "studio", "video", "distribution", "gateway", "brand", "operations", "client", "media", "social", "performance", "finance", "quality", "knowledge", "specialized"],
@@ -612,7 +632,188 @@ async def get_agent_model(agent_name: str):
     }
 
 
+# ============================================
+# External LLM Management Endpoints
+# ============================================
+
+@router.get("/external-llms/providers")
+async def list_external_providers():
+    """
+    List all external LLM providers and their configuration status.
+    Shows which providers have API keys configured.
+    """
+    return {
+        "providers": get_provider_status(),
+        "configured_count": sum(1 for v in get_configured_providers().values() if v),
+        "total_count": len(get_configured_providers()),
+    }
+
+
+@router.get("/external-llms/agents")
+async def get_agents_external_llms():
+    """
+    Get external LLM requirements for all agents.
+    Shows which agents use which external LLMs.
+    """
+    return get_agent_llm_summary()
+
+
+@router.get("/external-llms/agent/{agent_name}")
+async def get_agent_external_llms(agent_name: str):
+    """
+    Get external LLM configuration for a specific agent.
+    """
+    if not agent_name.endswith("_agent"):
+        agent_name = f"{agent_name}_agent"
+
+    external_llms = get_external_llms_for_agent(agent_name)
+    unconfigured = list_unconfigured_for_agent(agent_name)
+
+    return {
+        "agent_name": agent_name,
+        "external_llms": [
+            {
+                "provider": llm.provider.value,
+                "name": llm.name,
+                "description": llm.description,
+                "capabilities": llm.capabilities,
+                "models": llm.models or [],
+            }
+            for llm in external_llms
+        ],
+        "unconfigured": unconfigured,
+        "all_configured": len(unconfigured) == 0,
+    }
+
+
+@router.get("/external-llms/unconfigured")
+async def list_unconfigured_providers():
+    """
+    List all external LLM providers that need API keys configured.
+    Useful for onboarding checklist.
+    """
+    configured = get_configured_providers()
+    providers = get_provider_status()
+
+    unconfigured = [p for p in providers if not p["configured"]]
+
+    return {
+        "unconfigured": unconfigured,
+        "count": len(unconfigured),
+        "onboarding_guide": {
+            "higgsfield_api_key": "Get from https://higgsfield.ai/dashboard",
+            "openai_api_key": "Get from https://platform.openai.com/api-keys",
+            "replicate_api_key": "Get from https://replicate.com/account/api-tokens",
+            "stability_api_key": "Get from https://platform.stability.ai/account/keys",
+            "elevenlabs_api_key": "Get from https://elevenlabs.io/app/settings/api-keys",
+            "runway_api_key": "Get from https://app.runwayml.com/settings/api-keys",
+            "beautiful_ai_api_key": "Get from Beautiful.ai settings",
+            "gamma_api_key": "Get from Gamma.app settings",
+            "perplexity_api_key": "Get from https://perplexity.ai/settings/api",
+        },
+    }
+
+
+# ============================================
+# Prompt Assistant Endpoints
+# ============================================
+
+class PromptAssistantRequest(BaseModel):
+    """Request to enhance a prompt."""
+    prompt_type: str = Field(..., description="Type: 'video', 'image', 'presentation', 'voice', 'storyboard'")
+    user_input: str = Field(..., description="User's rough idea/prompt")
+    context: Optional[str] = Field(default=None, description="Additional context (e.g., campaign info)")
+    brand_guidelines: Optional[str] = Field(default=None, description="Brand guidelines to follow")
+
+
+class PromptSuggestionsRequest(BaseModel):
+    """Request for multiple prompt variations."""
+    prompt_type: str = Field(..., description="Type: 'video', 'image', 'presentation', 'voice', 'storyboard'")
+    user_input: str = Field(..., description="User's rough idea/prompt")
+    num_variations: int = Field(default=3, ge=1, le=5, description="Number of variations (1-5)")
+
+
+@router.get("/prompt-assistant/templates")
+async def get_templates():
+    """
+    Get all available prompt templates with examples.
+    Useful for showing users what types of prompts they can enhance.
+    """
+    return {
+        "templates": get_prompt_templates(),
+        "model_used": "claude-sonnet-4-20250514",
+        "description": "Use Claude Sonnet to craft better prompts for visual and video generation tools",
+    }
+
+
+@router.post("/prompt-assistant/enhance")
+async def enhance_prompt(request: PromptAssistantRequest):
+    """
+    Enhance a user's rough prompt into an optimized generation prompt.
+
+    Uses Claude Sonnet (cost-effective) to transform vague ideas into
+    detailed, effective prompts for DALL-E, Flux, Higgsfield, etc.
+    """
+    try:
+        prompt_type = PromptType(request.prompt_type)
+    except ValueError:
+        valid_types = [t.value for t in PromptType]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid prompt_type: {request.prompt_type}. Valid types: {valid_types}"
+        )
+
+    try:
+        assistant = get_prompt_assistant()
+        result = await assistant.enhance_prompt(
+            prompt_type=prompt_type,
+            user_input=request.user_input,
+            context=request.context,
+            brand_guidelines=request.brand_guidelines,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to enhance prompt: {str(e)}")
+
+
+@router.post("/prompt-assistant/suggestions")
+async def get_prompt_suggestions(request: PromptSuggestionsRequest):
+    """
+    Generate multiple prompt variations for the user to choose from.
+
+    Useful when users want to explore different creative directions.
+    """
+    try:
+        prompt_type = PromptType(request.prompt_type)
+    except ValueError:
+        valid_types = [t.value for t in PromptType]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid prompt_type: {request.prompt_type}. Valid types: {valid_types}"
+        )
+
+    try:
+        assistant = get_prompt_assistant()
+        result = await assistant.get_suggestions(
+            prompt_type=prompt_type,
+            user_input=request.user_input,
+            num_variations=request.num_variations,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate suggestions: {str(e)}")
+
+
 @router.get("/health")
 async def health_check():
     """Service health check."""
-    return {"status": "healthy", "service": "ongoing-agent-builder", "agents_available": 46}
+    configured = get_configured_providers()
+    configured_count = sum(1 for v in configured.values() if v)
+
+    return {
+        "status": "healthy",
+        "service": "ongoing-agent-builder",
+        "agents_available": 46,
+        "external_llms_configured": configured_count,
+        "external_llms_total": len(configured),
+    }
