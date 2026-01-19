@@ -15,6 +15,7 @@ from .runway import RunwayClient
 from .beautiful_ai import BeautifulAIClient
 from .gamma import GammaClient
 from .perplexity import PerplexityClient
+from .presenton import PresentonClient
 from .factory import (
     ExternalLLMFactory,
     get_llm_factory,
@@ -40,6 +41,7 @@ __all__ = [
     "BeautifulAIClient",
     "GammaClient",
     "PerplexityClient",
+    "PresentonClient",
     # Factory
     "ExternalLLMFactory",
     "get_llm_factory",

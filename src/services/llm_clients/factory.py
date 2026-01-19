@@ -19,6 +19,7 @@ from .runway import RunwayClient
 from .beautiful_ai import BeautifulAIClient
 from .gamma import GammaClient
 from .perplexity import PerplexityClient
+from .presenton import PresentonClient
 from .base import BaseExternalLLMClient
 
 
@@ -162,6 +163,25 @@ class ExternalLLMFactory:
             )
         return self._clients[ExternalLLMProvider.PERPLEXITY]
 
+    def get_presenton(self) -> Optional[PresentonClient]:
+        """
+        Get Presenton client for self-hosted presentations.
+
+        Note: Presenton is self-hosted and uses your existing AI keys.
+        Always available if you have a Presenton instance running.
+        Returns client with cost tracking for client billing.
+        """
+        presenton_url = getattr(self._settings, 'presenton_base_url', None)
+        if not presenton_url:
+            presenton_url = "http://localhost:8080/api/v1"
+
+        # Use a string key since Presenton isn't in ExternalLLMProvider enum
+        if "presenton" not in self._clients:
+            self._clients["presenton"] = PresentonClient(
+                base_url=presenton_url,
+            )
+        return self._clients["presenton"]
+
     def get_client(self, provider: ExternalLLMProvider) -> Optional[BaseExternalLLMClient]:
         """Get a client by provider enum."""
         provider_map = {
@@ -295,6 +315,8 @@ def get_presentation_clients() -> dict[str, BaseExternalLLMClient]:
         clients["beautiful_ai"] = factory.get_beautiful_ai()
     if factory.is_configured(ExternalLLMProvider.GAMMA):
         clients["gamma"] = factory.get_gamma()
+    # Presenton is always available (self-hosted, uses your AI keys)
+    clients["presenton"] = factory.get_presenton()
     return clients
 
 
