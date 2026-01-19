@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 import uvicorn
 import logging
 
@@ -8,6 +10,9 @@ from src.api.routes import router
 from src.api.multi_tenant import router as multi_tenant_router
 from src.config import get_settings
 from src.db.session import init_db, close_db
+
+# Dashboard path
+DASHBOARD_PATH = Path(__file__).parent / "src" / "dashboard" / "index.html"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -62,12 +67,22 @@ async def root():
         "version": "1.0.0",
         "paradigm": "Think → Act → Create",
         "docs": "/docs",
+        "dashboard": "/dashboard",
         "endpoints": {
             "agents": "/api/v1/agents",
             "instances": "/api/v1/instances",
             "execute": "/api/v1/instances/{instance_id}/execute",
+            "models": "/api/v1/models/info",
         },
     }
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    """Serve the agent dashboard UI."""
+    if DASHBOARD_PATH.exists():
+        return HTMLResponse(content=DASHBOARD_PATH.read_text(), status_code=200)
+    return HTMLResponse(content="<h1>Dashboard not found</h1>", status_code=404)
 
 
 @app.get("/health")

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Dashboard | SpokeStack</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        opus: '#8B5CF6',
+                        sonnet: '#3B82F6',
+                        haiku: '#10B981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .tier-opus { background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%); }
+        .tier-sonnet { background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); }
+        .tier-haiku { background: linear-gradient(135deg, #10B981 0%, #059669 100%); }
+        .agent-card:hover { transform: translateY(-2px); box-shadow: 0 10px 40px rgba(0,0,0,0.12); }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold text-gray-900">Agent Dashboard</h1>
+                    <span id="health-badge" class="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                        <span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                        Healthy
+                    </span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="text-sm text-gray-500" id="agent-count">46 Agents</span>
+                    <button onclick="refreshData()" class="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition">
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Model Tier Summary -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-3 h-3 rounded-full bg-opus"></div>
+                    <h3 class="font-semibold text-gray-900">Opus Tier</h3>
+                </div>
+                <p class="text-3xl font-bold text-opus" id="opus-count">0</p>
+                <p class="text-sm text-gray-500">Complex reasoning agents</p>
+            </div>
+            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-3 h-3 rounded-full bg-sonnet"></div>
+                    <h3 class="font-semibold text-gray-900">Sonnet Tier</h3>
+                </div>
+                <p class="text-3xl font-bold text-sonnet" id="sonnet-count">0</p>
+                <p class="text-sm text-gray-500">Balanced performance agents</p>
+            </div>
+            <div class="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-3 h-3 rounded-full bg-haiku"></div>
+                    <h3 class="font-semibold text-gray-900">Haiku Tier</h3>
+                </div>
+                <p class="text-3xl font-bold text-haiku" id="haiku-count">0</p>
+                <p class="text-sm text-gray-500">Fast, simple operations</p>
+            </div>
+        </div>
+
+        <!-- Running Tasks -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8">
+            <div class="p-4 border-b border-gray-200">
+                <h2 class="font-semibold text-gray-900">Running Tasks</h2>
+            </div>
+            <div id="tasks-container" class="p-4">
+                <p class="text-gray-500 text-sm">No active tasks</p>
+            </div>
+        </div>
+
+        <!-- Agents by Layer -->
+        <div id="agents-container">
+            <!-- Agents will be rendered here by layer -->
+        </div>
+    </main>
+
+    <!-- Agent Detail Modal -->
+    <div id="agent-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 max-h-[90vh] overflow-auto">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h2 id="modal-agent-name" class="text-xl font-bold text-gray-900">Agent Name</h2>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">Description</label>
+                        <p id="modal-description" class="text-gray-900">-</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">Layer</label>
+                        <p id="modal-layer" class="text-gray-900">-</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">Model Tier</label>
+                        <div class="flex items-center gap-3 mt-1">
+                            <span id="modal-tier-badge" class="px-3 py-1 rounded-full text-white text-sm font-medium">-</span>
+                            <select id="tier-select" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" onchange="updateAgentTier()">
+                                <option value="opus">Opus (Complex)</option>
+                                <option value="sonnet">Sonnet (Balanced)</option>
+                                <option value="haiku">Haiku (Fast)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-500">Model ID</label>
+                        <code id="modal-model-id" class="block bg-gray-100 rounded px-3 py-2 text-sm font-mono">-</code>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+                <button onclick="testAgent()" class="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition">
+                    Test Agent
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let agents = [];
+        let modelTiers = {};
+        let currentAgent = null;
+
+        const layerColors = {
+            foundation: 'bg-blue-50 border-blue-200',
+            studio: 'bg-purple-50 border-purple-200',
+            video: 'bg-pink-50 border-pink-200',
+            distribution: 'bg-green-50 border-green-200',
+            gateway: 'bg-yellow-50 border-yellow-200',
+            brand: 'bg-orange-50 border-orange-200',
+            operations: 'bg-cyan-50 border-cyan-200',
+            client: 'bg-indigo-50 border-indigo-200',
+            media: 'bg-red-50 border-red-200',
+            social: 'bg-teal-50 border-teal-200',
+            performance: 'bg-emerald-50 border-emerald-200',
+            finance: 'bg-lime-50 border-lime-200',
+            quality: 'bg-amber-50 border-amber-200',
+            knowledge: 'bg-violet-50 border-violet-200',
+            specialized: 'bg-rose-50 border-rose-200',
+        };
+
+        const layerLabels = {
+            foundation: 'Foundation Layer',
+            studio: 'Studio Layer',
+            video: 'Video Production',
+            distribution: 'Distribution',
+            gateway: 'Gateways',
+            brand: 'Brand',
+            operations: 'Operations',
+            client: 'Client Management',
+            media: 'Media & Advertising',
+            social: 'Social',
+            performance: 'Performance & Analytics',
+            finance: 'Finance',
+            quality: 'Quality & Compliance',
+            knowledge: 'Knowledge & Learning',
+            specialized: 'Specialized',
+        };
+
+        async function fetchAgents() {
+            try {
+                const response = await fetch('/api/v1/agents');
+                const data = await response.json();
+                agents = data.agents;
+                modelTiers = data.model_tiers;
+                renderAgents();
+                updateCounts();
+            } catch (error) {
+                console.error('Failed to fetch agents:', error);
+            }
+        }
+
+        async function fetchHealth() {
+            try {
+                const response = await fetch('/api/v1/health');
+                const data = await response.json();
+                const badge = document.getElementById('health-badge');
+                if (data.status === 'healthy') {
+                    badge.className = 'px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800';
+                    badge.innerHTML = '<span class="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>Healthy';
+                } else {
+                    badge.className = 'px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800';
+                    badge.innerHTML = '<span class="inline-block w-2 h-2 bg-red-500 rounded-full mr-2"></span>Unhealthy';
+                }
+            } catch (error) {
+                const badge = document.getElementById('health-badge');
+                badge.className = 'px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800';
+                badge.innerHTML = '<span class="inline-block w-2 h-2 bg-gray-500 rounded-full mr-2"></span>Offline';
+            }
+        }
+
+        function updateCounts() {
+            const counts = { opus: 0, sonnet: 0, haiku: 0 };
+            agents.forEach(agent => {
+                if (agent.model_tier) counts[agent.model_tier]++;
+            });
+            document.getElementById('opus-count').textContent = counts.opus;
+            document.getElementById('sonnet-count').textContent = counts.sonnet;
+            document.getElementById('haiku-count').textContent = counts.haiku;
+            document.getElementById('agent-count').textContent = `${agents.length} Agents`;
+        }
+
+        function renderAgents() {
+            const container = document.getElementById('agents-container');
+            container.innerHTML = '';
+
+            // Group by layer
+            const layers = {};
+            agents.forEach(agent => {
+                if (!layers[agent.layer]) layers[agent.layer] = [];
+                layers[agent.layer].push(agent);
+            });
+
+            // Render each layer
+            const layerOrder = ['foundation', 'studio', 'video', 'distribution', 'gateway', 'brand', 'operations', 'client', 'media', 'social', 'performance', 'finance', 'quality', 'knowledge', 'specialized'];
+
+            layerOrder.forEach(layer => {
+                if (!layers[layer]) return;
+
+                const section = document.createElement('div');
+                section.className = 'mb-8';
+                section.innerHTML = `
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">${layerLabels[layer] || layer}</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" id="layer-${layer}"></div>
+                `;
+                container.appendChild(section);
+
+                const grid = document.getElementById(`layer-${layer}`);
+                layers[layer].forEach(agent => {
+                    grid.appendChild(createAgentCard(agent));
+                });
+            });
+        }
+
+        function createAgentCard(agent) {
+            const card = document.createElement('div');
+            card.className = `agent-card bg-white rounded-xl border border-gray-200 p-4 cursor-pointer transition-all duration-200 hover:shadow-lg ${layerColors[agent.layer] || ''}`;
+            card.onclick = () => openModal(agent);
+
+            const tierClass = `tier-${agent.model_tier}`;
+
+            card.innerHTML = `
+                <div class="flex items-start justify-between mb-3">
+                    <div class="flex-1">
+                        <h3 class="font-semibold text-gray-900 text-sm">${agent.name}</h3>
+                    </div>
+                    <span class="px-2 py-0.5 rounded-full text-white text-xs font-medium ${tierClass}">${agent.model_tier}</span>
+                </div>
+                <p class="text-gray-500 text-xs line-clamp-2">${agent.description}</p>
+                <div class="mt-3 flex items-center justify-between">
+                    <span class="text-xs text-gray-400">${agent.type}</span>
+                    <span class="inline-block w-2 h-2 bg-green-500 rounded-full" title="Available"></span>
+                </div>
+            `;
+
+            return card;
+        }
+
+        function openModal(agent) {
+            currentAgent = agent;
+            document.getElementById('modal-agent-name').textContent = agent.name;
+            document.getElementById('modal-description').textContent = agent.description;
+            document.getElementById('modal-layer').textContent = layerLabels[agent.layer] || agent.layer;
+
+            const tierBadge = document.getElementById('modal-tier-badge');
+            tierBadge.textContent = agent.model_tier;
+            tierBadge.className = `px-3 py-1 rounded-full text-white text-sm font-medium tier-${agent.model_tier}`;
+
+            document.getElementById('tier-select').value = agent.model_tier;
+            document.getElementById('modal-model-id').textContent = modelTiers[agent.model_tier] || '-';
+
+            document.getElementById('agent-modal').classList.remove('hidden');
+            document.getElementById('agent-modal').classList.add('flex');
+        }
+
+        function closeModal() {
+            document.getElementById('agent-modal').classList.add('hidden');
+            document.getElementById('agent-modal').classList.remove('flex');
+            currentAgent = null;
+        }
+
+        async function updateAgentTier() {
+            if (!currentAgent) return;
+            const newTier = document.getElementById('tier-select').value;
+
+            // Update UI immediately
+            const tierBadge = document.getElementById('modal-tier-badge');
+            tierBadge.textContent = newTier;
+            tierBadge.className = `px-3 py-1 rounded-full text-white text-sm font-medium tier-${newTier}`;
+            document.getElementById('modal-model-id').textContent = modelTiers[newTier] || '-';
+
+            // Update in agents array
+            const agentIndex = agents.findIndex(a => a.type === currentAgent.type);
+            if (agentIndex >= 0) {
+                agents[agentIndex].model_tier = newTier;
+                updateCounts();
+                renderAgents();
+            }
+        }
+
+        async function testAgent() {
+            if (!currentAgent) return;
+            alert(`Testing ${currentAgent.name}...\n\nThis would execute a test task for the agent using the /api/v1/agent/execute endpoint.`);
+        }
+
+        function refreshData() {
+            fetchAgents();
+            fetchHealth();
+        }
+
+        // Initial load
+        refreshData();
+
+        // Auto-refresh every 30 seconds
+        setInterval(fetchHealth, 30000);
+    </script>
+</body>
+</html>
