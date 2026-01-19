@@ -19,6 +19,9 @@ from .runway import RunwayClient
 from .beautiful_ai import BeautifulAIClient
 from .gamma import GammaClient
 from .perplexity import PerplexityClient
+from .presenton import PresentonClient
+from .xai import XAIClient
+from .google import GoogleClient
 from .base import BaseExternalLLMClient
 
 
@@ -162,6 +165,49 @@ class ExternalLLMFactory:
             )
         return self._clients[ExternalLLMProvider.PERPLEXITY]
 
+    def get_xai(self) -> Optional[XAIClient]:
+        """Get xAI client for Grok chat and Aurora images."""
+        xai_api_key = getattr(self._settings, 'xai_api_key', None)
+        if not xai_api_key:
+            return None
+
+        if "xai" not in self._clients:
+            self._clients["xai"] = XAIClient(
+                api_key=xai_api_key,
+            )
+        return self._clients["xai"]
+
+    def get_google(self) -> Optional[GoogleClient]:
+        """Get Google client for Gemini chat, Imagen, and TTS."""
+        google_api_key = getattr(self._settings, 'google_api_key', None)
+        if not google_api_key:
+            return None
+
+        if "google" not in self._clients:
+            self._clients["google"] = GoogleClient(
+                api_key=google_api_key,
+            )
+        return self._clients["google"]
+
+    def get_presenton(self) -> Optional[PresentonClient]:
+        """
+        Get Presenton client for self-hosted presentations.
+
+        Note: Presenton is self-hosted and uses your existing AI keys.
+        Always available if you have a Presenton instance running.
+        Returns client with cost tracking for client billing.
+        """
+        presenton_url = getattr(self._settings, 'presenton_base_url', None)
+        if not presenton_url:
+            presenton_url = "http://localhost:8080/api/v1"
+
+        # Use a string key since Presenton isn't in ExternalLLMProvider enum
+        if "presenton" not in self._clients:
+            self._clients["presenton"] = PresentonClient(
+                base_url=presenton_url,
+            )
+        return self._clients["presenton"]
+
     def get_client(self, provider: ExternalLLMProvider) -> Optional[BaseExternalLLMClient]:
         """Get a client by provider enum."""
         provider_map = {
@@ -271,6 +317,12 @@ def get_image_clients() -> dict[str, BaseExternalLLMClient]:
         clients["flux"] = factory.get_replicate()
     if factory.is_configured(ExternalLLMProvider.STABILITY):
         clients["stability"] = factory.get_stability()
+    xai = factory.get_xai()
+    if xai:
+        clients["aurora"] = xai
+    google = factory.get_google()
+    if google:
+        clients["imagen"] = google
     return clients
 
 
@@ -284,6 +336,9 @@ def get_voice_clients() -> dict[str, BaseExternalLLMClient]:
         clients["openai_tts"] = factory.get_openai()
     if factory.is_configured(ExternalLLMProvider.OPENAI_WHISPER):
         clients["whisper"] = factory.get_openai()
+    google = factory.get_google()
+    if google:
+        clients["google_tts"] = google
     return clients
 
 
@@ -295,6 +350,8 @@ def get_presentation_clients() -> dict[str, BaseExternalLLMClient]:
         clients["beautiful_ai"] = factory.get_beautiful_ai()
     if factory.is_configured(ExternalLLMProvider.GAMMA):
         clients["gamma"] = factory.get_gamma()
+    # Presenton is always available (self-hosted, uses your AI keys)
+    clients["presenton"] = factory.get_presenton()
     return clients
 
 

@@ -15,29 +15,36 @@ class ExternalLLMProvider(str, Enum):
     """External LLM providers for specialized capabilities."""
     # Video Generation
     HIGGSFIELD = "higgsfield"  # Multi-model: Sora 2, Veo 3.1, WAN, Kling, Minimax
+    RUNWAY = "runway"  # Video editing, Gen-3
 
     # Image Generation
     OPENAI_DALLE = "openai_dalle"  # DALL-E 3
     REPLICATE_FLUX = "replicate_flux"  # Flux models
     STABILITY = "stability"  # Stable Diffusion, SDXL
+    XAI_AURORA = "xai_aurora"  # Grok Aurora images
+    GOOGLE_IMAGEN = "google_imagen"  # Imagen 3
 
     # Voice/Audio
-    ELEVENLABS = "elevenlabs"  # Voice synthesis
+    ELEVENLABS = "elevenlabs"  # Voice synthesis (premium)
     OPENAI_WHISPER = "openai_whisper"  # Transcription
     OPENAI_TTS = "openai_tts"  # Text-to-speech
+    GOOGLE_TTS = "google_tts"  # Budget TTS (75x cheaper than ElevenLabs)
 
     # Vision/Analysis
     OPENAI_VISION = "openai_vision"  # GPT-4V for image analysis
+    GOOGLE_GEMINI_VISION = "google_gemini_vision"  # Gemini 1.5 Pro (2M context, 4x cheaper)
+
+    # Chat/Reasoning (for routing/classification)
+    GOOGLE_GEMINI = "google_gemini"  # Gemini Flash (50x cheaper than GPT-4o)
+    XAI_GROK = "xai_grok"  # Grok with real-time X/Twitter data
 
     # Presentations
-    BEAUTIFUL_AI = "beautiful_ai"  # Presentation generation
-    GAMMA = "gamma"  # Presentation/doc generation
+    BEAUTIFUL_AI = "beautiful_ai"  # Premium presentation generation
+    GAMMA = "gamma"  # Client-facing presentations
+    PRESENTON = "presenton"  # Self-hosted (90%+ margin for internal reports)
 
     # Research
     PERPLEXITY = "perplexity"  # Search-augmented research
-
-    # Video Editing
-    RUNWAY = "runway"  # Video editing, Gen-2
 
 
 @dataclass
@@ -149,74 +156,208 @@ EXTERNAL_LLM_CONFIGS: dict[ExternalLLMProvider, ExternalLLMConfig] = {
         api_key_setting="runway_api_key",
         models=["gen-3-alpha"],
     ),
+    ExternalLLMProvider.XAI_AURORA: ExternalLLMConfig(
+        provider=ExternalLLMProvider.XAI_AURORA,
+        name="Aurora (xAI)",
+        description="Grok image generation - strong at text-in-image",
+        capabilities=["text-to-image", "photorealism"],
+        api_key_setting="xai_api_key",
+        models=["aurora"],
+    ),
+    ExternalLLMProvider.XAI_GROK: ExternalLLMConfig(
+        provider=ExternalLLMProvider.XAI_GROK,
+        name="Grok (xAI)",
+        description="Real-time X/Twitter data access for social intelligence",
+        capabilities=["real-time-social", "trending-topics", "sentiment-analysis"],
+        api_key_setting="xai_api_key",
+        models=["grok-2", "grok-3"],
+    ),
+    ExternalLLMProvider.GOOGLE_IMAGEN: ExternalLLMConfig(
+        provider=ExternalLLMProvider.GOOGLE_IMAGEN,
+        name="Imagen 3 (Google)",
+        description="High-quality image generation at 50% DALL-E cost",
+        capabilities=["text-to-image"],
+        api_key_setting="google_api_key",
+        models=["imagen-3.0-generate-001"],
+    ),
+    ExternalLLMProvider.GOOGLE_TTS: ExternalLLMConfig(
+        provider=ExternalLLMProvider.GOOGLE_TTS,
+        name="Google Cloud TTS",
+        description="Budget TTS - 75x cheaper than ElevenLabs",
+        capabilities=["text-to-speech"],
+        api_key_setting="google_api_key",
+        models=["tts-standard", "tts-wavenet", "tts-neural2"],
+    ),
+    ExternalLLMProvider.GOOGLE_GEMINI: ExternalLLMConfig(
+        provider=ExternalLLMProvider.GOOGLE_GEMINI,
+        name="Gemini Flash (Google)",
+        description="Ultra-cheap routing/classification - 50x cheaper than GPT-4o",
+        capabilities=["classification", "routing", "intent-detection"],
+        api_key_setting="google_api_key",
+        models=["gemini-2.0-flash-exp", "gemini-1.5-flash-8b"],
+    ),
+    ExternalLLMProvider.GOOGLE_GEMINI_VISION: ExternalLLMConfig(
+        provider=ExternalLLMProvider.GOOGLE_GEMINI_VISION,
+        name="Gemini Vision (Google)",
+        description="Dashboard/screenshot analysis with 2M context - 4x cheaper than GPT-4V",
+        capabilities=["image-analysis", "dashboard-analysis", "visual-qa"],
+        api_key_setting="google_api_key",
+        models=["gemini-1.5-pro"],
+    ),
+    ExternalLLMProvider.PRESENTON: ExternalLLMConfig(
+        provider=ExternalLLMProvider.PRESENTON,
+        name="Presenton",
+        description="Self-hosted presentations - 90%+ margin for internal reports",
+        capabilities=["presentation-generation"],
+        api_key_setting="presenton_base_url",  # URL-based, no API key
+    ),
 }
 
 
 # Agent to External LLM mapping
 # Maps each agent to the external LLMs it can use
+#
+# Model tier recommendations:
+#   - High-stakes (legal, finance, clients, knowledge): Use Claude Opus 4.5
+#   - Standard reasoning: Use Claude Sonnet 4
+#   - Routing/classification: Use Google Gemini Flash (50x cheaper)
+#   - Real-time social: Use Grok (native X/Twitter data)
+#
 AGENT_EXTERNAL_LLMS: dict[str, list[ExternalLLMProvider]] = {
-    # Video agents - Higgsfield
+    # ==========================================================================
+    # VIDEO MODULE
+    # ==========================================================================
     "video_production_agent": [ExternalLLMProvider.HIGGSFIELD, ExternalLLMProvider.RUNWAY],
     "video_storyboard_agent": [ExternalLLMProvider.HIGGSFIELD],
-    "video_script_agent": [ExternalLLMProvider.ELEVENLABS],  # For voice preview
+    "video_script_agent": [ExternalLLMProvider.ELEVENLABS, ExternalLLMProvider.GOOGLE_TTS],
 
-    # Image agents - Multiple image providers
+    # ==========================================================================
+    # STUDIO MODULE (Images, Presentations)
+    # ==========================================================================
     "image_agent": [
-        ExternalLLMProvider.OPENAI_DALLE,
-        ExternalLLMProvider.REPLICATE_FLUX,
+        ExternalLLMProvider.OPENAI_DALLE,  # Premium quality
+        ExternalLLMProvider.REPLICATE_FLUX,  # Flux-schnell for drafts ($0.003)
         ExternalLLMProvider.STABILITY,
+        ExternalLLMProvider.XAI_AURORA,  # Good at text-in-image
+        ExternalLLMProvider.GOOGLE_IMAGEN,  # 50% cheaper than DALL-E
     ],
     "brand_visual_agent": [
         ExternalLLMProvider.OPENAI_DALLE,
         ExternalLLMProvider.REPLICATE_FLUX,
         ExternalLLMProvider.STABILITY,
+        ExternalLLMProvider.GOOGLE_IMAGEN,
+    ],
+    "presentation_agent": [
+        ExternalLLMProvider.PRESENTON,  # Self-hosted, 90%+ margin
+        ExternalLLMProvider.GAMMA,  # Client-facing
+        ExternalLLMProvider.BEAUTIFUL_AI,  # Premium
+        ExternalLLMProvider.OPENAI_DALLE,
     ],
 
-    # Campaign/Marketing - Video ads + images
+    # ==========================================================================
+    # VOICE MODULE
+    # ==========================================================================
+    "copy_agent": [
+        ExternalLLMProvider.GOOGLE_TTS,  # Draft voice previews (75x cheaper)
+        ExternalLLMProvider.ELEVENLABS,  # Final quality
+        ExternalLLMProvider.OPENAI_TTS,
+    ],
+    "brand_voice_agent": [ExternalLLMProvider.ELEVENLABS],  # Premium voice cloning
+    "localization_agent": [
+        ExternalLLMProvider.GOOGLE_TTS,  # Budget voiceover
+        ExternalLLMProvider.ELEVENLABS,  # Premium
+        ExternalLLMProvider.OPENAI_WHISPER,
+    ],
+    "accessibility_agent": [
+        ExternalLLMProvider.GOOGLE_TTS,
+        ExternalLLMProvider.ELEVENLABS,
+        ExternalLLMProvider.OPENAI_WHISPER,
+    ],
+
+    # ==========================================================================
+    # RESEARCH MODULE (+ Grok for real-time social)
+    # ==========================================================================
+    "social_listening_agent": [
+        ExternalLLMProvider.XAI_GROK,  # Real-time X/Twitter data
+        ExternalLLMProvider.PERPLEXITY,
+    ],
+    "competitor_agent": [
+        ExternalLLMProvider.XAI_GROK,  # Social competitor monitoring
+        ExternalLLMProvider.PERPLEXITY,
+        ExternalLLMProvider.GOOGLE_GEMINI_VISION,  # Dashboard analysis
+    ],
+    "pr_agent": [
+        ExternalLLMProvider.XAI_GROK,  # Breaking news detection
+        ExternalLLMProvider.PERPLEXITY,
+    ],
+    "rfp_agent": [ExternalLLMProvider.PERPLEXITY],
+    "influencer_agent": [
+        ExternalLLMProvider.PERPLEXITY,
+        ExternalLLMProvider.GOOGLE_GEMINI_VISION,  # Profile analysis
+        ExternalLLMProvider.XAI_GROK,  # Social reach
+    ],
+
+    # ==========================================================================
+    # ANALYTICS MODULE (Gemini Vision - 4x cheaper, 2M context)
+    # ==========================================================================
+    "social_analytics_agent": [ExternalLLMProvider.GOOGLE_GEMINI_VISION],
+    "campaign_analytics_agent": [ExternalLLMProvider.GOOGLE_GEMINI_VISION],
+    "brand_performance_agent": [ExternalLLMProvider.GOOGLE_GEMINI_VISION],
+    "qa_agent": [
+        ExternalLLMProvider.GOOGLE_GEMINI_VISION,  # Bulk screenshot analysis
+        ExternalLLMProvider.OPENAI_VISION,  # Fallback
+    ],
+
+    # ==========================================================================
+    # DISTRIBUTION MODULE
+    # ==========================================================================
+    "report_agent": [ExternalLLMProvider.GAMMA],  # Client-facing reports
+    "ops_reporting_agent": [ExternalLLMProvider.PRESENTON],  # Internal reports (90%+ margin)
+    "community_agent": [
+        ExternalLLMProvider.OPENAI_DALLE,
+        ExternalLLMProvider.GOOGLE_IMAGEN,
+    ],
+
+    # ==========================================================================
+    # CAMPAIGN MODULE
+    # ==========================================================================
     "campaign_agent": [
         ExternalLLMProvider.HIGGSFIELD,
         ExternalLLMProvider.OPENAI_DALLE,
+        ExternalLLMProvider.GOOGLE_IMAGEN,
     ],
-    "media_buying_agent": [ExternalLLMProvider.OPENAI_DALLE],
-
-    # Presentation agents
-    "presentation_agent": [
-        ExternalLLMProvider.BEAUTIFUL_AI,
-        ExternalLLMProvider.GAMMA,
+    "media_buying_agent": [
         ExternalLLMProvider.OPENAI_DALLE,
+        ExternalLLMProvider.GOOGLE_IMAGEN,
+    ],
+    "events_agent": [
+        ExternalLLMProvider.OPENAI_DALLE,
+        ExternalLLMProvider.BEAUTIFUL_AI,
     ],
 
-    # Voice/Audio agents
-    "copy_agent": [ExternalLLMProvider.ELEVENLABS, ExternalLLMProvider.OPENAI_TTS],
-    "brand_voice_agent": [ExternalLLMProvider.ELEVENLABS],
-    "localization_agent": [ExternalLLMProvider.ELEVENLABS, ExternalLLMProvider.OPENAI_WHISPER],
-    "accessibility_agent": [ExternalLLMProvider.ELEVENLABS, ExternalLLMProvider.OPENAI_WHISPER],
+    # ==========================================================================
+    # CONTENT MODULE
+    # ==========================================================================
+    "content_agent": [
+        ExternalLLMProvider.OPENAI_DALLE,
+        ExternalLLMProvider.GOOGLE_IMAGEN,
+        ExternalLLMProvider.PERPLEXITY,
+    ],
 
-    # Research/Analysis agents
-    "competitor_agent": [ExternalLLMProvider.PERPLEXITY, ExternalLLMProvider.OPENAI_VISION],
-    "social_listening_agent": [ExternalLLMProvider.PERPLEXITY],
-    "rfp_agent": [ExternalLLMProvider.PERPLEXITY],
-
-    # QA agents - Vision for visual QA
-    "qa_agent": [ExternalLLMProvider.OPENAI_VISION],
-
-    # Social agents - Images
-    "community_agent": [ExternalLLMProvider.OPENAI_DALLE],
-    "social_analytics_agent": [ExternalLLMProvider.OPENAI_VISION],
-    "influencer_agent": [ExternalLLMProvider.OPENAI_VISION, ExternalLLMProvider.PERPLEXITY],
-
-    # Content agents
-    "content_agent": [ExternalLLMProvider.OPENAI_DALLE, ExternalLLMProvider.PERPLEXITY],
-
-    # Report agents
-    "report_agent": [ExternalLLMProvider.GAMMA],
-    "ops_reporting_agent": [ExternalLLMProvider.GAMMA],
-
-    # Events
-    "events_agent": [ExternalLLMProvider.OPENAI_DALLE, ExternalLLMProvider.BEAUTIFUL_AI],
-
-    # PR
-    "pr_agent": [ExternalLLMProvider.PERPLEXITY],
+    # ==========================================================================
+    # HIGH-STAKES AGENTS (Use Claude Opus 4.5 - no external LLMs needed)
+    # These agents require maximum reasoning accuracy, not external tools.
+    # Configure via model_tier in agent config, not here.
+    # ==========================================================================
+    # "legal_agent": [],  # Opus 4.5 - contract accuracy, compliance
+    # "invoice_agent": [],  # Opus 4.5 - financial precision
+    # "budget_agent": [],  # Opus 4.5 - financial planning
+    # "forecast_agent": [],  # Opus 4.5 - projections
+    # "crm_agent": [],  # Opus 4.5 - client relationships
+    # "onboarding_agent": [],  # Opus 4.5 - client setup
+    # "scope_agent": [],  # Opus 4.5 - scope accuracy
+    # "knowledge_agent": [],  # Opus 4.5 - institutional knowledge
+    # "training_agent": [],  # Opus 4.5 - training accuracy
 }
 
 

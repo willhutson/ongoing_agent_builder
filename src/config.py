@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # Perplexity - Research/search augmentation
     perplexity_api_key: Optional[str] = None
 
+    # Presenton - Self-hosted presentation generation (uses your AI keys)
+    presenton_base_url: str = "http://localhost:8080/api/v1"
+
     # ===========================================
     # ERP Connection
     # ===========================================

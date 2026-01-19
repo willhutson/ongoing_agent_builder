@@ -1,0 +1,241 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2025-01-19",
+
+  "credit_conversion": {
+    "usd_to_credits_base": 100,
+    "description": "1 credit = $0.01 of API cost at base rate"
+  },
+
+  "tiers": {
+    "starter": {
+      "name": "Starter",
+      "credit_multiplier": 1.0,
+      "credit_price_usd": 0.03,
+      "description": "Small brands, solo users"
+    },
+    "brand": {
+      "name": "Brand",
+      "credit_multiplier": 0.9,
+      "credit_price_usd": 0.025,
+      "description": "Mid-size brands, internal teams"
+    },
+    "agency": {
+      "name": "Agency",
+      "credit_multiplier": 0.75,
+      "credit_price_usd": 0.02,
+      "description": "Agencies, multiple clients"
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "credit_multiplier": 0.6,
+      "credit_price_usd": 0.015,
+      "description": "Enterprise, custom pricing"
+    }
+  },
+
+  "plans": {
+    "starter": {
+      "name": "Starter",
+      "tier": "starter",
+      "base_price_usd": 49,
+      "included_credits": 2000,
+      "max_users": 3,
+      "modules": ["studio", "voice"],
+      "overage_rate": 0.035
+    },
+    "brand": {
+      "name": "Brand",
+      "tier": "brand",
+      "base_price_usd": 199,
+      "included_credits": 10000,
+      "max_users": 10,
+      "modules": ["video", "studio", "voice", "research"],
+      "overage_rate": 0.028
+    },
+    "agency": {
+      "name": "Agency",
+      "tier": "agency",
+      "base_price_usd": 499,
+      "included_credits": 35000,
+      "max_users": 50,
+      "modules": ["video", "studio", "voice", "research", "analytics"],
+      "overage_rate": 0.022
+    },
+    "enterprise": {
+      "name": "Enterprise",
+      "tier": "enterprise",
+      "base_price_usd": 1499,
+      "included_credits": 150000,
+      "max_users": 999,
+      "modules": ["video", "studio", "voice", "research", "analytics", "distribution"],
+      "overage_rate": 0.018
+    }
+  },
+
+  "provider_costs": {
+    "video": {
+      "higgsfield": {
+        "sora2": {"per_second": 0.20, "min_duration": 5, "max_duration": 20},
+        "veo3": {"per_second": 0.15, "min_duration": 5, "max_duration": 16},
+        "veo3.1": {"per_second": 0.18, "min_duration": 5, "max_duration": 16},
+        "kling": {"per_second": 0.08, "min_duration": 5, "max_duration": 10},
+        "kling1.6": {"per_second": 0.10, "min_duration": 5, "max_duration": 10},
+        "wan": {"per_second": 0.05, "min_duration": 5, "max_duration": 10},
+        "wan2.1": {"per_second": 0.06, "min_duration": 5, "max_duration": 10},
+        "minimax": {"per_second": 0.07, "min_duration": 5, "max_duration": 60},
+        "luma": {"per_second": 0.10, "min_duration": 5, "max_duration": 10},
+        "pika": {"per_second": 0.04, "min_duration": 3, "max_duration": 10},
+        "hunyuan": {"per_second": 0.05, "min_duration": 5, "max_duration": 10},
+        "seedance": {"per_second": 0.04, "min_duration": 5, "max_duration": 10}
+      },
+      "runway": {
+        "gen3a": {"per_second": 0.10, "min_duration": 5, "max_duration": 10},
+        "gen3a_turbo": {"per_second": 0.05, "min_duration": 5, "max_duration": 10}
+      }
+    },
+
+    "image": {
+      "openai": {
+        "dall-e-3": {
+          "1024x1024": {"standard": 0.040, "hd": 0.080},
+          "1792x1024": {"standard": 0.080, "hd": 0.120},
+          "1024x1792": {"standard": 0.080, "hd": 0.120}
+        }
+      },
+      "xai": {
+        "aurora": {"per_image": 0.040}
+      },
+      "replicate": {
+        "flux-1.1-pro": {"per_image": 0.040},
+        "flux-schnell": {"per_image": 0.003},
+        "flux-dev": {"per_image": 0.025}
+      },
+      "stability": {
+        "sd3-large": {"per_image": 0.065},
+        "sd3-large-turbo": {"per_image": 0.040},
+        "sd3-medium": {"per_image": 0.035},
+        "stable-image-ultra": {"per_image": 0.080},
+        "sdxl-1.0": {"per_image": 0.020},
+        "upscale": {"per_image": 0.025}
+      },
+      "google": {
+        "imagen-3": {"per_image": 0.020}
+      }
+    },
+
+    "voice": {
+      "elevenlabs": {
+        "tts": {"per_character": 0.00030},
+        "voice_clone": {"per_character": 0.00030},
+        "sound_effect": {"per_generation": 0.10}
+      },
+      "openai": {
+        "tts-1": {"per_1k_chars": 0.015},
+        "tts-1-hd": {"per_1k_chars": 0.030},
+        "whisper-1": {"per_minute": 0.006}
+      },
+      "google": {
+        "tts-standard": {"per_1m_chars": 4.00},
+        "tts-wavenet": {"per_1m_chars": 16.00},
+        "tts-neural2": {"per_1m_chars": 16.00}
+      }
+    },
+
+    "vision": {
+      "openai": {
+        "gpt-4o": {
+          "input_per_1k": 0.005,
+          "output_per_1k": 0.015,
+          "image_base": 0.00255,
+          "image_per_tile": 0.00255
+        },
+        "gpt-4-turbo": {
+          "input_per_1k": 0.01,
+          "output_per_1k": 0.03,
+          "image_base": 0.00765,
+          "image_per_tile": 0.00765
+        }
+      }
+    },
+
+    "research": {
+      "perplexity": {
+        "sonar-pro": {"input_per_1k": 0.003, "output_per_1k": 0.015},
+        "sonar": {"input_per_1k": 0.001, "output_per_1k": 0.001},
+        "sonar-reasoning": {"input_per_1k": 0.001, "output_per_1k": 0.005}
+      }
+    },
+
+    "presentation": {
+      "beautiful_ai": {"per_deck": 3.00, "per_slide": 0.30},
+      "gamma": {"per_deck": 2.00, "per_slide": 0.20},
+      "presenton": {
+        "per_deck": 0,
+        "uses_ai_tokens": true,
+        "default_ai_model": "gpt-4o",
+        "tokens_per_slide": {"input": 500, "output": 300}
+      }
+    },
+
+    "ai_tokens": {
+      "claude-opus-4-5": {"input_per_1k": 0.015, "output_per_1k": 0.075, "tier": "premium", "use_for": ["legal", "finance", "clients", "knowledge"]},
+      "claude-sonnet-4": {"input_per_1k": 0.003, "output_per_1k": 0.015, "tier": "standard"},
+      "claude-haiku-3-5": {"input_per_1k": 0.00025, "output_per_1k": 0.00125, "tier": "fast"},
+      "gpt-4o": {"input_per_1k": 0.005, "output_per_1k": 0.015},
+      "gpt-4-turbo": {"input_per_1k": 0.01, "output_per_1k": 0.03},
+      "gpt-4.1": {"input_per_1k": 0.01, "output_per_1k": 0.03},
+      "gemini-2.0-flash-exp": {"input_per_1k": 0.0001, "output_per_1k": 0.0004, "tier": "routing"},
+      "gemini-1.5-flash": {"input_per_1k": 0.000075, "output_per_1k": 0.0003, "tier": "routing"},
+      "gemini-1.5-flash-8b": {"input_per_1k": 0.0000375, "output_per_1k": 0.00015, "tier": "routing"},
+      "gemini-1.5-pro": {"input_per_1k": 0.00125, "output_per_1k": 0.005, "context": "2M"},
+      "gemini-1.5-pro-vision": {"input_per_1k": 0.00125, "output_per_1k": 0.005, "context": "2M", "use_for": ["analytics", "dashboards"]},
+      "grok-3": {"input_per_1k": 0.003, "output_per_1k": 0.015},
+      "grok-3-fast": {"input_per_1k": 0.001, "output_per_1k": 0.005},
+      "grok-2": {"input_per_1k": 0.002, "output_per_1k": 0.010, "use_for": ["social", "real-time"]},
+      "grok-2-mini": {"input_per_1k": 0.0005, "output_per_1k": 0.0025},
+      "ollama": {"input_per_1k": 0, "output_per_1k": 0}
+    },
+
+    "image_generation": {
+      "dalle3": {"per_image": 0.04},
+      "dalle3_hd": {"per_image": 0.08},
+      "gemini": {"per_image": 0.002},
+      "pexels": {"per_image": 0},
+      "pixabay": {"per_image": 0}
+    }
+  },
+
+  "modules": {
+    "video": {
+      "name": "Video Production",
+      "description": "AI video generation and editing",
+      "providers": ["higgsfield", "runway"]
+    },
+    "studio": {
+      "name": "Creative Studio",
+      "description": "Images, presentations, design",
+      "providers": ["openai", "replicate", "stability", "xai", "google", "beautiful_ai", "gamma", "presenton"]
+    },
+    "voice": {
+      "name": "Voice & Audio",
+      "description": "TTS, transcription, voice cloning",
+      "providers": ["elevenlabs", "openai", "google"]
+    },
+    "research": {
+      "name": "Research & Intelligence",
+      "description": "Search-augmented AI research + real-time social",
+      "providers": ["perplexity", "xai"]
+    },
+    "analytics": {
+      "name": "Analytics",
+      "description": "Performance tracking and insights",
+      "providers": ["google"]
+    },
+    "distribution": {
+      "name": "Distribution",
+      "description": "Multi-channel publishing",
+      "providers": []
+    }
+  }
+}
