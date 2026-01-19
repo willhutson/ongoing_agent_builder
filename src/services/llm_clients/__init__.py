@@ -17,6 +17,7 @@ from .gamma import GammaClient
 from .perplexity import PerplexityClient
 from .presenton import PresentonClient
 from .xai import XAIClient, GrokResponse, AuroraImage, grok_chat, grok_image, grok_realtime
+from .google import GoogleClient, GeminiResponse, ImagenImage, GoogleTTSAudio, gemini_chat, gemini_classify, imagen_generate, google_tts
 from .factory import (
     ExternalLLMFactory,
     get_llm_factory,
@@ -87,6 +88,15 @@ __all__ = [
     "grok_chat",
     "grok_image",
     "grok_realtime",
+    # Google
+    "GoogleClient",
+    "GeminiResponse",
+    "ImagenImage",
+    "GoogleTTSAudio",
+    "gemini_chat",
+    "gemini_classify",
+    "imagen_generate",
+    "google_tts",
     # Factory
     "ExternalLLMFactory",
     "get_llm_factory",

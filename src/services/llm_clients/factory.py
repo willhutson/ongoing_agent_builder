@@ -21,6 +21,7 @@ from .gamma import GammaClient
 from .perplexity import PerplexityClient
 from .presenton import PresentonClient
 from .xai import XAIClient
+from .google import GoogleClient
 from .base import BaseExternalLLMClient
 
 
@@ -176,6 +177,18 @@ class ExternalLLMFactory:
             )
         return self._clients["xai"]
 
+    def get_google(self) -> Optional[GoogleClient]:
+        """Get Google client for Gemini chat, Imagen, and TTS."""
+        google_api_key = getattr(self._settings, 'google_api_key', None)
+        if not google_api_key:
+            return None
+
+        if "google" not in self._clients:
+            self._clients["google"] = GoogleClient(
+                api_key=google_api_key,
+            )
+        return self._clients["google"]
+
     def get_presenton(self) -> Optional[PresentonClient]:
         """
         Get Presenton client for self-hosted presentations.
@@ -307,6 +320,9 @@ def get_image_clients() -> dict[str, BaseExternalLLMClient]:
     xai = factory.get_xai()
     if xai:
         clients["aurora"] = xai
+    google = factory.get_google()
+    if google:
+        clients["imagen"] = google
     return clients
 
 
@@ -320,6 +336,9 @@ def get_voice_clients() -> dict[str, BaseExternalLLMClient]:
         clients["openai_tts"] = factory.get_openai()
     if factory.is_configured(ExternalLLMProvider.OPENAI_WHISPER):
         clients["whisper"] = factory.get_openai()
+    google = factory.get_google()
+    if google:
+        clients["google_tts"] = google
     return clients
 
 

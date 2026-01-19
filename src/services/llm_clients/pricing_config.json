@@ -118,6 +118,9 @@
         "stable-image-ultra": {"per_image": 0.080},
         "sdxl-1.0": {"per_image": 0.020},
         "upscale": {"per_image": 0.025}
+      },
+      "google": {
+        "imagen-3": {"per_image": 0.020}
       }
     },
 
@@ -131,6 +134,11 @@
         "tts-1": {"per_1k_chars": 0.015},
         "tts-1-hd": {"per_1k_chars": 0.030},
         "whisper-1": {"per_minute": 0.006}
+      },
+      "google": {
+        "tts-standard": {"per_1m_chars": 4.00},
+        "tts-wavenet": {"per_1m_chars": 16.00},
+        "tts-neural2": {"per_1m_chars": 16.00}
       }
     },
 
@@ -176,7 +184,10 @@
       "gpt-4.1": {"input_per_1k": 0.01, "output_per_1k": 0.03},
       "claude-3-5-sonnet": {"input_per_1k": 0.003, "output_per_1k": 0.015},
       "claude-sonnet-4": {"input_per_1k": 0.003, "output_per_1k": 0.015},
-      "gemini-2.0-flash": {"input_per_1k": 0.0001, "output_per_1k": 0.0004},
+      "gemini-2.0-flash-exp": {"input_per_1k": 0.0001, "output_per_1k": 0.0004},
+      "gemini-1.5-flash": {"input_per_1k": 0.000075, "output_per_1k": 0.0003},
+      "gemini-1.5-flash-8b": {"input_per_1k": 0.0000375, "output_per_1k": 0.00015},
+      "gemini-1.5-pro": {"input_per_1k": 0.00125, "output_per_1k": 0.005},
       "grok-3": {"input_per_1k": 0.003, "output_per_1k": 0.015},
       "grok-3-fast": {"input_per_1k": 0.001, "output_per_1k": 0.005},
       "grok-2": {"input_per_1k": 0.002, "output_per_1k": 0.010},
@@ -202,12 +213,12 @@
     "studio": {
       "name": "Creative Studio",
       "description": "Images, presentations, design",
-      "providers": ["openai", "replicate", "stability", "xai", "beautiful_ai", "gamma", "presenton"]
+      "providers": ["openai", "replicate", "stability", "xai", "google", "beautiful_ai", "gamma", "presenton"]
     },
     "voice": {
       "name": "Voice & Audio",
       "description": "TTS, transcription, voice cloning",
-      "providers": ["elevenlabs", "openai"]
+      "providers": ["elevenlabs", "openai", "google"]
     },
     "research": {
       "name": "Research & Intelligence",
