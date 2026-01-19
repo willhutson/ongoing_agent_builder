@@ -6,7 +6,7 @@ from src.skills.agent_browser import AgentBrowserSkill
 
 class CampaignAgent(BaseAgent):
     """
-    Agent for campaign management with comprehensive asset verification.
+    Agent for campaign management with comprehensive asset verification and AI video ad generation.
 
     Capabilities:
     - Create and manage campaigns (API)
@@ -23,7 +23,15 @@ class CampaignAgent(BaseAgent):
     - Video ad preview (Browser)
     - QR code verification (Browser)
     - Link destination validation (Browser)
+    - AI Video Ad Generation (Higgsfield):
+      - Product-to-video ads
+      - Text-to-video ad creatives
+      - Social media video ads
+      - Multi-format video generation
     """
+
+    # Higgsfield supported models
+    HIGGSFIELD_MODELS = ["sora2", "veo3", "wan", "kling", "minimax"]
 
     def __init__(
         self,
@@ -33,16 +41,26 @@ class CampaignAgent(BaseAgent):
         erp_api_key: str,
         client_id: str = None,
         instance_id: str = None,
+        higgsfield_api_key: str = None,
+        higgsfield_base_url: str = "https://api.higgsfield.ai/v1",
     ):
         self.erp_base_url = erp_base_url
         self.erp_api_key = erp_api_key
         self.client_specific_id = client_id
         self.instance_id = instance_id
+        self.higgsfield_api_key = higgsfield_api_key
+        self.higgsfield_base_url = higgsfield_base_url
         self.http_client = httpx.AsyncClient(
             base_url=erp_base_url,
             headers={"Authorization": f"Bearer {erp_api_key}"},
             timeout=60.0,
         )
+        # Higgsfield client for AI video ad generation
+        self.higgsfield_client = httpx.AsyncClient(
+            base_url=higgsfield_base_url,
+            headers={"Authorization": f"Bearer {higgsfield_api_key}"},
+            timeout=300.0,
+        ) if higgsfield_api_key else None
         session_name = f"campaign_{instance_id}" if instance_id else "campaign"
         self.browser = AgentBrowserSkill(session_name=session_name)
         super().__init__(client, model)
@@ -73,7 +91,20 @@ You have browser automation to:
 - Validate forms and UTM parameters
 - Preview video ads
 - Verify QR codes are functional
-- Validate all link destinations"""
+- Validate all link destinations
+
+AI Video Ad Generation (Higgsfield):
+You have access to AI video generation via Higgsfield for:
+- Product-to-video: Turn product images into video ads instantly
+- Text-to-video: Generate video ads from ad copy/scripts
+- Multi-format: Generate ads for different platforms (16:9, 9:16, 1:1)
+- Multi-model: Access to Sora 2, Veo 3.1, WAN, Kling, Minimax
+
+Use AI video generation to:
+- Quickly create video ad variations
+- Generate platform-specific video formats
+- Create video ads from product photos
+- Produce draft video creatives for approval"""
 
     def _define_tools(self) -> list[dict]:
         return [
@@ -217,6 +248,220 @@ You have browser automation to:
             {"name": "check_redirect_chain", "description": "Check redirect chain for a URL.", "input_schema": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]}},
             # Extended Browser Tools - Asset Comparison
             {"name": "compare_before_after", "description": "Capture before/after comparison for campaign updates.", "input_schema": {"type": "object", "properties": {"before_url": {"type": "string"}, "after_url": {"type": "string"}, "comparison_name": {"type": "string"}}, "required": ["before_url", "after_url"]}},
+            # =========================================================================
+            # Higgsfield AI Video Ad Generation Tools
+            # =========================================================================
+            {
+                "name": "generate_product_video_ad",
+                "description": "Generate a video ad from a product image using Higgsfield product-to-video.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "product_image_url": {
+                            "type": "string",
+                            "description": "URL of the product image",
+                        },
+                        "product_id": {
+                            "type": "string",
+                            "description": "DAM asset ID of the product image",
+                        },
+                        "campaign_id": {
+                            "type": "string",
+                            "description": "Campaign to associate the video with",
+                        },
+                        "ad_copy": {
+                            "type": "string",
+                            "description": "Ad copy/headline to incorporate",
+                        },
+                        "scene_description": {
+                            "type": "string",
+                            "description": "Description of the scene/setting for the product",
+                        },
+                        "model": {
+                            "type": "string",
+                            "enum": ["sora2", "veo3", "wan", "kling", "minimax"],
+                            "default": "kling",
+                        },
+                        "duration": {
+                            "type": "integer",
+                            "description": "Video duration in seconds (5-30)",
+                            "default": 15,
+                        },
+                        "aspect_ratio": {
+                            "type": "string",
+                            "enum": ["16:9", "9:16", "1:1", "4:5"],
+                            "description": "Video aspect ratio for platform",
+                            "default": "1:1",
+                        },
+                        "style": {
+                            "type": "string",
+                            "enum": ["cinematic", "minimal", "dynamic", "lifestyle", "premium"],
+                            "default": "dynamic",
+                        },
+                    },
+                    "required": ["scene_description"],
+                },
+            },
+            {
+                "name": "generate_video_ad_from_copy",
+                "description": "Generate a video ad from ad copy/script using Higgsfield text-to-video.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "ad_copy": {
+                            "type": "string",
+                            "description": "The ad copy or script to visualize",
+                        },
+                        "campaign_id": {
+                            "type": "string",
+                            "description": "Campaign to associate the video with",
+                        },
+                        "brand_guidelines_id": {
+                            "type": "string",
+                            "description": "Brand guidelines for visual style",
+                        },
+                        "model": {
+                            "type": "string",
+                            "enum": ["sora2", "veo3", "wan", "kling", "minimax"],
+                            "default": "wan",
+                        },
+                        "duration": {
+                            "type": "integer",
+                            "default": 15,
+                        },
+                        "aspect_ratio": {
+                            "type": "string",
+                            "enum": ["16:9", "9:16", "1:1", "4:5"],
+                            "default": "16:9",
+                        },
+                        "tone": {
+                            "type": "string",
+                            "enum": ["professional", "playful", "urgent", "inspirational", "educational"],
+                            "default": "professional",
+                        },
+                        "include_text_overlay": {
+                            "type": "boolean",
+                            "description": "Include text overlays from ad copy",
+                            "default": True,
+                        },
+                    },
+                    "required": ["ad_copy"],
+                },
+            },
+            {
+                "name": "generate_social_video_ad",
+                "description": "Generate platform-optimized video ad for social media.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "platform": {
+                            "type": "string",
+                            "enum": ["instagram_reels", "tiktok", "youtube_shorts", "facebook", "linkedin"],
+                            "description": "Target social platform",
+                        },
+                        "ad_concept": {
+                            "type": "string",
+                            "description": "Description of the ad concept",
+                        },
+                        "campaign_id": {
+                            "type": "string",
+                        },
+                        "product_image_url": {
+                            "type": "string",
+                            "description": "Optional product image to feature",
+                        },
+                        "model": {
+                            "type": "string",
+                            "enum": ["sora2", "veo3", "wan", "kling", "minimax"],
+                            "default": "kling",
+                        },
+                        "hook_style": {
+                            "type": "string",
+                            "enum": ["question", "statement", "problem_solution", "testimonial", "demo"],
+                            "description": "Opening hook style",
+                            "default": "statement",
+                        },
+                        "call_to_action": {
+                            "type": "string",
+                            "description": "CTA text to include",
+                        },
+                    },
+                    "required": ["platform", "ad_concept"],
+                },
+            },
+            {
+                "name": "generate_video_ad_variations",
+                "description": "Generate multiple video ad variations for A/B testing.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "base_concept": {
+                            "type": "string",
+                            "description": "Base ad concept to create variations of",
+                        },
+                        "campaign_id": {
+                            "type": "string",
+                        },
+                        "variation_count": {
+                            "type": "integer",
+                            "description": "Number of variations to generate (2-5)",
+                            "default": 3,
+                        },
+                        "vary_by": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": ["style", "pacing", "color_tone", "camera_angle", "text_placement"],
+                            },
+                            "description": "What aspects to vary",
+                            "default": ["style", "pacing"],
+                        },
+                        "aspect_ratio": {
+                            "type": "string",
+                            "enum": ["16:9", "9:16", "1:1"],
+                            "default": "1:1",
+                        },
+                        "duration": {
+                            "type": "integer",
+                            "default": 15,
+                        },
+                    },
+                    "required": ["base_concept"],
+                },
+            },
+            {
+                "name": "get_video_ad_status",
+                "description": "Check status of a video ad generation job.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "job_id": {
+                            "type": "string",
+                            "description": "Video generation job ID",
+                        },
+                    },
+                    "required": ["job_id"],
+                },
+            },
+            {
+                "name": "list_campaign_videos",
+                "description": "List AI-generated video ads for a campaign.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "campaign_id": {
+                            "type": "string",
+                            "description": "Campaign ID",
+                        },
+                        "status": {
+                            "type": "string",
+                            "enum": ["pending", "processing", "completed", "failed", "all"],
+                            "default": "all",
+                        },
+                    },
+                    "required": ["campaign_id"],
+                },
+            },
         ]
 
     async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
@@ -305,6 +550,19 @@ You have browser automation to:
             # Extended Browser Tools - Asset Comparison
             elif tool_name == "compare_before_after":
                 return await self._compare_before_after(tool_input["before_url"], tool_input["after_url"], tool_input.get("comparison_name", "comparison"))
+            # Higgsfield AI Video Ad Generation Tools
+            elif tool_name == "generate_product_video_ad":
+                return await self._higgsfield_product_to_video(tool_input)
+            elif tool_name == "generate_video_ad_from_copy":
+                return await self._higgsfield_copy_to_video(tool_input)
+            elif tool_name == "generate_social_video_ad":
+                return await self._higgsfield_social_video(tool_input)
+            elif tool_name == "generate_video_ad_variations":
+                return await self._higgsfield_video_variations(tool_input)
+            elif tool_name == "get_video_ad_status":
+                return await self._higgsfield_get_status(tool_input)
+            elif tool_name == "list_campaign_videos":
+                return await self._list_campaign_videos(tool_input)
 
             return {"error": f"Unknown tool: {tool_name}"}
         except Exception as e:
@@ -1026,6 +1284,341 @@ You have browser automation to:
         except Exception as e:
             return {"error": f"Before/after comparison failed: {str(e)}"}
 
+    # =========================================================================
+    # Higgsfield AI Video Ad Generation Methods
+    # =========================================================================
+
+    async def _higgsfield_product_to_video(self, params: dict) -> dict:
+        """Generate video ad from product image using Higgsfield product-to-video."""
+        if not self.higgsfield_client:
+            return {"error": "Higgsfield API not configured. Set higgsfield_api_key."}
+
+        # Get product image URL
+        image_url = params.get("product_image_url")
+        if params.get("product_id"):
+            response = await self.http_client.get(
+                f"/api/v1/dam/assets/{params['product_id']}"
+            )
+            if response.status_code == 200:
+                asset = response.json()
+                image_url = asset.get("url", image_url)
+
+        if not image_url:
+            return {"error": "No product_image_url or valid product_id provided"}
+
+        # Build prompt for product video
+        prompt_parts = [params.get("scene_description", "product showcase")]
+        if params.get("ad_copy"):
+            prompt_parts.append(f"Featuring: {params['ad_copy']}")
+
+        style_prompts = {
+            "cinematic": "cinematic lighting, dramatic, high production value",
+            "minimal": "clean, minimalist, white background, elegant",
+            "dynamic": "energetic, motion, vibrant colors",
+            "lifestyle": "lifestyle setting, natural, relatable",
+            "premium": "luxury, sophisticated, premium feel",
+        }
+        style = params.get("style", "dynamic")
+        prompt_parts.append(style_prompts.get(style, ""))
+
+        payload = {
+            "image_url": image_url,
+            "motion_prompt": " | ".join(prompt_parts),
+            "model": params.get("model", "kling"),
+            "duration": params.get("duration", 15),
+            "aspect_ratio": params.get("aspect_ratio", "1:1"),
+        }
+
+        response = await self.higgsfield_client.post(
+            "/generate/product-to-video",
+            json=payload,
+        )
+
+        if response.status_code in (200, 201, 202):
+            result = response.json()
+            # Track the job
+            await self.http_client.post(
+                "/api/v1/campaigns/video-jobs",
+                json={
+                    "job_id": result.get("job_id"),
+                    "campaign_id": params.get("campaign_id"),
+                    "type": "product_video_ad",
+                    "source_image": image_url,
+                    "model": params.get("model", "kling"),
+                    "aspect_ratio": params.get("aspect_ratio", "1:1"),
+                    "status": "processing",
+                    "client_id": self.client_specific_id,
+                },
+            )
+            return {
+                "status": "submitted",
+                "job_id": result.get("job_id"),
+                "campaign_id": params.get("campaign_id"),
+                "model": params.get("model", "kling"),
+                "aspect_ratio": params.get("aspect_ratio", "1:1"),
+                "estimated_time": result.get("estimated_time", "2-4 minutes"),
+                "message": "Product video ad generation started.",
+            }
+        return {"error": f"Higgsfield API error: {response.status_code}"}
+
+    async def _higgsfield_copy_to_video(self, params: dict) -> dict:
+        """Generate video ad from ad copy using Higgsfield text-to-video."""
+        if not self.higgsfield_client:
+            return {"error": "Higgsfield API not configured. Set higgsfield_api_key."}
+
+        # Get brand guidelines if provided
+        brand_style = ""
+        if params.get("brand_guidelines_id"):
+            response = await self.http_client.get(
+                f"/api/v1/brand/guidelines/{params['brand_guidelines_id']}"
+            )
+            if response.status_code == 200:
+                guidelines = response.json()
+                brand_style = guidelines.get("visual_style_summary", "")
+
+        # Build prompt
+        tone_prompts = {
+            "professional": "professional, corporate, trustworthy",
+            "playful": "fun, playful, energetic, colorful",
+            "urgent": "urgent, action-oriented, bold, attention-grabbing",
+            "inspirational": "inspiring, uplifting, emotional, aspirational",
+            "educational": "informative, clear, explanatory, helpful",
+        }
+        tone = params.get("tone", "professional")
+
+        prompt = f"""Create a video ad: {params['ad_copy']}
+Style: {tone_prompts.get(tone, '')}
+{f'Brand style: {brand_style}' if brand_style else ''}
+{f'Include text overlay: {params["ad_copy"][:100]}' if params.get('include_text_overlay', True) else ''}"""
+
+        payload = {
+            "prompt": prompt,
+            "model": params.get("model", "wan"),
+            "duration": params.get("duration", 15),
+            "aspect_ratio": params.get("aspect_ratio", "16:9"),
+        }
+
+        response = await self.higgsfield_client.post(
+            "/generate/text-to-video",
+            json=payload,
+        )
+
+        if response.status_code in (200, 201, 202):
+            result = response.json()
+            await self.http_client.post(
+                "/api/v1/campaigns/video-jobs",
+                json={
+                    "job_id": result.get("job_id"),
+                    "campaign_id": params.get("campaign_id"),
+                    "type": "copy_video_ad",
+                    "ad_copy": params["ad_copy"][:500],
+                    "model": params.get("model", "wan"),
+                    "status": "processing",
+                    "client_id": self.client_specific_id,
+                },
+            )
+            return {
+                "status": "submitted",
+                "job_id": result.get("job_id"),
+                "campaign_id": params.get("campaign_id"),
+                "model": params.get("model", "wan"),
+                "estimated_time": result.get("estimated_time", "2-5 minutes"),
+            }
+        return {"error": f"Higgsfield API error: {response.status_code}"}
+
+    async def _higgsfield_social_video(self, params: dict) -> dict:
+        """Generate platform-optimized social video ad."""
+        if not self.higgsfield_client:
+            return {"error": "Higgsfield API not configured. Set higgsfield_api_key."}
+
+        # Platform-specific settings
+        platform_settings = {
+            "instagram_reels": {"aspect_ratio": "9:16", "duration": 15, "style": "trendy, engaging, fast-paced"},
+            "tiktok": {"aspect_ratio": "9:16", "duration": 15, "style": "viral, authentic, attention-grabbing"},
+            "youtube_shorts": {"aspect_ratio": "9:16", "duration": 30, "style": "engaging, informative, hook-focused"},
+            "facebook": {"aspect_ratio": "1:1", "duration": 15, "style": "thumb-stopping, emotional, shareable"},
+            "linkedin": {"aspect_ratio": "1:1", "duration": 30, "style": "professional, informative, business-focused"},
+        }
+
+        platform = params["platform"]
+        settings = platform_settings.get(platform, platform_settings["instagram_reels"])
+
+        # Hook style prompts
+        hook_prompts = {
+            "question": "Open with a compelling question",
+            "statement": "Open with a bold statement",
+            "problem_solution": "Show the problem, then the solution",
+            "testimonial": "Feature a testimonial style opening",
+            "demo": "Start with a product demonstration",
+        }
+        hook = hook_prompts.get(params.get("hook_style", "statement"), "")
+
+        prompt = f"""{params['ad_concept']}
+Platform: {platform}
+Style: {settings['style']}
+{hook}
+{f'Call to action: {params["call_to_action"]}' if params.get('call_to_action') else ''}"""
+
+        payload = {
+            "prompt": prompt,
+            "model": params.get("model", "kling"),
+            "duration": settings["duration"],
+            "aspect_ratio": settings["aspect_ratio"],
+        }
+
+        # Add product image if provided
+        if params.get("product_image_url"):
+            payload["image_url"] = params["product_image_url"]
+
+        endpoint = "/generate/product-to-video" if params.get("product_image_url") else "/generate/text-to-video"
+        response = await self.higgsfield_client.post(endpoint, json=payload)
+
+        if response.status_code in (200, 201, 202):
+            result = response.json()
+            await self.http_client.post(
+                "/api/v1/campaigns/video-jobs",
+                json={
+                    "job_id": result.get("job_id"),
+                    "campaign_id": params.get("campaign_id"),
+                    "type": f"social_video_{platform}",
+                    "platform": platform,
+                    "model": params.get("model", "kling"),
+                    "aspect_ratio": settings["aspect_ratio"],
+                    "status": "processing",
+                    "client_id": self.client_specific_id,
+                },
+            )
+            return {
+                "status": "submitted",
+                "job_id": result.get("job_id"),
+                "campaign_id": params.get("campaign_id"),
+                "platform": platform,
+                "aspect_ratio": settings["aspect_ratio"],
+                "duration": settings["duration"],
+                "estimated_time": result.get("estimated_time", "2-4 minutes"),
+            }
+        return {"error": f"Higgsfield API error: {response.status_code}"}
+
+    async def _higgsfield_video_variations(self, params: dict) -> dict:
+        """Generate multiple video ad variations for A/B testing."""
+        if not self.higgsfield_client:
+            return {"error": "Higgsfield API not configured. Set higgsfield_api_key."}
+
+        variation_count = min(params.get("variation_count", 3), 5)
+        vary_by = params.get("vary_by", ["style", "pacing"])
+
+        # Variation modifiers
+        variation_modifiers = {
+            "style": ["cinematic", "minimal", "dynamic", "editorial", "documentary"],
+            "pacing": ["fast-paced", "moderate tempo", "slow and elegant", "rhythmic", "building intensity"],
+            "color_tone": ["warm tones", "cool tones", "high contrast", "muted colors", "vibrant saturated"],
+            "camera_angle": ["wide establishing", "close-up focus", "dynamic movement", "static composed", "POV style"],
+            "text_placement": ["centered bold", "lower third", "animated overlay", "minimal text", "kinetic typography"],
+        }
+
+        jobs = []
+        base_concept = params["base_concept"]
+
+        for i in range(variation_count):
+            # Build variation prompt
+            modifiers = []
+            for vary_type in vary_by:
+                if vary_type in variation_modifiers:
+                    modifier_list = variation_modifiers[vary_type]
+                    modifiers.append(modifier_list[i % len(modifier_list)])
+
+            prompt = f"{base_concept} | Variation style: {', '.join(modifiers)}"
+
+            payload = {
+                "prompt": prompt,
+                "model": params.get("model", "wan"),
+                "duration": params.get("duration", 15),
+                "aspect_ratio": params.get("aspect_ratio", "1:1"),
+            }
+
+            response = await self.higgsfield_client.post(
+                "/generate/text-to-video",
+                json=payload,
+            )
+
+            if response.status_code in (200, 201, 202):
+                result = response.json()
+                jobs.append({
+                    "variation": chr(65 + i),  # A, B, C, D, E
+                    "job_id": result.get("job_id"),
+                    "modifiers": modifiers,
+                    "status": "processing",
+                })
+
+        # Store batch job
+        await self.http_client.post(
+            "/api/v1/campaigns/video-jobs/batch",
+            json={
+                "campaign_id": params.get("campaign_id"),
+                "type": "video_variations",
+                "base_concept": base_concept[:500],
+                "jobs": jobs,
+                "status": "processing",
+                "client_id": self.client_specific_id,
+            },
+        )
+
+        return {
+            "status": "batch_submitted",
+            "campaign_id": params.get("campaign_id"),
+            "variations_requested": variation_count,
+            "jobs_created": len(jobs),
+            "jobs": jobs,
+            "message": f"Generating {len(jobs)} video ad variations for A/B testing.",
+        }
+
+    async def _higgsfield_get_status(self, params: dict) -> dict:
+        """Check video ad generation job status."""
+        if not self.higgsfield_client:
+            return {"error": "Higgsfield API not configured. Set higgsfield_api_key."}
+
+        response = await self.higgsfield_client.get(
+            f"/jobs/{params['job_id']}/status"
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            # Update local job status
+            await self.http_client.patch(
+                f"/api/v1/campaigns/video-jobs/{params['job_id']}",
+                json={"status": result.get("status")},
+            )
+            return {
+                "job_id": params["job_id"],
+                "status": result.get("status"),
+                "progress": result.get("progress", 0),
+                "video_url": result.get("video_url"),
+                "thumbnail_url": result.get("thumbnail_url"),
+                "duration": result.get("duration"),
+                "error": result.get("error"),
+            }
+        return {"error": "Job not found", "job_id": params["job_id"]}
+
+    async def _list_campaign_videos(self, params: dict) -> dict:
+        """List AI-generated video ads for a campaign."""
+        query_params = {
+            "campaign_id": params["campaign_id"],
+            "client_id": self.client_specific_id,
+        }
+        if params.get("status") and params["status"] != "all":
+            query_params["status"] = params["status"]
+
+        response = await self.http_client.get(
+            "/api/v1/campaigns/video-jobs",
+            params=query_params,
+        )
+
+        if response.status_code == 200:
+            return response.json()
+        return {"videos": [], "campaign_id": params["campaign_id"]}
+
     async def close(self):
         await self.http_client.aclose()
+        if self.higgsfield_client:
+            await self.higgsfield_client.aclose()
         await self.browser.close()

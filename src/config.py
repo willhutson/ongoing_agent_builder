@@ -1,12 +1,31 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import Optional
+from enum import Enum
+
+
+class ClaudeModelTier(str, Enum):
+    """Claude model tiers for different complexity levels."""
+    OPUS = "opus"      # Complex reasoning, analysis, strategy
+    SONNET = "sonnet"  # Balanced - most tasks
+    HAIKU = "haiku"    # Fast, simple operations
+
+
+# Claude model IDs by tier
+CLAUDE_MODELS = {
+    ClaudeModelTier.OPUS: "claude-opus-4-5-20250514",
+    ClaudeModelTier.SONNET: "claude-sonnet-4-20250514",
+    ClaudeModelTier.HAIKU: "claude-haiku-3-5-20241022",
+}
 
 
 class Settings(BaseSettings):
     # Claude
     anthropic_api_key: str = ""
-    claude_model: str = "claude-opus-4-5-20250514"
+    claude_model: str = "claude-sonnet-4-20250514"  # Default to Sonnet for balance
+
+    # Model tier overrides (allows forcing all agents to use a specific tier)
+    force_model_tier: Optional[str] = None  # "opus", "sonnet", "haiku", or None
 
     # ERP Connection
     erp_api_base_url: str = ""
