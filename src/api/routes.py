@@ -411,6 +411,105 @@ async def list_agents():
         "total_agents": 46,
         "layers": ["foundation", "studio", "video", "distribution", "gateway", "brand", "operations", "client", "media", "social", "performance", "finance", "quality", "knowledge", "specialized"],
     }
+# ============================================
+# Chat Session Support
+# ============================================
+
+# In-memory chat sessions (replace with Redis in production)
+chat_sessions: dict[str, dict] = {}
+
+
+class ChatMessage(BaseModel):
+    """A single chat message."""
+    role: str  # "user" or "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """Request to send a chat message."""
+    session_id: Optional[str] = None  # None to create new session
+    message: str
+    agent_type: AgentType = AgentType.INSTANCE_ONBOARDING
+    tenant_id: str
+    user_id: str
+    metadata: dict = Field(default_factory=dict)
+
+
+class ChatResponse(BaseModel):
+    """Response from chat."""
+    session_id: str
+    message: str
+    preview_updates: Optional[dict] = None
+    is_complete: bool = False
+
+
+@router.post("/agent/chat")
+async def chat_with_agent(request: ChatRequest):
+    """Chat with an agent, maintaining conversation history."""
+    if request.session_id and request.session_id in chat_sessions:
+        session = chat_sessions[request.session_id]
+    else:
+        session_id = str(uuid.uuid4())
+        session = {
+            "id": session_id,
+            "agent_type": request.agent_type,
+            "tenant_id": request.tenant_id,
+            "user_id": request.user_id,
+            "messages": [],
+            "state": {},
+            "metadata": request.metadata,
+        }
+        chat_sessions[session_id] = session
+
+    session["messages"].append({"role": "user", "content": request.message})
+
+    context = AgentContext(
+        tenant_id=session["tenant_id"],
+        user_id=session["user_id"],
+        task=f"Continue this onboarding conversation. History: {session['messages']}. Respond to: {request.message}",
+        metadata={"session_id": session["id"]},
+    )
+
+    try:
+        agent = get_agent(session["agent_type"])
+        result = await agent.run(context)
+        await agent.close()
+
+        response_text = result.output
+        session["messages"].append({"role": "assistant", "content": response_text})
+
+        return ChatResponse(
+            session_id=session["id"],
+            message=response_text,
+            preview_updates=None,
+            is_complete=False,
+        )
+    except Exception as e:
+        return ChatResponse(
+            session_id=session["id"],
+            message=f"I encountered an error: {str(e)}. Let's try again.",
+            preview_updates=None,
+            is_complete=False,
+        )
+
+
+@router.get("/agent/chat/{session_id}")
+async def get_chat_session(session_id: str):
+    """Get chat session state and history."""
+    if session_id not in chat_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    session = chat_sessions[session_id]
+    return {"session_id": session_id, "messages": session["messages"], "state": session["state"]}
+
+
+@router.delete("/agent/chat/{session_id}")
+async def delete_chat_session(session_id: str):
+    """Delete a chat session."""
+    if session_id in chat_sessions:
+        del chat_sessions[session_id]
+    return {"message": "Session deleted", "session_id": session_id}
+
+
 
 
 @router.get("/health")
