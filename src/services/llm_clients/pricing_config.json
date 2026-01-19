@@ -179,18 +179,20 @@
     },
 
     "ai_tokens": {
+      "claude-opus-4-5": {"input_per_1k": 0.015, "output_per_1k": 0.075, "tier": "premium", "use_for": ["legal", "finance", "clients", "knowledge"]},
+      "claude-sonnet-4": {"input_per_1k": 0.003, "output_per_1k": 0.015, "tier": "standard"},
+      "claude-haiku-3-5": {"input_per_1k": 0.00025, "output_per_1k": 0.00125, "tier": "fast"},
       "gpt-4o": {"input_per_1k": 0.005, "output_per_1k": 0.015},
       "gpt-4-turbo": {"input_per_1k": 0.01, "output_per_1k": 0.03},
       "gpt-4.1": {"input_per_1k": 0.01, "output_per_1k": 0.03},
-      "claude-3-5-sonnet": {"input_per_1k": 0.003, "output_per_1k": 0.015},
-      "claude-sonnet-4": {"input_per_1k": 0.003, "output_per_1k": 0.015},
-      "gemini-2.0-flash-exp": {"input_per_1k": 0.0001, "output_per_1k": 0.0004},
-      "gemini-1.5-flash": {"input_per_1k": 0.000075, "output_per_1k": 0.0003},
-      "gemini-1.5-flash-8b": {"input_per_1k": 0.0000375, "output_per_1k": 0.00015},
-      "gemini-1.5-pro": {"input_per_1k": 0.00125, "output_per_1k": 0.005},
+      "gemini-2.0-flash-exp": {"input_per_1k": 0.0001, "output_per_1k": 0.0004, "tier": "routing"},
+      "gemini-1.5-flash": {"input_per_1k": 0.000075, "output_per_1k": 0.0003, "tier": "routing"},
+      "gemini-1.5-flash-8b": {"input_per_1k": 0.0000375, "output_per_1k": 0.00015, "tier": "routing"},
+      "gemini-1.5-pro": {"input_per_1k": 0.00125, "output_per_1k": 0.005, "context": "2M"},
+      "gemini-1.5-pro-vision": {"input_per_1k": 0.00125, "output_per_1k": 0.005, "context": "2M", "use_for": ["analytics", "dashboards"]},
       "grok-3": {"input_per_1k": 0.003, "output_per_1k": 0.015},
       "grok-3-fast": {"input_per_1k": 0.001, "output_per_1k": 0.005},
-      "grok-2": {"input_per_1k": 0.002, "output_per_1k": 0.010},
+      "grok-2": {"input_per_1k": 0.002, "output_per_1k": 0.010, "use_for": ["social", "real-time"]},
       "grok-2-mini": {"input_per_1k": 0.0005, "output_per_1k": 0.0025},
       "ollama": {"input_per_1k": 0, "output_per_1k": 0}
     },
@@ -222,13 +224,13 @@
     },
     "research": {
       "name": "Research & Intelligence",
-      "description": "Search-augmented AI research",
-      "providers": ["perplexity"]
+      "description": "Search-augmented AI research + real-time social",
+      "providers": ["perplexity", "xai"]
     },
     "analytics": {
       "name": "Analytics",
       "description": "Performance tracking and insights",
-      "providers": []
+      "providers": ["google"]
     },
     "distribution": {
       "name": "Distribution",
