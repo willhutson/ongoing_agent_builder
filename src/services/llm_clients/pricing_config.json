@@ -194,6 +194,10 @@
       "grok-3-fast": {"input_per_1k": 0.001, "output_per_1k": 0.005},
       "grok-2": {"input_per_1k": 0.002, "output_per_1k": 0.010, "use_for": ["social", "real-time"]},
       "grok-2-mini": {"input_per_1k": 0.0005, "output_per_1k": 0.0025},
+      "glm-4.7": {"input_per_1k": 0.0006, "output_per_1k": 0.0022, "context": "200K", "output_capacity": "128K", "tier": "value", "use_for": ["code", "reports", "math"]},
+      "glm-4.7-thinking": {"input_per_1k": 0.0006, "output_per_1k": 0.0022, "context": "200K", "use_for": ["complex-reasoning", "math"]},
+      "glm-4.5": {"input_per_1k": 0.00035, "output_per_1k": 0.00155, "context": "131K"},
+      "glm-4.5-flash": {"input_per_1k": 0.0001, "output_per_1k": 0.0005, "tier": "fast"},
       "ollama": {"input_per_1k": 0, "output_per_1k": 0}
     },
 
@@ -225,7 +229,7 @@
     "research": {
       "name": "Research & Intelligence",
       "description": "Search-augmented AI research + real-time social",
-      "providers": ["perplexity", "xai"]
+      "providers": ["perplexity", "xai", "zhipu"]
     },
     "analytics": {
       "name": "Analytics",
