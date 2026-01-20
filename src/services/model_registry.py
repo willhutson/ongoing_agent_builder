@@ -52,65 +52,100 @@ EXTERNAL_TO_INTERNAL: dict[ExternalModelTier, ClaudeModelTier] = {
 
 
 # Agent to recommended model tier mapping
+# Aligned with ERP tier specifications from JAN_2026_ERP_TO_AGENT_BUILDER_HANDOFF.md
+#
+# ERP Tier Mapping:
+# - Economy → HAIKU (claude-3-5-haiku-20241022)
+# - Standard → SONNET (claude-sonnet-4-20250514)
+# - Premium → OPUS (claude-opus-4-20250514)
 AGENT_MODEL_RECOMMENDATIONS: dict[str, ClaudeModelTier] = {
     # =========================================================================
-    # OPUS TIER - Complex reasoning, analysis, strategic decisions
+    # OPUS/PREMIUM TIER - Complex reasoning, analysis, strategic decisions
+    # Per handoff: Finance (forecast, budget), Quality (legal), Knowledge
     # =========================================================================
-    "rfp_agent": ClaudeModelTier.OPUS,           # RFP analysis, proposal strategy
-    "commercial_agent": ClaudeModelTier.OPUS,    # Pricing intelligence, win/loss analysis
-    "legal_agent": ClaudeModelTier.OPUS,         # Contract analysis, risk assessment
-    "forecast_agent": ClaudeModelTier.OPUS,      # Revenue forecasting, scenario modeling
-    "competitor_agent": ClaudeModelTier.OPUS,    # Competitive analysis, market intelligence
-    "instance_analytics_agent": ClaudeModelTier.OPUS,  # Platform analytics, anomaly detection
-    "instance_success_agent": ClaudeModelTier.OPUS,    # Churn prediction, expansion analysis
+    "legal_agent": ClaudeModelTier.OPUS,          # Contract analysis, risk assessment (premium)
+    "forecast_agent": ClaudeModelTier.OPUS,       # Revenue forecasting, scenario modeling (premium)
+    "budget_agent": ClaudeModelTier.OPUS,         # Budget management - accuracy critical (premium)
+    "knowledge_agent": ClaudeModelTier.OPUS,      # Knowledge base - deep reasoning (premium)
 
     # =========================================================================
-    # SONNET TIER - Balanced reasoning (default for most agents)
+    # SONNET/STANDARD TIER - Balanced reasoning (default for most agents)
+    # Per handoff: Most agents use standard tier
     # =========================================================================
-    "brief_agent": ClaudeModelTier.SONNET,
-    "content_agent": ClaudeModelTier.SONNET,
-    "brand_voice_agent": ClaudeModelTier.SONNET,
-    "brand_visual_agent": ClaudeModelTier.SONNET,
-    "brand_guidelines_agent": ClaudeModelTier.SONNET,
-    "presentation_agent": ClaudeModelTier.SONNET,
-    "copy_agent": ClaudeModelTier.SONNET,
-    "image_agent": ClaudeModelTier.SONNET,
-    "video_script_agent": ClaudeModelTier.SONNET,
-    "video_storyboard_agent": ClaudeModelTier.SONNET,
-    "video_production_agent": ClaudeModelTier.SONNET,
-    "campaign_agent": ClaudeModelTier.SONNET,
-    "media_buying_agent": ClaudeModelTier.SONNET,
-    "resource_agent": ClaudeModelTier.SONNET,
-    "workflow_agent": ClaudeModelTier.SONNET,
-    "crm_agent": ClaudeModelTier.SONNET,
-    "scope_agent": ClaudeModelTier.SONNET,
-    "onboarding_agent": ClaudeModelTier.SONNET,
-    "instance_onboarding_agent": ClaudeModelTier.SONNET,
-    "social_listening_agent": ClaudeModelTier.SONNET,
-    "community_agent": ClaudeModelTier.SONNET,
-    "social_analytics_agent": ClaudeModelTier.SONNET,
-    "brand_performance_agent": ClaudeModelTier.SONNET,
-    "campaign_analytics_agent": ClaudeModelTier.SONNET,
-    "invoice_agent": ClaudeModelTier.SONNET,
-    "budget_agent": ClaudeModelTier.SONNET,
-    "qa_agent": ClaudeModelTier.SONNET,
-    "knowledge_agent": ClaudeModelTier.SONNET,
-    "training_agent": ClaudeModelTier.SONNET,
-    "influencer_agent": ClaudeModelTier.SONNET,
-    "pr_agent": ClaudeModelTier.SONNET,
-    "events_agent": ClaudeModelTier.SONNET,
-    "localization_agent": ClaudeModelTier.SONNET,
-    "accessibility_agent": ClaudeModelTier.SONNET,
+    # Foundation Layer
+    "rfp_agent": ClaudeModelTier.SONNET,          # RFP analysis
+    "brief_agent": ClaudeModelTier.SONNET,        # Brief creation
+    "content_agent": ClaudeModelTier.SONNET,      # Content generation
+    "commercial_agent": ClaudeModelTier.SONNET,   # Commercial analysis
+
+    # Studio Layer
+    "presentation_agent": ClaudeModelTier.SONNET, # Presentation/deck generation
+    "copy_agent": ClaudeModelTier.SONNET,         # Copywriting
+    "image_agent": ClaudeModelTier.SONNET,        # Image prompts
+
+    # Video Layer
+    "video_script_agent": ClaudeModelTier.SONNET,      # Script writing
+    "video_storyboard_agent": ClaudeModelTier.SONNET,  # Storyboard generation
+    "video_production_agent": ClaudeModelTier.SONNET,  # Production guidance
+
+    # Brand Layer
+    "brand_voice_agent": ClaudeModelTier.SONNET,      # Voice/tone
+    "brand_visual_agent": ClaudeModelTier.SONNET,     # Visual guidelines
+    "brand_guidelines_agent": ClaudeModelTier.SONNET, # Brand standards
+
+    # Operations Layer
+    "resource_agent": ClaudeModelTier.SONNET,    # Resource allocation
+    "workflow_agent": ClaudeModelTier.SONNET,    # Workflow management
+    "ops_reporting_agent": ClaudeModelTier.SONNET,  # Ops reporting
+
+    # Client Layer
+    "crm_agent": ClaudeModelTier.SONNET,              # CRM
+    "scope_agent": ClaudeModelTier.SONNET,            # Scope management
+    "onboarding_agent": ClaudeModelTier.SONNET,       # Client onboarding
+    "instance_onboarding_agent": ClaudeModelTier.SONNET,  # SuperAdmin wizard
+    "instance_analytics_agent": ClaudeModelTier.SONNET,   # Platform analytics
+    "instance_success_agent": ClaudeModelTier.SONNET,     # Customer success
+
+    # Media Layer
+    "media_buying_agent": ClaudeModelTier.SONNET,  # Media planning
+    "campaign_agent": ClaudeModelTier.SONNET,      # Campaign management
+
+    # Social Layer
+    "social_listening_agent": ClaudeModelTier.SONNET,  # Listening
+    "community_agent": ClaudeModelTier.SONNET,         # Community management
+    "social_analytics_agent": ClaudeModelTier.SONNET,  # Social metrics
+
+    # Performance Layer
+    "brand_performance_agent": ClaudeModelTier.SONNET,    # Brand metrics
+    "campaign_analytics_agent": ClaudeModelTier.SONNET,   # Campaign analytics
+    "competitor_agent": ClaudeModelTier.SONNET,           # Competitor analysis
+
+    # Finance Layer (invoice is standard, forecast/budget are premium above)
+    "invoice_agent": ClaudeModelTier.SONNET,  # Invoice processing
+
+    # Quality Layer (legal is premium above)
+    "qa_agent": ClaudeModelTier.SONNET,  # QA
+
+    # Knowledge Layer (knowledge is premium above)
+    "training_agent": ClaudeModelTier.SONNET,  # Training content
+
+    # Specialized Layer
+    "influencer_agent": ClaudeModelTier.SONNET,   # Influencer marketing
+    "pr_agent": ClaudeModelTier.SONNET,           # PR
+    "events_agent": ClaudeModelTier.SONNET,       # Events
+    "localization_agent": ClaudeModelTier.SONNET, # Localization
+    "accessibility_agent": ClaudeModelTier.SONNET,# Accessibility
 
     # =========================================================================
-    # HAIKU TIER - Fast, simple operations, high-volume
+    # HAIKU/ECONOMY TIER - Fast, simple operations, high-volume
+    # Per handoff: Gateway agents, approval routing, brief updates
     # =========================================================================
-    "report_agent": ClaudeModelTier.HAIKU,       # Report distribution, simple routing
-    "approve_agent": ClaudeModelTier.HAIKU,      # Approval routing, status tracking
-    "brief_update_agent": ClaudeModelTier.HAIKU, # Update distribution
-    "ops_reporting_agent": ClaudeModelTier.HAIKU,# KPI aggregation, simple alerts
+    # Distribution Layer (simple routing)
+    "report_agent": ClaudeModelTier.SONNET,       # Report generation (standard)
+    "approve_agent": ClaudeModelTier.HAIKU,       # Approval routing (economy)
+    "brief_update_agent": ClaudeModelTier.HAIKU,  # Update distribution (economy)
 
-    # Gateway agents - high volume, simple message routing
+    # Gateway Layer - high volume, simple message routing (all economy)
     "gateway_whatsapp": ClaudeModelTier.HAIKU,
     "gateway_email": ClaudeModelTier.HAIKU,
     "gateway_slack": ClaudeModelTier.HAIKU,

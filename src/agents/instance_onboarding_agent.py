@@ -5,19 +5,79 @@ from .base import BaseAgent
 
 class InstanceOnboardingAgent(BaseAgent):
     """
-    Agent for onboarding new ERP instances.
+    Agent for onboarding new ERP instances (SuperAdmin Wizard).
 
     This is the "welcome wizard" for new tenants deploying the ERP.
+    Priority agent for the SuperAdmin onboarding flow in erp_staging_lmtd.
 
-    Capabilities:
-    - Assess business type and recommend modules
-    - Drive module/feature selection based on needs
-    - Configure look/feel and branding
-    - Set up initial users and roles
-    - Configure integrations
-    - Generate sample instances with realistic dummy data
-    - Create "what if" demos for prospective users
+    ## ERP Integration (per JAN_2026_ERP_TO_AGENT_BUILDER_HANDOFF.md)
+
+    This agent supports the SuperAdmin wizard with the following capabilities:
+    - Collect tenant information (name, industry, team size)
+    - Recommend module bundles based on business profile
+    - Set up initial data structures
+    - Assist with migrations from other platforms
+    - Configure team hierarchies and roles
+
+    ## Wizard Steps
+
+    The onboarding wizard proceeds through these steps:
+    1. business_assessment - Collect business type, size, services
+    2. module_selection - Recommend and configure modules
+    3. branding - Set up look/feel, colors, logo
+    4. users - Create admin user, team structure, roles
+    5. infrastructure - Provision database, storage, cache
+    6. integrations - Connect external platforms (OAuth flows)
+    7. sample_data - Optional demo data generation
+    8. complete - Finalize and generate getting started guide
+
+    ## Input/Output Examples
+
+    Input:
+    ```json
+    {
+        "wizard_step": "business_assessment",
+        "tenant_info": {
+            "name": "Acme Creative Agency",
+            "industry": "advertising",
+            "team_size": "medium"
+        },
+        "responses": {
+            "services": ["creative", "media", "social"],
+            "regions": ["gcc", "mena"],
+            "client_types": ["b2b", "b2c"]
+        }
+    }
+    ```
+
+    Output:
+    ```json
+    {
+        "next_step": "module_selection",
+        "recommendations": {
+            "modules": ["studio", "dam", "content-engine", "crm", "reporting"],
+            "priority": "creative"
+        },
+        "follow_up_questions": [
+            "Do you need WhatsApp Business integration?",
+            "Will you be managing influencer campaigns?"
+        ],
+        "guidance": "Based on your profile as a creative agency..."
+    }
+    ```
     """
+
+    # Wizard step definitions for ERP integration
+    WIZARD_STEPS = [
+        "business_assessment",
+        "module_selection",
+        "branding",
+        "users",
+        "infrastructure",
+        "integrations",
+        "sample_data",
+        "complete",
+    ]
 
     def __init__(
         self,
@@ -34,6 +94,115 @@ class InstanceOnboardingAgent(BaseAgent):
             timeout=120.0,  # Longer timeout for setup operations
         )
         super().__init__(client, model)
+
+    def get_wizard_step_guidance(self, step: str) -> dict:
+        """
+        Get guidance for a specific wizard step.
+
+        This method provides structured guidance for the ERP SuperAdmin wizard.
+        Each step returns expected inputs, outputs, and next steps.
+
+        Args:
+            step: The wizard step identifier
+
+        Returns:
+            dict with step guidance
+        """
+        step_guidance = {
+            "business_assessment": {
+                "description": "Collect information about the business",
+                "expected_inputs": {
+                    "business_type": "Type: agency, studio, in_house, freelancer, production_house",
+                    "business_size": "Size: solo, small, medium, large, enterprise",
+                    "services": "List of services offered",
+                    "regions": "Operating regions",
+                    "client_types": "Types of clients served",
+                },
+                "outputs": ["business_profile", "recommended_complexity", "features_needed"],
+                "next_step": "module_selection",
+            },
+            "module_selection": {
+                "description": "Select and configure ERP modules",
+                "expected_inputs": {
+                    "business_profile": "From previous step",
+                    "priorities": "Priority areas for the business",
+                },
+                "outputs": ["recommended_modules", "categorized_modules", "module_configs"],
+                "next_step": "branding",
+            },
+            "branding": {
+                "description": "Configure look and feel",
+                "expected_inputs": {
+                    "company_name": "Organization name",
+                    "logo_url": "URL to logo image",
+                    "primary_color": "Primary brand color (hex)",
+                    "theme": "Theme preference (light/dark/auto)",
+                },
+                "outputs": ["branding_config"],
+                "next_step": "users",
+            },
+            "users": {
+                "description": "Set up users, teams, and roles",
+                "expected_inputs": {
+                    "admin_email": "Admin user email",
+                    "admin_name": "Admin user name",
+                    "departments": "List of departments",
+                    "role_template": "Role template to use",
+                },
+                "outputs": ["admin_user", "team_structure", "roles"],
+                "next_step": "infrastructure",
+            },
+            "infrastructure": {
+                "description": "Provision infrastructure components",
+                "expected_inputs": {
+                    "region": "Preferred deployment region",
+                    "tier": "Infrastructure tier",
+                },
+                "outputs": ["database", "storage", "cache", "search"],
+                "next_step": "integrations",
+            },
+            "integrations": {
+                "description": "Connect external platforms",
+                "expected_inputs": {
+                    "platforms": "List of platforms to connect",
+                    "sso_provider": "SSO provider if applicable",
+                },
+                "outputs": ["connected_platforms", "oauth_urls", "sso_config"],
+                "next_step": "sample_data",
+            },
+            "sample_data": {
+                "description": "Generate sample data for demos",
+                "expected_inputs": {
+                    "generate": "Whether to generate sample data",
+                    "data_types": "Types of data to generate",
+                    "volume": "Data volume (minimal/moderate/comprehensive)",
+                },
+                "outputs": ["sample_clients", "sample_projects", "sample_content"],
+                "next_step": "complete",
+            },
+            "complete": {
+                "description": "Finalize onboarding",
+                "expected_inputs": {},
+                "outputs": ["getting_started_guide", "instance_url", "quick_wins"],
+                "next_step": None,
+            },
+        }
+        return step_guidance.get(step, {
+            "description": "Unknown step",
+            "expected_inputs": {},
+            "outputs": [],
+            "next_step": "business_assessment",
+        })
+
+    def get_next_wizard_step(self, current_step: str) -> str | None:
+        """Get the next wizard step after the current one."""
+        try:
+            current_index = self.WIZARD_STEPS.index(current_step)
+            if current_index < len(self.WIZARD_STEPS) - 1:
+                return self.WIZARD_STEPS[current_index + 1]
+            return None
+        except ValueError:
+            return "business_assessment"
 
     @property
     def name(self) -> str:
