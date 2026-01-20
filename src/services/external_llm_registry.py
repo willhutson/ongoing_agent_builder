@@ -46,6 +46,9 @@ class ExternalLLMProvider(str, Enum):
     # Research
     PERPLEXITY = "perplexity"  # Search-augmented research
 
+    # Code/Reports/Math (Zhipu GLM)
+    ZHIPU_GLM = "zhipu_glm"  # GLM-4.7: 200K context, 128K output, strong math/code
+
 
 @dataclass
 class ExternalLLMConfig:
@@ -211,6 +214,14 @@ EXTERNAL_LLM_CONFIGS: dict[ExternalLLMProvider, ExternalLLMConfig] = {
         capabilities=["presentation-generation"],
         api_key_setting="presenton_base_url",  # URL-based, no API key
     ),
+    ExternalLLMProvider.ZHIPU_GLM: ExternalLLMConfig(
+        provider=ExternalLLMProvider.ZHIPU_GLM,
+        name="GLM-4.7 (Zhipu)",
+        description="200K context, 128K output - ideal for code, reports, math. 5x cheaper than Sonnet.",
+        capabilities=["code-generation", "long-reports", "math-reasoning", "financial-analysis"],
+        api_key_setting="zhipu_api_key",
+        models=["glm-4.7", "glm-4.7-thinking", "glm-4.5", "glm-4.5-flash"],
+    ),
 }
 
 
@@ -311,8 +322,14 @@ AGENT_EXTERNAL_LLMS: dict[str, list[ExternalLLMProvider]] = {
     # ==========================================================================
     # DISTRIBUTION MODULE
     # ==========================================================================
-    "report_agent": [ExternalLLMProvider.GAMMA],  # Client-facing reports
-    "ops_reporting_agent": [ExternalLLMProvider.PRESENTON],  # Internal reports (90%+ margin)
+    "report_agent": [
+        ExternalLLMProvider.GAMMA,  # Client-facing presentations
+        ExternalLLMProvider.ZHIPU_GLM,  # Long-form report generation (128K output)
+    ],
+    "ops_reporting_agent": [
+        ExternalLLMProvider.PRESENTON,  # Internal reports (90%+ margin)
+        ExternalLLMProvider.ZHIPU_GLM,  # Long-form report generation
+    ],
     "community_agent": [
         ExternalLLMProvider.OPENAI_DALLE,
         ExternalLLMProvider.GOOGLE_IMAGEN,

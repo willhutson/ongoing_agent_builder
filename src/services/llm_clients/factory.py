@@ -22,6 +22,7 @@ from .perplexity import PerplexityClient
 from .presenton import PresentonClient
 from .xai import XAIClient
 from .google import GoogleClient
+from .zhipu import ZhipuClient
 from .base import BaseExternalLLMClient
 
 
@@ -188,6 +189,18 @@ class ExternalLLMFactory:
                 api_key=google_api_key,
             )
         return self._clients["google"]
+
+    def get_zhipu(self) -> Optional[ZhipuClient]:
+        """Get Zhipu client for GLM-4.7 chat, code, and reports."""
+        zhipu_api_key = getattr(self._settings, 'zhipu_api_key', None)
+        if not zhipu_api_key:
+            return None
+
+        if "zhipu" not in self._clients:
+            self._clients["zhipu"] = ZhipuClient(
+                api_key=zhipu_api_key,
+            )
+        return self._clients["zhipu"]
 
     def get_presenton(self) -> Optional[PresentonClient]:
         """

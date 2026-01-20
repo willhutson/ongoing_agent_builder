@@ -18,6 +18,7 @@ from .perplexity import PerplexityClient
 from .presenton import PresentonClient
 from .xai import XAIClient, GrokResponse, AuroraImage, grok_chat, grok_image, grok_realtime
 from .google import GoogleClient, GeminiResponse, ImagenImage, GoogleTTSAudio, gemini_chat, gemini_classify, imagen_generate, google_tts
+from .zhipu import ZhipuClient, GLMResponse, glm_chat, glm_report, glm_analyze, glm_code
 from .factory import (
     ExternalLLMFactory,
     get_llm_factory,
@@ -97,6 +98,13 @@ __all__ = [
     "gemini_classify",
     "imagen_generate",
     "google_tts",
+    # Zhipu/GLM
+    "ZhipuClient",
+    "GLMResponse",
+    "glm_chat",
+    "glm_report",
+    "glm_analyze",
+    "glm_code",
     # Factory
     "ExternalLLMFactory",
     "get_llm_factory",
