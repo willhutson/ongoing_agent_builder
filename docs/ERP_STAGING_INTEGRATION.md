@@ -158,12 +158,71 @@ POST /api/v1/agent/execute
 | **Specialized** | influencer, pr, events, localization, accessibility | Standard | Various |
 | **Meta** | prompt_helper | Standard | - |
 
-## New Endpoints
+## REST API Endpoints
+
+### Core Endpoints (ERP Integration)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/v1/agent/execute` | POST | Execute an agent (main entry point) |
+| `/api/v1/agent/status/{id}` | GET | Poll for execution results |
+| `/api/v1/agent/chat` | POST | Chat with agent (session-based) |
+| `/api/v1/agent/chat/{id}` | GET | Get chat session history |
+| `/api/v1/health` | GET | Health check with provider latency |
+| `/api/v1/agents/registry` | GET | All 46 agents with tier annotations |
+| `/api/v1/agents/{type}` | GET | Get agent details with inputs |
+
+### Request Schema: POST `/api/v1/agent/execute`
+
+```json
+{
+  "agent": "brief",
+  "task": "Create a campaign brief",
+  "model": "claude-sonnet-4-20250514",
+  "tier": "standard",
+  "tenant_id": "org-123",
+  "user_id": "user-456",
+  "session_id": "session-789",
+  "context": {},
+  "callback_url": "https://erp.example.com/api/v1/invocations/inv-123",
+  "invocation_id": "inv-123"
+}
+```
+
+### Response Schema
+
+```json
+{
+  "execution_id": "exec-abc",
+  "status": "pending",
+  "session_id": "session-789"
+}
+```
+
+### Callback Mechanism
+
+When `callback_url` and `invocation_id` are provided, Agent Builder sends results via PATCH:
+
+```json
+{
+  "invocation_id": "inv-123",
+  "status": "completed",
+  "output": "Generated content...",
+  "token_usage": {"input_tokens": 500, "output_tokens": 1200, "total_tokens": 1700},
+  "duration_ms": 3500,
+  "error": null,
+  "completed_at": "2026-01-20T12:00:00Z"
+}
+```
+
+**Callback Headers:**
+- `X-Signature`: HMAC-SHA256 signature using shared `ERP_CALLBACK_SECRET`
+
+### Legacy/Additional Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/v1/agents` | GET | List all agents with metadata |
-| `/api/v1/agents/{type}` | GET | Get detailed agent info |
 | `/api/v1/agents/recommend` | POST | Get agent recommendations |
 | `/api/v1/models/tiers` | GET | Get tier info with cost indicators |
 | `/api/v1/providers/status` | GET | External LLM provider status |

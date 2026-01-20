@@ -40,43 +40,49 @@ All agents can access:
 │                     Think → Act → Create                                │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
-│  FOUNDATION (4)           BRAND (3)              STUDIO (7)             │
-│  ├── RFP ✅               ├── Voice              ├── Presentation       │
-│  ├── Brief ✅             ├── Visual             ├── Copy (multi-lang)  │
-│  ├── Content ✅           └── Guidelines         ├── Image              │
-│  └── Commercial ✅                               ├── Video Script       │
-│                                                  ├── Video Storyboard   │
-│  DISTRIBUTION (3+4)       OPERATIONS (3)         └── Video Production   │
-│  ├── Report               ├── Resource                                  │
-│  ├── Approve              ├── Workflow           CLIENT (6)             │
-│  ├── Brief Update         └── Reporting          ├── CRM                │
-│  └── Gateways:                                   ├── Scope              │
-│      WhatsApp, Email,                            ├── Onboarding         │
-│      Slack, SMS                                  ├── Instance Onboarding│
-│                                                  ├── Instance Analytics │
-│                                                  └── Instance Success   │
-│  MEDIA (2)                SOCIAL (3)             PERFORMANCE (3)        │
-│  ├── Media Buying         ├── Listening          ├── Brand Performance  │
-│  └── Campaign             ├── Community          ├── Campaign Analytics │
-│                           └── Social Analytics   └── Competitor         │
-│                                                                          │
-│  FINANCE (3)              QUALITY (2)            KNOWLEDGE (2)          │
-│  ├── Invoice              ├── QA                 ├── Knowledge          │
-│  ├── Forecast             └── Legal              └── Training           │
-│  └── Budget                                                             │
-│                                                                          │
-│  INFLUENCER (1+)          PR (1)                 EVENTS (1)             │
-│  ├── Discovery            ├── Press Release      ├── Planning           │
-│  ├── Outreach             ├── Media Outreach     ├── Logistics          │
-│  └── Tracking             └── Coverage           └── Attendee           │
-│  (specializable by                                                       │
-│   vertical/region)        LOCALIZATION (1+)      ACCESSIBILITY (1)      │
-│                           └── Multi-market       └── Compliance         │
+│  FOUNDATION (4) [Standard]    BRAND (3) [Standard]   STUDIO (7) [Standard]│
+│  ├── RFP ✅                   ├── Voice              ├── Presentation    │
+│  ├── Brief ✅                 ├── Visual             ├── Copy (multi-lang)│
+│  ├── Content ✅               └── Guidelines         ├── Image           │
+│  └── Commercial ✅                                   ├── Video Script    │
+│                                                      ├── Video Storyboard│
+│  DISTRIBUTION (3+4)           OPERATIONS (3)         └── Video Production│
+│  ├── Report [Standard]        ├── Resource [Standard]                    │
+│  ├── Approve [Economy]        ├── Workflow [Standard]  CLIENT (6)        │
+│  ├── Brief Update [Economy]   └── Reporting [Standard] ├── CRM [Standard]│
+│  └── Gateways [Economy]:                               ├── Scope         │
+│      WhatsApp, Email,                                  ├── Onboarding    │
+│      Slack, SMS                                        ├── Instance Onboard│
+│                                                        ├── Instance Analytics│
+│  MEDIA (2) [Standard]         SOCIAL (3) [Standard]    └── Instance Success│
+│  ├── Media Buying             ├── Listening                              │
+│  └── Campaign                 ├── Community          PERFORMANCE (3)     │
+│                               └── Social Analytics   [Standard]          │
+│                                                      ├── Brand Performance│
+│  FINANCE (3)                  QUALITY (2)            ├── Campaign Analytics│
+│  ├── Invoice [Standard]       ├── QA [Standard]      └── Competitor      │
+│  ├── Forecast [Premium]       └── Legal [Premium]                        │
+│  └── Budget [Premium]                                KNOWLEDGE (2)       │
+│                                                      ├── Knowledge [Premium]│
+│  SPECIALIZED (5) [Standard]                          └── Training [Standard]│
+│  ├── Influencer                                                          │
+│  ├── PR                                                                  │
+│  ├── Events                                                              │
+│  ├── Localization                                                        │
+│  └── Accessibility                                                       │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 
-Total: 47 agents (expandable by specialization)
+Total: 46 agents | Tiers: Economy (6) | Standard (36) | Premium (4)
 ```
+
+## Model Tier Mapping
+
+| Tier | Model | Cost | Agents |
+|------|-------|------|--------|
+| **Premium** | Claude Opus 4 | $15/$75 per M tokens | `legal`, `forecast`, `budget`, `knowledge` |
+| **Standard** | Claude Sonnet 4 | $3/$15 per M tokens | Most agents (36 total) |
+| **Economy** | Claude Haiku 3.5 | $0.25/$1.25 per M tokens | `approve`, `brief_update`, `gateway_*` (6 total) |
 
 ---
 
