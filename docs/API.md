@@ -1,16 +1,206 @@
-# LLM Clients API Reference
+# API Reference
 
-Complete API reference for the `src.services.llm_clients` module.
+Complete API reference for the agent service.
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
-- [Factory Pattern](#factory-pattern)
-- [Provider Clients](#provider-clients)
-- [Convenience Functions](#convenience-functions)
-- [Billing API](#billing-api)
-- [Credits API](#credits-api)
-- [Data Classes](#data-classes)
+- [Agent Services](#agent-services)
+  - [AgentManager](#agentmanager)
+  - [SkillLibrary](#skilllibrary)
+- [LLM Clients](#llm-clients)
+  - [Quick Start](#quick-start)
+  - [Factory Pattern](#factory-pattern)
+  - [Provider Clients](#provider-clients)
+  - [Convenience Functions](#convenience-functions)
+  - [Billing API](#billing-api)
+  - [Credits API](#credits-api)
+  - [Data Classes](#data-classes)
+
+---
+
+## Agent Services
+
+### AgentManager
+
+Central orchestration service for the agent ecosystem.
+
+```python
+from src.services.agent_manager import get_agent_manager, AgentTier
+
+manager = get_agent_manager()
+```
+
+#### List & Discover Agents
+
+```python
+# List all agents
+agents = manager.list_agents()
+
+# Filter by category
+studio_agents = manager.list_agents(category="studio")
+
+# Search agents
+results = manager.list_agents(search="video")
+
+# Get agent info
+info = manager.get_agent_info("video_production_agent")
+# Returns: id, name, category, tools, tier, external_providers, recommended_for
+
+# Recommend agents for a task
+recommendations = manager.recommend_agents("I need to create a product video for sneakers")
+# Returns: [{"agent": "video_production_agent", "confidence": 0.95, "reason": "..."}]
+```
+
+#### Execute Agents
+
+```python
+# Execute an agent
+result = await manager.execute_agent(
+    agent_id="image_agent",
+    input_text="Create a product photo for sneakers",
+    instance_id="tenant-123",
+    context={"brand_guidelines": {...}},
+)
+# Returns: AgentExecution(execution_id, status, result, cost, duration)
+
+# Check status
+status = await manager.get_execution_status(execution_id)
+```
+
+#### Multi-Agent Workflows
+
+```python
+from src.services.agent_manager import WorkflowStep, AgentWorkflow
+
+# Create workflow
+workflow = manager.create_workflow(
+    name="Video Production Pipeline",
+    steps=[
+        WorkflowStep(agent_id="video_script_agent", input_key="brief"),
+        WorkflowStep(agent_id="video_storyboard_agent", input_key="script", depends_on="video_script_agent"),
+        WorkflowStep(agent_id="video_production_agent", input_key="storyboard", depends_on="video_storyboard_agent"),
+    ]
+)
+
+# Execute workflow
+results = await manager.execute_workflow(
+    workflow_id=workflow.id,
+    initial_input={"brief": "Create a 30-second product video..."},
+    instance_id="tenant-123",
+)
+```
+
+#### Usage Analytics
+
+```python
+# Get usage statistics
+stats = manager.get_usage_stats(
+    instance_id="tenant-123",
+    start_date="2025-01-01",
+    end_date="2025-01-31",
+)
+# Returns: total_executions, total_cost, by_agent, by_tier, by_day
+
+# Get tier summary
+tiers = manager.get_tier_summary()
+# Returns: {"economy": [...], "standard": [...], "premium": [...]}
+
+# Check provider status
+status = manager.get_provider_status()
+# Returns: {"higgsfield": "healthy", "openai": "healthy", ...}
+```
+
+#### Tier Mapping
+
+| External Tier | Internal Model | Use Cases |
+|--------------|----------------|-----------|
+| **Premium** | Claude Opus 4.5 | Legal, Finance, Knowledge, Complex reasoning |
+| **Standard** | Claude Sonnet 4 | Most agents, general tasks |
+| **Economy** | Claude Haiku 3.5 | Simple routing, classification |
+
+---
+
+### SkillLibrary
+
+Service for skill discovery and invocation.
+
+```python
+from src.services.skill_library import get_skill_library
+
+library = get_skill_library()
+```
+
+#### Discover Skills
+
+```python
+# List all skills
+skills = library.list_skills()
+
+# Filter by category
+content_skills = library.list_skills(category=SkillCategory.CONTENT)
+
+# Search skills
+results = library.list_skills(search="email")
+
+# Get skill details
+details = library.get_skill_details("email_sequence")
+# Returns: id, name, description, category, use_cases, key_questions, deliverables, best_practices
+```
+
+#### Invoke Skills
+
+```python
+# Invoke a skill (prepares context for agent execution)
+invocation = library.invoke_skill(
+    skill_id="landing_page_cro",
+    user_input="Optimize our product page for conversions",
+    context={"url": "https://example.com/product"},
+)
+# Returns: SkillInvocation(
+#     skill_id, skill_name, agent_to_use, context_to_inject, suggested_prompt, key_questions
+# )
+
+# Use the invocation with AgentManager
+result = await manager.execute_agent(
+    agent_id=invocation.agent_to_use,
+    input_text=invocation.suggested_prompt,
+    instance_id="tenant-123",
+    context=invocation.context_to_inject,
+)
+```
+
+#### Brainstorm Mode
+
+```python
+# Start a brainstorming session with frameworks pre-loaded
+context = library.start_brainstorm(
+    task_type="landing_page",  # landing_page, email, pricing, launch
+    market_stage="crowded",    # new, growing, crowded, jaded, mature
+    audience="B2B SaaS founders",
+    product="Analytics platform",
+)
+# Returns: mode, task_type, context (with positioning frameworks, value props, headlines)
+```
+
+#### Framework Access
+
+```python
+# Get positioning angles
+angles = library.get_positioning_angles()
+# [{"angle": "contrarian", "template": "Everything you know about [X] is wrong", ...}]
+
+# Get headline formulas
+headlines = library.get_headline_formulas()
+# {"how_to": {"template": "How to [outcome] [without pain]", ...}}
+
+# Get value prop formulas
+value_props = library.get_value_prop_formulas()
+# {"classic": {"template": "We help [customer] [achieve outcome] by [mechanism]", ...}}
+```
+
+---
+
+## LLM Clients
 
 ---
 
