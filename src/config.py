@@ -63,10 +63,11 @@ class Settings(BaseSettings):
     presenton_base_url: str = "http://localhost:8080/api/v1"
 
     # ===========================================
-    # ERP Connection
+    # ERP Connection (erp_staging_lmtd integration)
     # ===========================================
     erp_api_base_url: str = ""
     erp_api_key: str = ""
+    erp_callback_secret: str = ""  # HMAC secret for callback signature verification
 
     # Database
     database_url: Optional[str] = None  # Full URL (takes precedence)

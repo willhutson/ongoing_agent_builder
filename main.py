@@ -8,6 +8,7 @@ import logging
 
 from src.api.routes import router
 from src.api.multi_tenant import router as multi_tenant_router
+from src.api.erp_integration import router as erp_router
 from src.config import get_settings
 from src.db.session import init_db, close_db
 
@@ -58,6 +59,7 @@ app.add_middleware(
 # Include API routes
 app.include_router(router)  # Original routes (backward compatible)
 app.include_router(multi_tenant_router)  # Multi-tenant routes
+app.include_router(erp_router)  # ERP integration routes (erp_staging_lmtd)
 
 
 @app.get("/")
