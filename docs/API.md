@@ -4,6 +4,11 @@ Complete API reference for the agent service.
 
 ## Table of Contents
 
+- [REST API Endpoints](#rest-api-endpoints)
+  - [Agent Execution](#agent-execution)
+  - [Chat Sessions](#chat-sessions)
+  - [Health & Registry](#health--registry)
+  - [Callback Mechanism](#callback-mechanism)
 - [Agent Services](#agent-services)
   - [AgentManager](#agentmanager)
   - [SkillLibrary](#skilllibrary)
@@ -15,6 +20,131 @@ Complete API reference for the agent service.
   - [Billing API](#billing-api)
   - [Credits API](#credits-api)
   - [Data Classes](#data-classes)
+
+---
+
+## REST API Endpoints
+
+Base URL: `http://localhost:8000` (or your deployed URL)
+
+### Agent Execution
+
+#### POST `/api/v1/agent/execute`
+
+Execute an agent task. Supports both ERP-integrated and standalone modes.
+
+**Headers:**
+| Header | Required | Description |
+|--------|----------|-------------|
+| `X-Organization-Id` | No | Organization identifier |
+| `X-Request-Id` | No | Request tracking ID |
+
+**Request Body:**
+```json
+{
+  "agent": "brief",
+  "task": "Create a campaign brief for product launch",
+  "model": "claude-sonnet-4-20250514",
+  "tier": "standard",
+  "tenant_id": "tenant-123",
+  "user_id": "user-456",
+  "session_id": "session-789",
+  "context": {"client_id": "acme-corp"},
+  "callback_url": "https://erp.example.com/api/v1/invocations/inv-123",
+  "invocation_id": "inv-123"
+}
+```
+
+**Response:**
+```json
+{
+  "execution_id": "exec-abc-123",
+  "status": "pending",
+  "session_id": "session-789"
+}
+```
+
+#### GET `/api/v1/agent/status/{execution_id}`
+
+Poll for execution results.
+
+**Response:**
+```json
+{
+  "execution_id": "exec-abc-123",
+  "status": "completed",
+  "output": "Generated brief content...",
+  "token_usage": {"input_tokens": 500, "output_tokens": 1200, "total_tokens": 1700},
+  "duration_ms": 3500
+}
+```
+
+### Chat Sessions
+
+#### POST `/api/v1/agent/chat`
+
+Start or continue a chat session with an agent.
+
+```json
+{
+  "message": "We are a creative agency with 25 employees",
+  "agent_type": "instance_onboarding",
+  "tenant_id": "tenant-123",
+  "user_id": "user-456",
+  "session_id": "existing-session-id"
+}
+```
+
+#### GET `/api/v1/agent/chat/{session_id}`
+
+Get chat session history.
+
+#### DELETE `/api/v1/agent/chat/{session_id}`
+
+Delete a chat session.
+
+### Health & Registry
+
+#### GET `/api/v1/health`
+
+Health check with provider status.
+
+```json
+{
+  "status": "healthy",
+  "service": "ongoing-agent-builder",
+  "agents_available": 46,
+  "providers": [
+    {"provider": "anthropic", "status": "healthy", "latency_ms": 50}
+  ]
+}
+```
+
+#### GET `/api/v1/agents/registry`
+
+Get all 46 agents organized by layer with tier annotations.
+
+#### GET `/api/v1/agents/{agent_type}`
+
+Get details for a specific agent including recommended inputs.
+
+### Callback Mechanism
+
+When `callback_url` and `invocation_id` are provided, results are sent via PATCH with HMAC signature:
+
+**Headers:** `X-Signature` (HMAC-SHA256)
+
+**Payload:**
+```json
+{
+  "invocation_id": "inv-123",
+  "status": "completed",
+  "output": "...",
+  "token_usage": {...},
+  "duration_ms": 3500,
+  "completed_at": "2026-01-20T12:00:00Z"
+}
+```
 
 ---
 

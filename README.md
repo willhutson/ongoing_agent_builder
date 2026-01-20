@@ -243,46 +243,69 @@ API docs at http://localhost:8000/docs
 
 ## Quick Examples
 
-### Execute an Agent
+### Execute an Agent (ERP Integration)
 
 ```bash
+# POST /api/v1/agent/execute - Execute an agent with ERP context
 curl -X POST http://localhost:8000/api/v1/agent/execute \
   -H "Content-Type: application/json" \
+  -H "X-Organization-Id: tenant-123" \
   -d '{
-    "agent": "image_agent",
-    "input": "Create a product photo for sneakers",
-    "instance_id": "tenant-123"
+    "agent": "brief",
+    "task": "Create a campaign brief for a luxury watch launch",
+    "model": "claude-sonnet-4-20250514",
+    "tier": "standard",
+    "tenant_id": "tenant-123",
+    "user_id": "user-456",
+    "session_id": "session-789",
+    "context": {"client": "luxury_brand"}
   }'
 ```
 
-### Check Provider Status
+### Chat with Agent (Session-based)
 
 ```bash
-curl http://localhost:8000/api/v1/providers/status
+# POST /api/v1/agent/chat - Chat with an agent
+curl -X POST http://localhost:8000/api/v1/agent/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_type": "instance_onboarding",
+    "message": "We are a mid-sized creative agency with 25 employees",
+    "tenant_id": "tenant-123",
+    "user_id": "user-456"
+  }'
+
+# GET /api/v1/agent/chat/{session_id} - Get chat history
+curl http://localhost:8000/api/v1/agent/chat/session-abc
 ```
 
-### Generate Image with Specific Provider
+### Check Health & Provider Status
 
-```python
-from src.services.llm_clients import imagen_generate, grok_image
+```bash
+# GET /api/v1/health - Health check with provider latency
+curl http://localhost:8000/api/v1/health
 
-# Google Imagen (cheapest at $0.02)
-images = await imagen_generate("Product photo of sneakers")
-
-# xAI Aurora (good for text-in-image)
-images = await grok_image("Sale banner with '50% OFF' text")
+# Response:
+# {
+#   "status": "healthy",
+#   "agents_available": 46,
+#   "providers": [{"provider": "anthropic", "status": "healthy", "latency_ms": 50}, ...]
+# }
 ```
 
-### Use Gemini for Cheap Classification
+### Get Agent Registry
 
-```python
-from src.services.llm_clients import gemini_classify
+```bash
+# GET /api/v1/agents/registry - All 46 agents with tier annotations
+curl http://localhost:8000/api/v1/agents/registry
 
-intent = await gemini_classify(
-    "I want to cancel my subscription",
-    categories=["billing", "support", "sales", "other"]
-)
-# Cost: ~$0.0001 per classification
+# Response includes agents organized by layer with tier info:
+# {
+#   "total_agents": 46,
+#   "layers": {
+#     "foundation": {"agents": [{"type": "rfp", "tier": "standard"}, ...]}
+#   }
+# }
 ```
 
 ## Documentation
