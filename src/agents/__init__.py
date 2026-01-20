@@ -80,6 +80,9 @@ from .events_agent import EventsAgent
 from .localization_agent import LocalizationAgent
 from .accessibility_agent import AccessibilityAgent
 
+# Meta agents
+from .prompt_helper_agent import PromptHelperAgent
+
 __all__ = [
     # Base
     "BaseAgent",
@@ -147,4 +150,6 @@ __all__ = [
     "EventsAgent",
     "LocalizationAgent",
     "AccessibilityAgent",
+    # Meta
+    "PromptHelperAgent",
 ]

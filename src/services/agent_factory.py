@@ -55,6 +55,8 @@ from ..agents import (
     KnowledgeAgent, TrainingAgent,
     # Specialized
     InfluencerAgent, PRAgent, EventsAgent, LocalizationAgent, AccessibilityAgent,
+    # Meta
+    PromptHelperAgent,
 )
 from .prompt_assembler import PromptAssembler
 from .skill_executor import SkillExecutor
@@ -126,6 +128,8 @@ AGENT_REGISTRY: dict[str, Type] = {
     "events": EventsAgent,
     "localization": LocalizationAgent,
     "accessibility": AccessibilityAgent,
+    # Meta
+    "prompt_helper": PromptHelperAgent,
 }
 
 
