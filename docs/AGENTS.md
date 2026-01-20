@@ -75,7 +75,7 @@ All agents can access:
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 
-Total: 46+ agents (expandable by specialization)
+Total: 47 agents (expandable by specialization)
 ```
 
 ---
@@ -328,6 +328,49 @@ ReportAgent().send(report_id="123", recipient="client")  # Uses client's preferr
 
 ---
 
+### Meta Layer (NEW)
+
+Meta-agents that help users work with the agent ecosystem more effectively.
+
+| Agent | Tools | Purpose |
+|-------|-------|---------|
+| **PromptHelper Agent** | `find_agents_for_task`, `get_agent_details`, `analyze_and_improve_prompt`, `get_provider_recommendations`, `generate_structured_prompt`, `list_all_agents`, `list_all_providers` | Help users craft better prompts, recommend agents for tasks, suggest cost-effective providers |
+
+#### PromptHelper Agent Details
+
+The PromptHelper agent is a meta-agent that knows the entire ecosystem:
+- **47 agents** with their capabilities, tools, and optimal inputs
+- **14 external LLM providers** with cost/quality tradeoffs
+- **40+ marketing skills** that can be invoked
+
+**Key Capabilities:**
+
+1. **Agent Discovery**: Find the right agent for any task
+   ```
+   User: "I need to create a video for my product launch"
+   PromptHelper: "I recommend video_production_agent with video_script_agent and video_storyboard_agent as a pipeline..."
+   ```
+
+2. **Prompt Improvement**: Analyze and enhance user prompts
+   ```
+   User: "make a good landing page"
+   PromptHelper: "Here's an improved prompt with specifics: 'Create a high-converting landing page for [product] targeting [audience] with emphasis on [key benefit]. Include hero section, social proof, and clear CTA...'"
+   ```
+
+3. **Provider Recommendations**: Cost-aware LLM selection
+   ```
+   User: "I need images but budget is tight"
+   PromptHelper: "Use Google Imagen 3 ($0.02/image) or Flux Schnell ($0.003/image) instead of DALL-E 3 ($0.08/image)"
+   ```
+
+4. **Structured Prompts**: Generate well-formed agent inputs
+   ```
+   User: "Help me set up an influencer campaign"
+   PromptHelper: Returns structured input for influencer_agent with required fields, optional context, and suggested approach
+   ```
+
+---
+
 ## Shared Tools (Cross-Agent)
 
 These tools are available to multiple agents:
@@ -356,7 +399,7 @@ These tools are available to multiple agents:
 | Studio | 7+ | Planned |
 | Distribution | 4 | Planned |
 | Operations | 3 | Planned |
-| Client | 3 | Planned |
+| Client | 6 | Planned |
 | Media | 2 | Planned |
 | Social | 3 | Planned |
 | Performance | 3 | Planned |
@@ -368,7 +411,8 @@ These tools are available to multiple agents:
 | Events | 1 | Planned |
 | Localization | 1+ (specializable) | Planned |
 | Accessibility | 1 | Planned |
-| **TOTAL** | **43+ base** | 4 built |
+| Meta | 1 | ✅ Built |
+| **TOTAL** | **47 base** | 5 built |
 
 *Note: With vertical, regional, and language specializations, the total can expand to 100+ specialized agent configurations.*
 

@@ -22,7 +22,7 @@ Every agent can be specialized:
 - **By Language**: English, Arabic, French, etc.
 - **By Client**: Client-specific rules, voice, preferences
 
-## Agent Ecosystem (46 Agents)
+## Agent Ecosystem (47 Agents)
 
 > See [`docs/AGENTS.md`](docs/AGENTS.md) for the complete directory with tools and details.
 
@@ -54,14 +54,41 @@ Every agent can be specialized:
 │  ├── Forecast                └── Legal               └── Training        │
 │  └── Budget                                                              │
 │                                                                          │
-│  SPECIALIZED (5)                                                         │
-│  ├── Influencer    ├── PR    ├── Events    ├── Localization             │
+│  SPECIALIZED (5)             META (1) ⭐ NEW                              │
+│  ├── Influencer              └── PromptHelper        Skills Library      │
+│  ├── PR                          (helps craft        ├── 40+ skills      │
+│  ├── Events                       better prompts)    ├── Positioning     │
+│  ├── Localization                                    └── Frameworks      │
 │  └── Accessibility                                                       │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-## External LLM Providers (13 Integrated)
+## New: Integration Services
+
+### AgentManager
+Central orchestration for the agent ecosystem:
+- Agent discovery and recommendations
+- Multi-agent workflow support
+- Usage analytics and monitoring
+- Economy/Standard/Premium tier mapping
+
+### PromptHelper Agent
+Meta-agent that helps users craft better prompts:
+- Knows all 47 agents and 14 LLM providers
+- Suggests optimal agents for tasks
+- Analyzes and improves prompts
+- Provides cost-aware provider recommendations
+
+### Skills Library
+40+ invokable marketing skills:
+- Organized by ERP module (Video, Analytics, Brand, etc.)
+- Positioning frameworks and value prop formulas
+- Brainstorm mode with frameworks injected
+
+> See [`docs/ERP_STAGING_INTEGRATION.md`](docs/ERP_STAGING_INTEGRATION.md) for full integration details.
+
+## External LLM Providers (14 Integrated)
 
 Agents use Claude for reasoning + specialized external LLMs for capabilities Claude lacks:
 
@@ -262,8 +289,9 @@ intent = await gemini_classify(
 
 | Doc | Description |
 |-----|-------------|
-| [`docs/AGENTS.md`](docs/AGENTS.md) | Full agent ecosystem (46 agents) |
-| [`docs/PROVIDERS.md`](docs/PROVIDERS.md) | External LLM setup guide (13 providers) |
+| [`docs/AGENTS.md`](docs/AGENTS.md) | Full agent ecosystem (47 agents) |
+| [`docs/PROVIDERS.md`](docs/PROVIDERS.md) | External LLM setup guide (14 providers) |
+| [`docs/ERP_STAGING_INTEGRATION.md`](docs/ERP_STAGING_INTEGRATION.md) | Integration guide for SpokeStack ERP |
 | [`docs/PRICING.md`](docs/PRICING.md) | Cost breakdown and margin analysis |
 | [`docs/API.md`](docs/API.md) | LLM clients API reference |
 | [`docs/TRAINING_SPEC.md`](docs/TRAINING_SPEC.md) | Training program specification |
