@@ -9,6 +9,8 @@ import logging
 from src.api.routes import router
 from src.api.multi_tenant import router as multi_tenant_router
 from src.api.erp_integration import router as erp_router
+from src.api.chat_sessions import router as chat_sessions_router
+from src.api.websocket import router as websocket_router
 from src.config import get_settings
 from src.db.session import init_db, close_db
 
@@ -40,8 +42,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SpokeStack Agent Service",
-    description="Multi-tenant AI agent platform - Think → Act → Create",
-    version="1.0.0",
+    description=(
+        "Multi-tenant AI agent platform — Think → Act → Create\n\n"
+        "Implements Agent Builder Integration Spec v2.0:\n"
+        "- Agent State Machine Protocol\n"
+        "- Agent Work Protocol (screen share paradigm)\n"
+        "- Artifact creation and streaming\n"
+        "- WebSocket real-time events\n"
+        "- SpokeStack tool definitions\n"
+        "- Vision/attachment support"
+    ),
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -57,24 +68,35 @@ app.add_middleware(
 )
 
 # Include API routes
-app.include_router(router)  # Original routes (backward compatible)
-app.include_router(multi_tenant_router)  # Multi-tenant routes
-app.include_router(erp_router)  # ERP integration routes (erp_staging_lmtd)
+app.include_router(router)                   # Original routes (backward compatible)
+app.include_router(multi_tenant_router)      # Multi-tenant routes
+app.include_router(erp_router)               # ERP integration routes (erp_staging_lmtd)
+app.include_router(chat_sessions_router)     # Chat session management (spec Section 8)
+app.include_router(websocket_router)         # WebSocket events (spec Section 7)
 
 
 @app.get("/")
 async def root():
     return {
         "service": "SpokeStack Agent Service",
-        "version": "1.0.0",
+        "version": "2.0.0",
+        "spec_version": "Integration Spec v2.0",
         "paradigm": "Think → Act → Create",
         "docs": "/docs",
         "dashboard": "/dashboard",
         "endpoints": {
             "agents": "/api/v1/agents",
             "instances": "/api/v1/instances",
-            "execute": "/api/v1/instances/{instance_id}/execute",
+            "execute": "/api/v1/agent/execute",
+            "chats": "/api/v1/chats",
+            "websocket": "/v1/ws",
             "models": "/api/v1/models/info",
+            "health": "/api/v1/health",
+        },
+        "protocols": {
+            "state_machine": "idle → thinking → working → complete/error",
+            "work_events": ["work_start", "action", "entity_created", "work_complete", "work_error"],
+            "artifact_events": ["artifact:create", "artifact:update", "artifact:complete"],
         },
     }
 
@@ -93,7 +115,7 @@ async def health():
     return {
         "status": "healthy",
         "service": "spokestack-agent-service",
-        "version": "1.0.0",
+        "version": "2.0.0",
     }
 
 

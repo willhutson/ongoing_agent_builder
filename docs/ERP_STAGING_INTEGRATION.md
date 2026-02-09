@@ -2,6 +2,8 @@
 
 Integration guide for `ongoing_agent_builder` with `erp_staging_lmtd`.
 
+> **See also:** [Agent Builder Integration Spec v2.0](../spokestack/docs/AGENT_BUILDER_INTEGRATION_SPEC.md) - The comprehensive tech spec covering state machine protocol, Agent Work Protocol (screen share paradigm), SpokeStack tool definitions, artifact streaming, WebSocket events, and vision support.
+
 ## Architecture Overview
 
 ```

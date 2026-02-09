@@ -318,12 +318,14 @@ async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTas
     }
 
     if request.stream:
-        # Return streaming response
+        # Return streaming response with structured SSE events
+        # (Integration Spec Section 7 & 11.3)
         async def generate():
             agent = get_agent(request.agent_type, **agent_kwargs)
             try:
                 async for chunk in agent.stream(context):
-                    yield f"data: {chunk}\n\n"
+                    # Chunks are already formatted as SSE events from BaseAgent.stream()
+                    yield chunk
                 yield "data: [DONE]\n\n"
             finally:
                 await agent.close()
@@ -334,6 +336,7 @@ async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTas
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
+                "X-Chat-Id": context.chat_id,
             },
         )
 
