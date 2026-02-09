@@ -59,6 +59,15 @@ class Settings(BaseSettings):
     # Perplexity - Research/search augmentation
     perplexity_api_key: Optional[str] = None
 
+    # Google - Gemini chat, Imagen 3 images, Google TTS
+    google_api_key: Optional[str] = None
+
+    # xAI - Grok chat, Aurora images, real-time X/Twitter search
+    xai_api_key: Optional[str] = None
+
+    # Zhipu - GLM-4.7 chat, long-form reports, code generation
+    zhipu_api_key: Optional[str] = None
+
     # Presenton - Self-hosted presentation generation (uses your AI keys)
     presenton_base_url: str = "http://localhost:8080/api/v1"
 
