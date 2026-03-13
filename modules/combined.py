@@ -1,13 +1,11 @@
 """
-Combined Mode — All modules in one FastAPI process.
+Combined Mode — All modules + wizard in one FastAPI process.
 
-This is the simplest deployment: one service, one port, all 46 agents.
-Perfect for Railway (single service), Replit, or any platform with one port.
+One service, one port, 47 agents (46 module agents + wizard concierge).
+The / endpoint serves the 3-pane Mission Control UI with chat.
 
 Run: uvicorn combined:app --host 0.0.0.0 --port 8000
 Or:  python combined.py
-
-Split into separate services later when you need to scale individual modules.
 """
 
 import sys
@@ -19,7 +17,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse, HTMLResponse
 from pydantic import BaseModel
-from pydantic_settings import BaseSettings
 
 # Add modules to path
 sys.path.insert(0, os.path.dirname(__file__))
@@ -47,7 +44,7 @@ settings = CombinedSettings()
 
 
 # =============================================================================
-# Import all module agent factories
+# Import all module agent factories + wizard
 # =============================================================================
 
 from foundation.agents import create_agents as create_foundation
@@ -58,6 +55,7 @@ from strategy.agents import create_agents as create_strategy
 from operations.agents import create_agents as create_operations
 from client.agents import create_agents as create_client
 from distribution.agents import create_agents as create_distribution
+from wizard.agent import create_wizard
 
 MODULE_FACTORIES = {
     "foundation": create_foundation,
@@ -78,6 +76,7 @@ MODULE_FACTORIES = {
 all_agents: dict[str, BaseAgent] = {}
 agent_to_module: dict[str, str] = {}
 module_agent_counts: dict[str, int] = {}
+platform_state: dict = {}  # Shared state for wizard
 llm_client: OpenRouterClient | None = None
 
 
@@ -87,7 +86,7 @@ llm_client: OpenRouterClient | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global all_agents, agent_to_module, module_agent_counts, llm_client
+    global all_agents, agent_to_module, module_agent_counts, platform_state, llm_client
 
     llm_client = OpenRouterClient(
         api_key=settings.openrouter_api_key,
@@ -95,15 +94,39 @@ async def lifespan(app: FastAPI):
         app_name="SpokeStack",
     )
 
+    # Load all module agents
+    agents_by_module: dict[str, list[str]] = {}
     for module_name, factory in MODULE_FACTORIES.items():
         agents = factory(llm_client, settings)
         for name, agent in agents.items():
             all_agents[name] = agent
             agent_to_module[name] = module_name
         module_agent_counts[module_name] = len(agents)
+        agents_by_module[module_name] = list(agents.keys())
         logger.info(f"Loaded {module_name}: {list(agents.keys())}")
 
-    logger.info(f"SpokeStack ready: {len(all_agents)} agents across {len(MODULE_FACTORIES)} modules")
+    # Build platform state for wizard
+    platform_state.update({
+        "total_agents": len(all_agents),
+        "total_modules": len(MODULE_FACTORIES),
+        "openrouter_configured": bool(settings.openrouter_api_key),
+        "modules": {
+            name: {"agents": count, "status": "loaded"}
+            for name, count in module_agent_counts.items()
+        },
+        "agents_by_module": agents_by_module,
+        "integrations": {},
+        "mcp_servers": {},
+        "documents": [],
+        "onboarding": {},
+    })
+
+    # Create wizard agent with platform state access
+    wizard = create_wizard(llm_client, settings, platform_state)
+    all_agents["wizard"] = wizard
+    agent_to_module["wizard"] = "wizard"
+
+    logger.info(f"SpokeStack ready: {len(all_agents)} agents ({len(MODULE_FACTORIES)} modules + wizard)")
     yield
 
     for agent in all_agents.values():
@@ -118,7 +141,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="SpokeStack Agent Platform",
-    description="All 46 agents in one service. Powered by OpenRouter.",
+    description="47 agents in one service. Wizard concierge + 8 modules. Powered by OpenRouter.",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -148,13 +171,10 @@ async def health():
 
 @app.get("/agents")
 async def list_agents():
-    agents_by_module: dict[str, list[str]] = {}
+    by_module: dict[str, list[str]] = {}
     for name, module in agent_to_module.items():
-        agents_by_module.setdefault(module, []).append(name)
-    return {
-        "total": len(all_agents),
-        "by_module": agents_by_module,
-    }
+        by_module.setdefault(module, []).append(name)
+    return {"total": len(all_agents), "by_module": by_module}
 
 
 @app.get("/modules")
@@ -202,74 +222,17 @@ async def execute(req: ExecuteRequest):
     }
 
 
+@app.get("/state")
+async def get_state():
+    """Current platform state — used by the wizard and status panel."""
+    return platform_state
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
-    agents_by_module: dict[str, list[str]] = {}
-    for name, module in agent_to_module.items():
-        agents_by_module.setdefault(module, []).append(name)
-
-    module_cards = ""
-    colors = {
-        "foundation": "#3b82f6", "studio": "#8b5cf6", "brand": "#ec4899",
-        "research": "#06b6d4", "strategy": "#f59e0b", "operations": "#22c55e",
-        "client": "#f97316", "distribution": "#6366f1",
-    }
-    for module_name, agents in sorted(agents_by_module.items()):
-        color = colors.get(module_name, "#a3a3a3")
-        agent_list = "".join(f"<li>{a}</li>" for a in sorted(agents))
-        module_cards += f"""
-        <div class="module-card" style="border-color:{color}40">
-            <div class="module-header">
-                <span class="dot" style="background:{color}"></span>
-                <h3>{module_name.title()}</h3>
-                <span class="count">{len(agents)}</span>
-            </div>
-            <ul>{agent_list}</ul>
-        </div>"""
-
-    return f"""<!DOCTYPE html>
-<html><head>
-<title>SpokeStack — Mission Control</title>
-<style>
-*{{margin:0;padding:0;box-sizing:border-box}}
-body{{font-family:-apple-system,system-ui,sans-serif;background:#09090b;color:#e4e4e7;padding:2rem}}
-h1{{font-size:1.5rem;font-weight:600}}
-.sub{{color:#71717a;margin-bottom:2rem;font-size:.9rem}}
-.stats{{display:flex;gap:1rem;margin-bottom:2rem}}
-.stat{{background:#18181b;border:1px solid #27272a;border-radius:8px;padding:1rem 1.5rem;min-width:120px}}
-.stat b{{font-size:2rem;display:block;color:#22c55e}}
-.stat span{{font-size:.75rem;color:#71717a}}
-.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}}
-.module-card{{background:#18181b;border:1px solid #27272a;border-left:3px solid;border-radius:8px;padding:1.25rem}}
-.module-header{{display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem}}
-.module-header h3{{flex:1;font-size:.95rem}}
-.dot{{width:8px;height:8px;border-radius:50%}}
-.count{{font-size:.7rem;color:#71717a;background:#27272a;padding:2px 8px;border-radius:10px}}
-ul{{list-style:none;font-size:.82rem;color:#a1a1aa}}
-li{{padding:2px 0}}
-li:before{{content:"→ ";color:#3f3f46}}
-.try{{margin-top:2rem;background:#18181b;border:1px solid #27272a;border-radius:8px;padding:1.5rem}}
-.try h3{{margin-bottom:.5rem;font-size:.95rem}}
-code{{background:#27272a;padding:2px 6px;border-radius:4px;font-size:.8rem}}
-pre{{background:#27272a;padding:1rem;border-radius:6px;margin-top:.75rem;overflow-x:auto;font-size:.8rem;color:#a1a1aa}}
-</style></head>
-<body>
-<h1>SpokeStack Mission Control</h1>
-<p class="sub">Modular Agent Platform — Combined Mode — {len(all_agents)} agents, {len(MODULE_FACTORIES)} modules</p>
-<div class="stats">
-<div class="stat"><b>{len(all_agents)}</b><span>Agents</span></div>
-<div class="stat"><b>{len(MODULE_FACTORIES)}</b><span>Modules</span></div>
-<div class="stat"><b>{'✓' if settings.openrouter_api_key else '✗'}</b><span>OpenRouter</span></div>
-</div>
-<div class="grid">{module_cards}</div>
-<div class="try">
-<h3>Try it</h3>
-<p>POST to <code>/execute</code> with any agent:</p>
-<pre>curl -X POST {'{'}url{'}'}/execute \\
-  -H "Content-Type: application/json" \\
-  -d '{{"agent_type":"brief","task":"Create a brief for a website redesign","tenant_id":"demo","user_id":"user1"}}'</pre>
-</div>
-</body></html>"""
+    """3-pane Mission Control UI with wizard chat."""
+    from wizard.ui import render_dashboard
+    return render_dashboard(platform_state)
 
 
 if __name__ == "__main__":

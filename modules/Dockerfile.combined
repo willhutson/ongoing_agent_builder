@@ -1,4 +1,4 @@
-# SpokeStack Combined — All 46 agents in one container.
+# SpokeStack Combined — All 47 agents (46 + wizard) in one container.
 # Simplest deployment: one service, one port.
 #
 # From repo root (Railway):  docker build -f modules/Dockerfile.combined .
@@ -24,6 +24,7 @@ COPY modules/operations/ ./operations/
 COPY modules/client/ ./client/
 COPY modules/distribution/ ./distribution/
 COPY modules/mission-control/ ./mission-control/
+COPY modules/wizard/ ./wizard/
 COPY modules/combined.py .
 
 ENV PYTHONUNBUFFERED=1
