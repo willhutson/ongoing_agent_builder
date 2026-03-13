@@ -637,5 +637,8 @@ Always check before making claims about what's running."""
 
 
 def create_wizard(llm: OpenRouterClient, settings: BaseModuleSettings, platform_state: dict) -> WizardAgent:
-    model = get_model_id(settings, "standard")
-    return WizardAgent(llm, model, platform_state)
+    # Wizard gets its own model config — defaults to premium (Opus) for strong reasoning.
+    # Override with WIZARD_MODEL env var for any OpenRouter model ID.
+    import os
+    wizard_model = os.environ.get("WIZARD_MODEL") or get_model_id(settings, "premium")
+    return WizardAgent(llm, wizard_model, platform_state)
