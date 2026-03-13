@@ -8,6 +8,7 @@ import uuid
 import asyncio
 
 from ..config import get_settings, ClaudeModelTier, CLAUDE_MODELS
+from ..services.task_store import save_task, get_task, update_task, task_exists, save_session, get_session, delete_session
 from ..services.model_registry import (
     get_model_for_agent,
     get_agent_tier,
@@ -66,7 +67,8 @@ from ..agents.base import AgentContext, AgentResult
 
 router = APIRouter(prefix="/api/v1", tags=["agents"])
 
-# In-memory task storage (replace with Redis/DB in production)
+# Legacy in-memory reference kept for backward compat with erp_integration imports
+# Actual storage is now Redis-backed via task_store
 tasks: dict[str, dict] = {}
 
 
@@ -266,22 +268,27 @@ def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None
 
 async def run_agent_task(task_id: str, agent_type: AgentType, context: AgentContext, **kwargs):
     """Background task to run agent."""
-    tasks[task_id]["status"] = "running"
+    await update_task(task_id, {"status": "running"})
 
     try:
         agent = get_agent(agent_type, **kwargs)
         result = await agent.run(context)
-        tasks[task_id]["status"] = "completed"
-        tasks[task_id]["result"] = {
-            "success": result.success,
-            "output": result.output,
-            "artifacts": result.artifacts,
-            "metadata": result.metadata,
-        }
+        await update_task(task_id, {
+            "status": "completed",
+            "result": {
+                "success": result.success,
+                "output": result.output,
+                "artifacts": result.artifacts,
+                "metadata": result.metadata,
+            },
+            "token_usage": getattr(result, "_token_usage", None),
+        })
         await agent.close()
+    except asyncio.CancelledError:
+        await update_task(task_id, {"status": "cancelled"})
+        raise
     except Exception as e:
-        tasks[task_id]["status"] = "failed"
-        tasks[task_id]["error"] = str(e)
+        await update_task(task_id, {"status": "failed", "error": str(e)})
 
 
 @router.post("/agent/execute", response_model=ExecuteResponse)
@@ -340,8 +347,8 @@ async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTas
             },
         )
 
-    # Non-streaming: queue background task
-    tasks[task_id] = {"status": "pending", "result": None, "error": None}
+    # Non-streaming: queue background task (Redis-backed)
+    await save_task(task_id, {"status": "pending", "result": None, "error": None})
     background_tasks.add_task(run_agent_task, task_id, request.agent_type, context, **agent_kwargs)
 
     return ExecuteResponse(
@@ -354,10 +361,10 @@ async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTas
 @router.get("/agent/status/{task_id}", response_model=TaskStatus)
 async def get_task_status(task_id: str):
     """Get status of a running or completed task."""
-    if task_id not in tasks:
+    task = await get_task(task_id)
+    if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    task = tasks[task_id]
     return TaskStatus(
         task_id=task_id,
         status=task["status"],
@@ -366,15 +373,24 @@ async def get_task_status(task_id: str):
     )
 
 
+# Track background task handles for cancellation
+_running_tasks: dict[str, asyncio.Task] = {}
+
+
 @router.delete("/agent/task/{task_id}")
 async def cancel_task(task_id: str):
     """Cancel a pending or running task."""
-    if task_id not in tasks:
+    task = await get_task(task_id)
+    if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    # TODO: Implement actual cancellation
-    tasks[task_id]["status"] = "cancelled"
-    return {"message": "Task cancellation requested", "task_id": task_id}
+    # Cancel the asyncio task if still running
+    bg_task = _running_tasks.pop(task_id, None)
+    if bg_task and not bg_task.done():
+        bg_task.cancel()
+
+    await update_task(task_id, {"status": "cancelled"})
+    return {"message": "Task cancelled", "task_id": task_id}
 
 
 @router.get("/agents")
@@ -468,10 +484,6 @@ async def list_agents():
 # Chat Session Support
 # ============================================
 
-# In-memory chat sessions (replace with Redis in production)
-chat_sessions: dict[str, dict] = {}
-
-
 class ChatMessage(BaseModel):
     """A single chat message."""
     role: str  # "user" or "assistant"
@@ -499,20 +511,21 @@ class ChatResponse(BaseModel):
 @router.post("/agent/chat")
 async def chat_with_agent(request: ChatRequest):
     """Chat with an agent, maintaining conversation history."""
-    if request.session_id and request.session_id in chat_sessions:
-        session = chat_sessions[request.session_id]
-    else:
+    session = None
+    if request.session_id:
+        session = await get_session(request.session_id)
+
+    if not session:
         session_id = str(uuid.uuid4())
         session = {
             "id": session_id,
-            "agent_type": request.agent_type,
+            "agent_type": request.agent_type.value,
             "tenant_id": request.tenant_id,
             "user_id": request.user_id,
             "messages": [],
             "state": {},
             "metadata": request.metadata,
         }
-        chat_sessions[session_id] = session
 
     session["messages"].append({"role": "user", "content": request.message})
 
@@ -524,12 +537,13 @@ async def chat_with_agent(request: ChatRequest):
     )
 
     try:
-        agent = get_agent(session["agent_type"])
+        agent = get_agent(AgentType(session["agent_type"]))
         result = await agent.run(context)
         await agent.close()
 
         response_text = result.output
         session["messages"].append({"role": "assistant", "content": response_text})
+        await save_session(session["id"], session)
 
         return ChatResponse(
             session_id=session["id"],
@@ -538,6 +552,7 @@ async def chat_with_agent(request: ChatRequest):
             is_complete=False,
         )
     except Exception as e:
+        await save_session(session["id"], session)
         return ChatResponse(
             session_id=session["id"],
             message=f"I encountered an error: {str(e)}. Let's try again.",
@@ -547,19 +562,18 @@ async def chat_with_agent(request: ChatRequest):
 
 
 @router.get("/agent/chat/{session_id}")
-async def get_chat_session(session_id: str):
+async def get_chat_session_route(session_id: str):
     """Get chat session state and history."""
-    if session_id not in chat_sessions:
+    session = await get_session(session_id)
+    if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    session = chat_sessions[session_id]
     return {"session_id": session_id, "messages": session["messages"], "state": session["state"]}
 
 
 @router.delete("/agent/chat/{session_id}")
 async def delete_chat_session(session_id: str):
     """Delete a chat session."""
-    if session_id in chat_sessions:
-        del chat_sessions[session_id]
+    await delete_session(session_id)
     return {"message": "Session deleted", "session_id": session_id}
 
 

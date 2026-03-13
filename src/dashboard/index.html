@@ -487,7 +487,69 @@
 
         async function testAgent() {
             if (!currentAgent) return;
-            alert(`Testing ${currentAgent.name}...\n\nThis would execute a test task for the agent using the /api/v1/agent/execute endpoint.`);
+
+            const btn = document.querySelector('#agent-modal button[onclick="testAgent()"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="pulse">Running test...</span>';
+
+            try {
+                const response = await fetch('/api/v1/agent/execute', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_type: currentAgent.type,
+                        task: `Quick test: briefly describe what you can do as the ${currentAgent.name}.`,
+                        tenant_id: 'test-tenant',
+                        user_id: 'dashboard-test',
+                        metadata: { source: 'dashboard_test' },
+                        stream: false,
+                    }),
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    // Poll for result
+                    const taskId = data.task_id;
+                    let attempts = 0;
+                    const poll = setInterval(async () => {
+                        attempts++;
+                        try {
+                            const statusRes = await fetch(`/api/v1/agent/status/${taskId}`);
+                            const status = await statusRes.json();
+                            if (status.status === 'completed') {
+                                clearInterval(poll);
+                                btn.disabled = false;
+                                btn.innerHTML = originalText;
+                                const output = status.result?.output || 'No output';
+                                // Show result in a simple overlay
+                                const resultDiv = document.createElement('div');
+                                resultDiv.className = 'mt-4 bg-gray-50 rounded-lg p-4 text-sm text-gray-900 max-h-48 overflow-auto';
+                                resultDiv.innerHTML = `<label class="block text-xs font-medium text-gray-500 mb-1">Test Result</label><p class="whitespace-pre-wrap">${output.substring(0, 500)}${output.length > 500 ? '...' : ''}</p>`;
+                                btn.parentNode.appendChild(resultDiv);
+                                setTimeout(() => resultDiv.remove(), 15000);
+                            } else if (status.status === 'failed' || attempts > 30) {
+                                clearInterval(poll);
+                                btn.disabled = false;
+                                btn.innerHTML = originalText;
+                                alert(`Test failed: ${status.error || 'Timeout'}`);
+                            }
+                        } catch (e) {
+                            clearInterval(poll);
+                            btn.disabled = false;
+                            btn.innerHTML = originalText;
+                        }
+                    }, 2000);
+                } else {
+                    alert(`Error: ${data.detail || 'Failed to execute test'}`);
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
         }
 
         function refreshData() {
