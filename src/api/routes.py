@@ -12,6 +12,7 @@ from ..services.task_store import save_task, get_task, update_task, task_exists,
 from ..services.model_registry import (
     get_model_for_agent,
     get_agent_tier,
+    set_agent_tier,
     get_model_info,
     list_agents_by_tier,
     AGENT_MODEL_RECOMMENDATIONS,
@@ -646,6 +647,31 @@ async def get_agent_model(agent_name: str):
         "recommended_tier": tier.value,
         "model_id": model_id,
         "in_registry": agent_name in AGENT_MODEL_RECOMMENDATIONS,
+    }
+
+
+@router.put("/models/agent/{agent_name}")
+async def update_agent_model_tier(agent_name: str, request: AgentModelOverrideRequest):
+    """
+    Override the model tier for a specific agent.
+    Used by the Dashboard to persist tier changes.
+    """
+    if not agent_name.endswith("_agent"):
+        agent_name = f"{agent_name}_agent"
+
+    try:
+        tier = ClaudeModelTier(request.tier)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid tier: {request.tier}. Use 'opus', 'sonnet', or 'haiku'.")
+
+    set_agent_tier(agent_name, tier)
+    model_id = get_model_for_agent(agent_name)
+
+    return {
+        "agent_name": agent_name,
+        "tier": tier.value,
+        "model_id": model_id,
+        "message": f"Agent {agent_name} tier updated to {tier.value}",
     }
 
 

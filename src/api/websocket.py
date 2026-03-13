@@ -19,8 +19,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from typing import Optional
 from datetime import datetime, timezone
 import asyncio
+import hmac
 import json
 import logging
+import os
 import uuid
 
 from ..agents.base import AgentContext, AgentResult
@@ -32,6 +34,7 @@ from ..protocols.events import (
 )
 from ..protocols.handoffs import HandoffRequest, HandoffResponse
 from ..protocols.state import AgentState
+from ..services.task_store import save_session, get_session
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +55,7 @@ class ConnectionManager:
 
     def disconnect(self, chat_id: str):
         self.active_connections.pop(chat_id, None)
-        self.chat_agents.pop(chat_id, None)
+        # Don't delete chat_agents — preserve for session recovery
         logger.info(f"WebSocket disconnected: {chat_id}")
 
     async def send_event(self, chat_id: str, event_type: str, payload: dict):
@@ -72,6 +75,20 @@ class ConnectionManager:
             except Exception:
                 pass
 
+    async def persist_chat_state(self, chat_id: str):
+        """Save chat state to Redis for session recovery."""
+        state = self.chat_agents.get(chat_id)
+        if state:
+            await save_session(f"ws:{chat_id}", state)
+
+    async def recover_chat_state(self, chat_id: str) -> Optional[dict]:
+        """Recover chat state from Redis after reconnection."""
+        state = await get_session(f"ws:{chat_id}")
+        if state:
+            self.chat_agents[chat_id] = state
+            logger.info(f"Recovered session state for {chat_id}")
+        return state
+
 
 manager = ConnectionManager()
 
@@ -80,16 +97,49 @@ manager = ConnectionManager()
 async def websocket_endpoint(
     websocket: WebSocket,
     organization_id: str = Query(None, alias="org_id"),
+    session_id: str = Query(None, alias="session_id"),
+    api_key: str = Query(None, alias="api_key"),
 ):
     """
     WebSocket endpoint for real-time agent communication.
 
-    Connection URL: wss://agent-builder.spokestack.io/v1/ws?org_id=<org_id>
+    Connection URL: wss://spokestack.app/v1/ws?org_id=<org_id>&api_key=<key>
+
+    For session recovery after disconnect, pass session_id from a previous connection:
+    wss://spokestack.app/v1/ws?org_id=<org_id>&api_key=<key>&session_id=<prev_chat_id>
 
     Supports all event types from Integration Spec Section 7.
     """
-    chat_id = str(uuid.uuid4())
+    # Validate org_id is provided
+    if not organization_id:
+        await websocket.close(code=4001, reason="org_id query parameter required")
+        return
+
+    # Validate API key
+    expected_key = os.environ.get("ERP_API_KEY", "")
+    if expected_key and (not api_key or not hmac.compare_digest(api_key, expected_key)):
+        await websocket.close(code=4003, reason="Invalid or missing api_key")
+        return
+
+    # Session recovery: reuse previous chat_id if provided
+    if session_id:
+        chat_id = session_id
+        recovered = await manager.recover_chat_state(chat_id)
+    else:
+        chat_id = str(uuid.uuid4())
+        recovered = None
+
     await manager.connect(chat_id, websocket)
+
+    # Notify client of their chat_id (useful for session recovery later)
+    await websocket.send_json({
+        "type": "connection:ready",
+        "payload": {
+            "chatId": chat_id,
+            "orgId": organization_id,
+            "recovered": recovered is not None,
+        },
+    })
 
     # Start heartbeat
     heartbeat_task = asyncio.create_task(_heartbeat(websocket, chat_id))
@@ -99,6 +149,9 @@ async def websocket_endpoint(
             data = await websocket.receive_json()
             event_type = data.get("type")
             payload = data.get("payload", {})
+
+            if not event_type:
+                continue
 
             if event_type == "ping":
                 await websocket.send_json({"type": "pong"})
@@ -128,10 +181,13 @@ async def websocket_endpoint(
                 logger.warning(f"Unknown event type: {event_type}")
 
     except WebSocketDisconnect:
+        # Persist state for possible reconnection
+        await manager.persist_chat_state(chat_id)
         manager.disconnect(chat_id)
         heartbeat_task.cancel()
     except Exception as e:
         logger.error(f"WebSocket error for {chat_id}: {e}")
+        await manager.persist_chat_state(chat_id)
         manager.disconnect(chat_id)
         heartbeat_task.cancel()
 
@@ -143,8 +199,10 @@ async def _heartbeat(websocket: WebSocket, chat_id: str):
             await asyncio.sleep(30)
             if chat_id in manager.active_connections:
                 await websocket.send_json({"type": "ping"})
-    except Exception:
+    except asyncio.CancelledError:
         pass
+    except Exception as e:
+        logger.warning(f"Heartbeat error for {chat_id}: {e}")
 
 
 async def _handle_chat_start(chat_id: str, payload: dict, org_id: str):
@@ -164,6 +222,9 @@ async def _handle_chat_start(chat_id: str, payload: dict, org_id: str):
         "context": request.context.model_dump(),
         "messages": [],
     }
+
+    # Persist for session recovery
+    await manager.persist_chat_state(chat_id)
 
     # Acknowledge
     await manager.send_event(chat_id, "chat:started", {

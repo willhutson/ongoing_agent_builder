@@ -197,9 +197,20 @@ def get_model_for_agent(
     return CLAUDE_MODELS[tier]
 
 
+# Runtime tier overrides (persisted in memory, set via API)
+_agent_tier_overrides: dict[str, ClaudeModelTier] = {}
+
+
 def get_agent_tier(agent_name: str) -> ClaudeModelTier:
-    """Get the recommended tier for an agent."""
+    """Get the recommended tier for an agent (respects runtime overrides)."""
+    if agent_name in _agent_tier_overrides:
+        return _agent_tier_overrides[agent_name]
     return AGENT_MODEL_RECOMMENDATIONS.get(agent_name, ClaudeModelTier.SONNET)
+
+
+def set_agent_tier(agent_name: str, tier: ClaudeModelTier) -> None:
+    """Override the tier for a specific agent at runtime."""
+    _agent_tier_overrides[agent_name] = tier
 
 
 def list_agents_by_tier() -> dict[ClaudeModelTier, list[str]]:
