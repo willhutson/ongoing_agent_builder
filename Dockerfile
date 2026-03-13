@@ -32,7 +32,7 @@ FROM python:3.11-slim as production
 # Labels
 LABEL maintainer="SpokeStack Team"
 LABEL description="Multi-tenant AI agent platform"
-LABEL version="1.0.0"
+LABEL version="2.0.0"
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash spokestack
@@ -61,4 +61,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import httpx; httpx.get('http://localhost:8000/health')" || exit 1
 
 # Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Railway sets PORT env var; fall back to 8000 for local dev
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

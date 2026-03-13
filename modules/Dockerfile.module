@@ -1,0 +1,36 @@
+# Shared Dockerfile for all module services.
+# Build from the modules/ directory with --build-arg MODULE=<name>
+#
+# Usage:
+#   docker build -f Dockerfile.module --build-arg MODULE=foundation -t spokestack-foundation .
+#   docker build -f Dockerfile.module --build-arg MODULE=studio -t spokestack-studio .
+
+ARG MODULE=foundation
+
+FROM python:3.11-slim
+
+ARG MODULE
+
+RUN useradd --create-home spokestack
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy shared code
+COPY shared/ ./shared/
+
+# Copy module code
+COPY ${MODULE}/ ./${MODULE}/
+
+ENV PYTHONUNBUFFERED=1
+ENV MODULE_NAME=${MODULE}
+
+USER spokestack
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:${MODULE_PORT:-8000}/health')" || exit 1
+
+# Run the module
+CMD ["sh", "-c", "cd ${MODULE_NAME} && python -m uvicorn app:app --host 0.0.0.0 --port ${MODULE_PORT:-8000}"]

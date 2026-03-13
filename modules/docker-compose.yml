@@ -1,0 +1,154 @@
+# SpokeStack Modular Agent Platform
+#
+# Start everything:  docker compose up -d
+# Start one module:  docker compose up -d foundation
+# View logs:         docker compose logs -f mission-control
+# Scale a module:    docker compose up -d --scale studio=3
+
+x-module-common: &module-common
+  build:
+    context: .
+    dockerfile: Dockerfile.module
+  environment: &common-env
+    OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    MISSION_CONTROL_URL: http://mission-control:8000
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  restart: unless-stopped
+  networks:
+    - spokestack
+
+services:
+  # =========================================================================
+  # Mission Control — The orchestrator (port 8000, public-facing)
+  # =========================================================================
+  mission-control:
+    build:
+      context: .
+      dockerfile: Dockerfile.mission-control
+    ports:
+      - "${MISSION_CONTROL_PORT:-8000}:8000"
+    environment:
+      MODULE_PORT: "8000"
+      FOUNDATION_URL: http://foundation:8001
+      STUDIO_URL: http://studio:8002
+      BRAND_URL: http://brand:8003
+      RESEARCH_URL: http://research:8004
+      STRATEGY_URL: http://strategy:8005
+      OPERATIONS_URL: http://operations:8006
+      CLIENT_URL: http://client:8007
+      DISTRIBUTION_URL: http://distribution:8008
+    depends_on:
+      - foundation
+      - studio
+      - brand
+      - research
+      - strategy
+      - operations
+      - client
+      - distribution
+    restart: unless-stopped
+    networks:
+      - spokestack
+
+  # =========================================================================
+  # Module Services — each standalone, own port
+  # =========================================================================
+  foundation:
+    <<: *module-common
+    build:
+      context: .
+      dockerfile: Dockerfile.module
+      args:
+        MODULE: foundation
+    environment:
+      <<: *common-env
+      MODULE_PORT: "8001"
+      MODULE_NAME: foundation
+
+  studio:
+    <<: *module-common
+    build:
+      context: .
+      dockerfile: Dockerfile.module
+      args:
+        MODULE: studio
+    environment:
+      <<: *common-env
+      MODULE_PORT: "8002"
+      MODULE_NAME: studio
+
+  brand:
+    <<: *module-common
+    build:
+      context: .
+      dockerfile: Dockerfile.module
+      args:
+        MODULE: brand
+    environment:
+      <<: *common-env
+      MODULE_PORT: "8003"
+      MODULE_NAME: brand
+
+  research:
+    <<: *module-common
+    build:
+      context: .
+      dockerfile: Dockerfile.module
+      args:
+        MODULE: research
+    environment:
+      <<: *common-env
+      MODULE_PORT: "8004"
+      MODULE_NAME: research
+
+  strategy:
+    <<: *module-common
+    build:
+      context: .
+      dockerfile: Dockerfile.module
+      args:
+        MODULE: strategy
+    environment:
+      <<: *common-env
+      MODULE_PORT: "8005"
+      MODULE_NAME: strategy
+
+  operations:
+    <<: *module-common
+    build:
+      context: .
+      dockerfile: Dockerfile.module
+      args:
+        MODULE: operations
+    environment:
+      <<: *common-env
+      MODULE_PORT: "8006"
+      MODULE_NAME: operations
+
+  client:
+    <<: *module-common
+    build:
+      context: .
+      dockerfile: Dockerfile.module
+      args:
+        MODULE: client
+    environment:
+      <<: *common-env
+      MODULE_PORT: "8007"
+      MODULE_NAME: client
+
+  distribution:
+    <<: *module-common
+    build:
+      context: .
+      dockerfile: Dockerfile.module
+      args:
+        MODULE: distribution
+    environment:
+      <<: *common-env
+      MODULE_PORT: "8008"
+      MODULE_NAME: distribution
+
+networks:
+  spokestack:
+    driver: bridge
