@@ -1,7 +1,7 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "modules/Dockerfile.combined"
-watchPatterns = ["modules/**"]
+dockerfilePath = "Dockerfile"
+watchPatterns = ["src/**", "main.py"]
 
 [deploy]
 healthcheckPath = "/health"
