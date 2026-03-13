@@ -231,8 +231,9 @@ class ERPCallbackService:
         token_usage: TokenUsage,
         duration_ms: int,
         error: Optional[str] = None,
+        max_retries: int = 3,
     ) -> bool:
-        """Send execution result to ERP callback URL."""
+        """Send execution result to ERP callback URL with exponential backoff retry."""
         payload = {
             "invocation_id": invocation_id,
             "status": status,
@@ -251,26 +252,41 @@ class ERPCallbackService:
         payload_str = json.dumps(payload, sort_keys=True)
         signature = self._generate_signature(payload_str)
 
-        try:
-            response = await self.http_client.patch(
-                callback_url,
-                json=payload,
-                headers={
-                    "X-Signature": signature,
-                    "Content-Type": "application/json",
-                },
-            )
+        headers = {
+            "X-Signature": signature,
+            "Content-Type": "application/json",
+        }
 
-            if response.status_code in (200, 201, 204):
-                logger.info(f"Callback sent successfully to {callback_url}")
-                return True
-            else:
-                logger.error(f"Callback failed: {response.status_code} - {response.text}")
-                return False
+        for attempt in range(max_retries + 1):
+            try:
+                response = await self.http_client.patch(
+                    callback_url,
+                    json=payload,
+                    headers=headers,
+                )
 
-        except Exception as e:
-            logger.error(f"Callback error: {str(e)}")
-            return False
+                if response.status_code in (200, 201, 204):
+                    logger.info(f"Callback sent successfully to {callback_url}")
+                    return True
+
+                # Don't retry client errors (4xx)
+                if 400 <= response.status_code < 500:
+                    logger.error(f"Callback rejected (4xx): {response.status_code} - {response.text}")
+                    return False
+
+                logger.warning(f"Callback attempt {attempt + 1}/{max_retries + 1} failed: {response.status_code}")
+
+            except Exception as e:
+                logger.warning(f"Callback attempt {attempt + 1}/{max_retries + 1} error: {e}")
+
+            # Exponential backoff: 2s, 4s, 8s
+            if attempt < max_retries:
+                backoff = 2 ** (attempt + 1)
+                logger.info(f"Retrying callback in {backoff}s...")
+                await asyncio.sleep(backoff)
+
+        logger.error(f"Callback to {callback_url} failed after {max_retries + 1} attempts")
+        return False
 
     async def close(self):
         await self.http_client.aclose()
@@ -404,7 +420,10 @@ async def execute_agent(
     This endpoint accepts requests from erp_staging_lmtd with pre-resolved models.
     The ERP handles tier-to-model mapping; Agent Builder uses the provided model directly.
 
-    ## Request Headers
+    ## Request Headers (REQUIRED)
+    - X-API-Key: API key matching the ERP_API_KEY environment variable (required)
+
+    ## Optional Headers
     - X-Organization-Id: Organization identifier (optional, can use tenant_id in body)
     - X-Request-Id: Request tracking ID (optional)
 

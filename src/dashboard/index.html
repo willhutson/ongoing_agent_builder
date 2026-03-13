@@ -483,6 +483,17 @@
                 updateCounts();
                 renderAgents();
             }
+
+            // Persist to backend
+            try {
+                await fetch(`/api/v1/models/agent/${currentAgent.type}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agent_name: `${currentAgent.type}_agent`, tier: newTier }),
+                });
+            } catch (error) {
+                console.error('Failed to persist tier change:', error);
+            }
         }
 
         async function testAgent() {

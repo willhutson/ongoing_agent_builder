@@ -13,6 +13,7 @@ from src.api.erp_integration import router as erp_router
 from src.api.chat_sessions import router as chat_sessions_router
 from src.api.websocket import router as websocket_router
 from src.api.auth import APIKeyAuthMiddleware
+from src.api.rate_limit import RateLimitMiddleware
 from src.config import get_settings
 from src.db.session import init_db, close_db
 
@@ -83,6 +84,9 @@ app.add_middleware(
 # API key authentication (after CORS so preflight requests work)
 app.add_middleware(APIKeyAuthMiddleware)
 
+# Rate limiting
+app.add_middleware(RateLimitMiddleware)
+
 # Include API routes
 app.include_router(router)                   # Original routes (backward compatible)
 app.include_router(multi_tenant_router)      # Multi-tenant routes
@@ -127,11 +131,47 @@ async def dashboard():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint for load balancers."""
+    """Health check endpoint for load balancers — verifies DB and Redis connectivity."""
+    checks = {}
+    overall = "healthy"
+
+    # Check database
+    try:
+        from src.db.session import engine as db_engine
+        from sqlalchemy import text
+        async with db_engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        checks["database"] = "connected"
+    except Exception as e:
+        checks["database"] = f"unavailable"
+        overall = "degraded"
+
+    # Check Redis
+    try:
+        redis_url = os.environ.get("REDIS_URL", "")
+        if redis_url:
+            import redis.asyncio as aioredis
+            r = aioredis.from_url(redis_url, decode_responses=True)
+            await r.ping()
+            await r.aclose()
+            checks["redis"] = "connected"
+        else:
+            checks["redis"] = "not_configured"
+    except Exception as e:
+        checks["redis"] = f"error: {str(e)[:80]}"
+        overall = "degraded"
+
+    # Check Anthropic key is set
+    settings = get_settings()
+    checks["anthropic"] = "configured" if settings.anthropic_api_key else "missing"
+    if not settings.anthropic_api_key:
+        overall = "unhealthy"
+
     return {
-        "status": "healthy",
+        "status": overall,
         "service": "spokestack-agent-service",
         "version": "2.0.0",
+        "checks": checks,
     }
 
 
