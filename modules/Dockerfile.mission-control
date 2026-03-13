@@ -1,0 +1,20 @@
+# Dockerfile for Mission Control
+FROM python:3.11-slim
+
+RUN useradd --create-home spokestack
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY shared/ ./shared/
+COPY mission-control/ ./mission-control/
+
+ENV PYTHONUNBUFFERED=1
+
+USER spokestack
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8000/health')" || exit 1
+
+CMD ["sh", "-c", "cd mission-control && python -m uvicorn app:app --host 0.0.0.0 --port ${MODULE_PORT:-8000}"]
