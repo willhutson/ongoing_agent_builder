@@ -31,14 +31,12 @@ from ..protocols.events import (
 from ..protocols.handoffs import HandoffRequest, HandoffResponse
 from ..protocols.state import AgentState
 from ..protocols.errors import AgentError, ERROR_CODES
+from ..services.task_store import save_session, get_session, delete_session
 from ..agents.base import AgentContext
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["chat-sessions"])
-
-# In-memory chat sessions (Redis in production)
-_chat_sessions: dict[str, dict] = {}
 
 
 class StartChatResponse(BaseModel):
@@ -78,7 +76,7 @@ async def start_chat(request: StartChatRequest):
     agent_type = resolve_agent_type(request.agent_type)
     model_id = request.model.get("id", "claude-sonnet-4-20250514")
 
-    _chat_sessions[chat_id] = {
+    session_data = {
         "chat_id": chat_id,
         "agent_type": agent_type,
         "model": model_id,
@@ -92,6 +90,7 @@ async def start_chat(request: StartChatRequest):
         "created_entities": [],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    await save_session(chat_id, session_data)
 
     return StartChatResponse(
         chat_id=chat_id,
@@ -104,7 +103,7 @@ async def start_chat(request: StartChatRequest):
 @router.get("/chats/{chat_id}", response_model=ChatState)
 async def get_chat_state(chat_id: str):
     """Get current state of a chat session."""
-    session = _chat_sessions.get(chat_id)
+    session = await get_session(chat_id)
     if not session:
         raise HTTPException(status_code=404, detail="Chat not found")
 
@@ -127,13 +126,14 @@ async def send_chat_message(chat_id: str, request: ChatMessageRequest):
     Supports vision/attachments per spec Section 11.8.
     Returns SSE stream with state updates, work events, and message chunks.
     """
-    session = _chat_sessions.get(chat_id)
+    session = await get_session(chat_id)
     if not session:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     # Store user message
     session["messages"].append({"role": "user", "content": request.content})
     session["state"] = AgentState.THINKING.value
+    await save_session(chat_id, session)
 
     # SSE event queue for streaming
     event_queue: asyncio.Queue = asyncio.Queue()
@@ -194,7 +194,7 @@ async def execute_action(chat_id: str, request: ExecuteActionRequest):
     Execute a post-completion action on an artifact.
     Handles: share_client, handoff_agent, add_to_module, export, etc.
     """
-    session = _chat_sessions.get(chat_id)
+    session = await get_session(chat_id)
     if not session:
         raise HTTPException(status_code=404, detail="Chat not found")
 
@@ -223,7 +223,7 @@ async def execute_action(chat_id: str, request: ExecuteActionRequest):
 @router.get("/chats/{chat_id}/artifacts")
 async def get_chat_artifacts(chat_id: str):
     """Get all artifacts created during a chat session."""
-    session = _chat_sessions.get(chat_id)
+    session = await get_session(chat_id)
     if not session:
         raise HTTPException(status_code=404, detail="Chat not found")
 
@@ -236,12 +236,12 @@ async def request_handoff(chat_id: str, request: HandoffRequest):
     Request an agent-to-agent handoff.
     Creates a new chat session with the target agent and passes context.
     """
-    session = _chat_sessions.get(chat_id)
+    session = await get_session(chat_id)
     if not session:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     new_chat_id = str(uuid.uuid4())
-    _chat_sessions[new_chat_id] = {
+    new_session_data = {
         "chat_id": new_chat_id,
         "agent_type": request.to_agent_type,
         "model": session["model"],
@@ -259,6 +259,7 @@ async def request_handoff(chat_id: str, request: HandoffRequest):
         "created_entities": [],
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    await save_session(new_chat_id, new_session_data)
 
     return HandoffResponse(
         approved=True,

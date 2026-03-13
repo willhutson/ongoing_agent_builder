@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -11,6 +12,7 @@ from src.api.multi_tenant import router as multi_tenant_router
 from src.api.erp_integration import router as erp_router
 from src.api.chat_sessions import router as chat_sessions_router
 from src.api.websocket import router as websocket_router
+from src.api.auth import APIKeyAuthMiddleware
 from src.config import get_settings
 from src.db.session import init_db, close_db
 
@@ -58,14 +60,28 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS for ERP instances
+# CORS — locked to SpokeStack domains
+_cors_origins = [
+    "https://spokestack.app",
+    "https://www.spokestack.app",
+    "https://spokestack.com",
+    "https://www.spokestack.com",
+]
+# Allow extra origins via env (comma-separated) for staging/dev
+_extra_origins = os.environ.get("CORS_EXTRA_ORIGINS", "")
+if _extra_origins:
+    _cors_origins.extend([o.strip() for o in _extra_origins.split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure per-tenant in production
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# API key authentication (after CORS so preflight requests work)
+app.add_middleware(APIKeyAuthMiddleware)
 
 # Include API routes
 app.include_router(router)                   # Original routes (backward compatible)

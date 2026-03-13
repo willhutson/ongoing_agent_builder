@@ -23,8 +23,9 @@ import logging
 from ..config import get_settings
 from ..services.model_registry import get_model_for_agent, get_agent_tier, AGENT_MODEL_RECOMMENDATIONS
 from ..services.external_llm_registry import get_configured_providers, get_provider_status
+from ..services.task_store import save_task, get_task, update_task
 from ..agents.base import AgentContext
-from .routes import get_agent, AgentType, tasks
+from .routes import get_agent, AgentType
 
 logger = logging.getLogger(__name__)
 
@@ -296,7 +297,7 @@ async def execute_agent_with_callback(
 ):
     """Background task to execute agent and send callback."""
     start_time = time.time()
-    tasks[execution_id]["status"] = "running"
+    await update_task(execution_id, {"status": "running"})
 
     try:
         # Map string agent type to enum
@@ -331,23 +332,28 @@ async def execute_agent_with_callback(
 
         duration_ms = int((time.time() - start_time) * 1000)
 
-        # Estimate token usage (simplified - real implementation would track actual usage)
+        # Extract real token usage from the agent's API response metadata
+        result_meta = result.metadata or {}
+        input_tokens = result_meta.get("input_tokens", 0)
+        output_tokens = result_meta.get("output_tokens", 0)
         token_usage = TokenUsage(
-            input_tokens=len(request.task.split()) * 2,  # Rough estimate
-            output_tokens=len(result.output.split()) * 2 if result.output else 0,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
         )
-        token_usage.total_tokens = token_usage.input_tokens + token_usage.output_tokens
 
-        # Update task storage
-        tasks[execution_id]["status"] = "completed"
-        tasks[execution_id]["result"] = {
-            "success": result.success,
-            "output": result.output,
-            "artifacts": result.artifacts,
-            "metadata": result.metadata,
-        }
-        tasks[execution_id]["token_usage"] = token_usage.model_dump()
-        tasks[execution_id]["duration_ms"] = duration_ms
+        # Update task storage (Redis-backed)
+        await update_task(execution_id, {
+            "status": "completed",
+            "result": {
+                "success": result.success,
+                "output": result.output,
+                "artifacts": result.artifacts,
+                "metadata": result.metadata,
+            },
+            "token_usage": token_usage.model_dump(),
+            "duration_ms": duration_ms,
+        })
 
         # Send callback if URL provided
         if request.callback_url and request.invocation_id:
@@ -362,9 +368,11 @@ async def execute_agent_with_callback(
 
     except Exception as e:
         duration_ms = int((time.time() - start_time) * 1000)
-        tasks[execution_id]["status"] = "failed"
-        tasks[execution_id]["error"] = str(e)
-        tasks[execution_id]["duration_ms"] = duration_ms
+        await update_task(execution_id, {
+            "status": "failed",
+            "error": str(e),
+            "duration_ms": duration_ms,
+        })
 
         # Send error callback
         if request.callback_url and request.invocation_id:
@@ -430,15 +438,15 @@ async def execute_agent(
     execution_id = x_request_id or str(uuid.uuid4())
     session_id = request.session_id or str(uuid.uuid4())
 
-    # Initialize task storage
-    tasks[execution_id] = {
+    # Initialize task storage (Redis-backed)
+    await save_task(execution_id, {
         "status": "pending",
         "result": None,
         "error": None,
         "token_usage": None,
         "duration_ms": None,
         "session_id": session_id,
-    }
+    })
 
     # Queue background execution
     callback_service = get_callback_service()
@@ -463,10 +471,9 @@ async def get_execution_status(execution_id: str):
 
     Poll this endpoint to check execution progress and retrieve results.
     """
-    if execution_id not in tasks:
+    task = await get_task(execution_id)
+    if not task:
         raise HTTPException(status_code=404, detail="Execution not found")
-
-    task = tasks[execution_id]
 
     token_usage = TokenUsage()
     if task.get("token_usage"):

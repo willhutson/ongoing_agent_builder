@@ -186,8 +186,6 @@ When drafting responses:
 
     async def _query_past_projects(self, params: dict) -> dict:
         """Query ERP for past projects."""
-        # TODO: Implement actual ERP API call
-        # For now, return mock structure
         response = await self.http_client.get(
             "/api/v1/projects/search",
             params={

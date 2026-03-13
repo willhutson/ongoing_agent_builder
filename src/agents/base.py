@@ -96,6 +96,10 @@ class BaseAgent(ABC):
         self._created_entities: list[CreatedEntity] = []
         self._artifacts: list[Artifact] = []
 
+        # Token usage tracking (accumulated across tool loops)
+        self._input_tokens = 0
+        self._output_tokens = 0
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -312,6 +316,11 @@ class BaseAgent(ABC):
                 messages=messages,
             )
 
+            # Track token usage from API response
+            if hasattr(response, "usage") and response.usage:
+                self._input_tokens += getattr(response.usage, "input_tokens", 0)
+                self._output_tokens += getattr(response.usage, "output_tokens", 0)
+
             # Check if we're done (no more tool calls)
             if response.stop_reason == "end_turn":
                 final_text = self._extract_text(response)
@@ -354,7 +363,12 @@ class BaseAgent(ABC):
             success=True,
             output="\n\n".join(all_outputs),
             artifacts=[a.model_dump() for a in self._artifacts],
-            metadata={"agent": self.name, "tenant_id": context.tenant_id},
+            metadata={
+                "agent": self.name,
+                "tenant_id": context.tenant_id,
+                "input_tokens": self._input_tokens,
+                "output_tokens": self._output_tokens,
+            },
             created_entities=[e.model_dump() for e in self._created_entities],
             state="complete",
             completion=completion.model_dump(),
