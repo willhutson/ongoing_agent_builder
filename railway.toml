@@ -1,6 +1,7 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "modules/Dockerfile.combined"
+watchPatterns = ["modules/**"]
 
 [deploy]
 healthcheckPath = "/health"

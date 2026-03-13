@@ -1,0 +1,37 @@
+# SpokeStack Combined — All 46 agents in one container.
+# Simplest deployment: one service, one port.
+#
+# From repo root (Railway):  docker build -f modules/Dockerfile.combined .
+# From modules/ dir:         docker build -f Dockerfile.combined .
+
+FROM python:3.11-slim
+
+RUN useradd --create-home spokestack
+WORKDIR /app
+
+# Install deps — Railway builds from repo root, so use modules/ prefix
+COPY modules/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy all module code
+COPY modules/shared/ ./shared/
+COPY modules/foundation/ ./foundation/
+COPY modules/studio/ ./studio/
+COPY modules/brand/ ./brand/
+COPY modules/research/ ./research/
+COPY modules/strategy/ ./strategy/
+COPY modules/operations/ ./operations/
+COPY modules/client/ ./client/
+COPY modules/distribution/ ./distribution/
+COPY modules/mission-control/ ./mission-control/
+COPY modules/combined.py .
+
+ENV PYTHONUNBUFFERED=1
+
+USER spokestack
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import httpx,os; httpx.get(f'http://localhost:{os.environ.get(\"PORT\",8000)}/health')" || exit 1
+
+# Railway sets PORT; fallback to 8000
+CMD ["sh", "-c", "python -m uvicorn combined:app --host 0.0.0.0 --port ${PORT:-8000}"]
