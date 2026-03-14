@@ -6,11 +6,11 @@ and design generation tools. This is a cost-effective way to improve
 generation quality without wasting expensive API calls on bad prompts.
 """
 
-import anthropic
 from enum import Enum
 from dataclasses import dataclass
 from typing import Optional
 from ..config import get_settings
+from .openrouter import OpenRouterClient
 
 
 class PromptType(str, Enum):
@@ -212,14 +212,13 @@ Audio: Upbeat electronic track, builds through shots 1-4, softens for 5-6""",
 
 
 class PromptAssistant:
-    """Service for helping users craft better prompts using Claude Sonnet."""
+    """Service for helping users craft better prompts using Claude Sonnet via OpenRouter."""
 
-    # Using Sonnet for cost-effectiveness
-    MODEL = "claude-sonnet-4-20250514"
+    MODEL = "anthropic/claude-sonnet-4-20250514"
 
     def __init__(self):
         settings = get_settings()
-        self.client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self.client = OpenRouterClient(api_key=settings.openrouter_api_key)
 
     async def enhance_prompt(
         self,
@@ -244,27 +243,23 @@ class PromptAssistant:
         if not template:
             raise ValueError(f"Unknown prompt type: {prompt_type}")
 
-        # Build the system prompt with optional brand guidelines
         system = template.system_prompt
         if brand_guidelines:
             system += f"\n\nBrand Guidelines to follow:\n{brand_guidelines}"
 
-        # Build the user message
         user_message = f"User's idea: {user_input}"
         if context:
             user_message += f"\n\nAdditional context: {context}"
 
-        # Call Claude Sonnet
-        response = self.client.messages.create(
+        response = await self.client.chat(
             model=self.MODEL,
-            max_tokens=1024,
+            messages=[{"role": "user", "content": user_message}],
             system=system,
-            messages=[
-                {"role": "user", "content": user_message}
-            ]
+            max_tokens=1024,
         )
 
-        enhanced_prompt = response.content[0].text
+        enhanced_prompt = response["choices"][0]["message"]["content"]
+        usage = response.get("usage", {})
 
         return {
             "original_input": user_input,
@@ -272,8 +267,8 @@ class PromptAssistant:
             "prompt_type": prompt_type.value,
             "model_used": self.MODEL,
             "tokens_used": {
-                "input": response.usage.input_tokens,
-                "output": response.usage.output_tokens,
+                "input": usage.get("prompt_tokens", 0),
+                "output": usage.get("completion_tokens", 0),
             }
         }
 
@@ -312,28 +307,23 @@ VARIATION 2:
 
 etc."""
 
-        response = self.client.messages.create(
+        response = await self.client.chat(
             model=self.MODEL,
-            max_tokens=2048,
+            messages=[{"role": "user", "content": f"User's idea: {user_input}"}],
             system=system,
-            messages=[
-                {"role": "user", "content": f"User's idea: {user_input}"}
-            ]
+            max_tokens=2048,
         )
 
-        # Parse variations from response
-        raw_text = response.content[0].text
+        raw_text = response["choices"][0]["message"]["content"]
+        usage = response.get("usage", {})
         variations = []
 
-        # Split by variation markers
         parts = raw_text.split("VARIATION")
-        for part in parts[1:]:  # Skip empty first part
-            # Extract the prompt after the number and colon
+        for part in parts[1:]:
             lines = part.strip().split("\n", 1)
             if len(lines) > 1:
                 variations.append(lines[1].strip())
             elif lines:
-                # Handle case where prompt is on same line
                 prompt = lines[0].split(":", 1)[-1].strip()
                 if prompt:
                     variations.append(prompt)
@@ -344,8 +334,8 @@ etc."""
             "prompt_type": prompt_type.value,
             "model_used": self.MODEL,
             "tokens_used": {
-                "input": response.usage.input_tokens,
-                "output": response.usage.output_tokens,
+                "input": usage.get("prompt_tokens", 0),
+                "output": usage.get("completion_tokens", 0),
             }
         }
 

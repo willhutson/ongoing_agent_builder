@@ -3,11 +3,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
-import anthropic
 import uuid
 import asyncio
 
 from ..config import get_settings, ClaudeModelTier, CLAUDE_MODELS
+from ..services.openrouter import OpenRouterClient
 from ..services.task_store import save_task, get_task, update_task, task_exists, save_session, get_session, delete_session
 from ..services.model_registry import (
     get_model_for_agent,
@@ -177,7 +177,7 @@ class TaskStatus(BaseModel):
 def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None, vertical: str = None, region: str = None, model_override: ClaudeModelTier = None):
     """Factory to create agent instances with per-agent model selection."""
     settings = get_settings()
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = OpenRouterClient(api_key=settings.openrouter_api_key)
 
     # Get the appropriate model for this specific agent
     agent_name = f"{agent_type.value}_agent"

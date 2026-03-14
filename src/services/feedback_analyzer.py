@@ -13,9 +13,9 @@ from uuid import UUID
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-import anthropic
 
 from ..config import get_settings
+from .openrouter import OpenRouterClient
 from ..db.models import (
     AgentOutputFeedback,
     ClientTuningConfig,
@@ -36,14 +36,14 @@ class FeedbackAnalyzer:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.settings = get_settings()
-        self._client: Optional[anthropic.AsyncAnthropic] = None
+        self._client: Optional[OpenRouterClient] = None
 
     @property
-    def client(self) -> anthropic.AsyncAnthropic:
-        """Lazy-initialize Anthropic client."""
+    def client(self) -> OpenRouterClient:
+        """Lazy-initialize OpenRouter client."""
         if self._client is None:
-            self._client = anthropic.AsyncAnthropic(
-                api_key=self.settings.anthropic_api_key
+            self._client = OpenRouterClient(
+                api_key=self.settings.openrouter_api_key
             )
         return self._client
 
@@ -192,27 +192,27 @@ Respond in JSON format:
     "summary": "Brief description of the correction"
 }}"""
 
-        response = await self.client.messages.create(
-            model="claude-sonnet-4-20250514",  # Use faster model for analysis
-            max_tokens=1024,
+        response = await self.client.chat(
+            model="anthropic/claude-sonnet-4-20250514",
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
         )
 
         # Parse response
         try:
-            content = response.content[0].text
+            content = response["choices"][0]["message"]["content"]
             # Extract JSON from response
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0]
             return json.loads(content)
-        except (json.JSONDecodeError, IndexError):
+        except (json.JSONDecodeError, IndexError, KeyError):
             return {
                 "issue_type": "unknown",
                 "patterns": [],
                 "summary": "Could not parse analysis",
-                "raw_response": response.content[0].text,
+                "raw_response": content if isinstance(content, str) else str(response),
             }
 
     async def _analyze_rejection(self, feedback: AgentOutputFeedback) -> dict:
@@ -236,20 +236,20 @@ Respond in JSON format:
     "summary": "Brief description of why it was rejected"
 }}"""
 
-        response = await self.client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1024,
+        response = await self.client.chat(
+            model="anthropic/claude-sonnet-4-20250514",
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
         )
 
         try:
-            content = response.content[0].text
+            content = response["choices"][0]["message"]["content"]
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0]
             return json.loads(content)
-        except (json.JSONDecodeError, IndexError):
+        except (json.JSONDecodeError, IndexError, KeyError):
             return {
                 "issue_type": "unknown",
                 "patterns": [],
@@ -273,20 +273,20 @@ Respond in JSON format:
     "summary": "Brief description of what worked well"
 }}"""
 
-        response = await self.client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1024,
+        response = await self.client.chat(
+            model="anthropic/claude-sonnet-4-20250514",
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=1024,
         )
 
         try:
-            content = response.content[0].text
+            content = response["choices"][0]["message"]["content"]
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0]
             elif "```" in content:
                 content = content.split("```")[1].split("```")[0]
             return json.loads(content)
-        except (json.JSONDecodeError, IndexError):
+        except (json.JSONDecodeError, IndexError, KeyError):
             return {
                 "patterns": [],
                 "summary": "Could not parse analysis",

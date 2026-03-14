@@ -10,7 +10,6 @@ Assembles agents at runtime by:
 
 from typing import Optional, Type, Any
 from uuid import UUID
-import anthropic
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -58,6 +57,7 @@ from ..agents import (
     # Meta
     PromptHelperAgent,
 )
+from .openrouter import OpenRouterClient
 from .prompt_assembler import PromptAssembler
 from .skill_executor import SkillExecutor
 
@@ -207,7 +207,7 @@ class AgentFactory:
 
         # Create the agent
         agent_class = AGENT_REGISTRY[agent_type]
-        client = anthropic.AsyncAnthropic(api_key=self.settings.anthropic_api_key)
+        client = OpenRouterClient(api_key=self.settings.openrouter_api_key)
 
         # Build kwargs with overrides
         agent_kwargs = {

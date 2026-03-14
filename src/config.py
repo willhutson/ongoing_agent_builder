@@ -20,9 +20,14 @@ CLAUDE_MODELS = {
 
 
 class Settings(BaseSettings):
-    # Claude (Primary LLM)
-    anthropic_api_key: str = ""
+    # OpenRouter (Primary — all LLM calls route through OpenRouter)
+    openrouter_api_key: str = ""
+
+    # Claude model selection (OpenRouter auto-prefixes with anthropic/)
     claude_model: str = "claude-sonnet-4-20250514"  # Default to Sonnet for balance
+
+    # Legacy — no longer used for API calls, kept for backwards compat
+    anthropic_api_key: str = ""
 
     # Model tier overrides (allows forcing all agents to use a specific tier)
     force_model_tier: Optional[str] = None  # "opus", "sonnet", "haiku", or None
