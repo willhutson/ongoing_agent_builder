@@ -57,8 +57,8 @@ USER spokestack
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8000/health')" || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python -c "import os,httpx; httpx.get(f'http://localhost:{os.environ.get(\"PORT\",8000)}/health', timeout=5)" || exit 1
 
 # Run the application
 # Railway sets PORT env var; fall back to 8000 for local dev
