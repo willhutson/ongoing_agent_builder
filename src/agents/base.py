@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 from uuid import uuid4
 import asyncio
 import json
-import anthropic
 
+from ..services.openrouter import OpenRouterClient
 from ..protocols.state import AgentState, AgentStateUpdate, StateProgress, StateCompletion, StateError
 from ..protocols.work import (
     AgentWorkState, AgentWorkModule, AgentAction, AgentActionType,
@@ -82,7 +82,7 @@ class BaseAgent(ABC):
     - Artifact creation and streaming
     """
 
-    def __init__(self, client: anthropic.AsyncAnthropic, model: str,
+    def __init__(self, client: OpenRouterClient, model: str,
                  erp_base_url: str = "", erp_api_key: str = ""):
         self.client = client
         self.model = model
@@ -307,47 +307,62 @@ class BaseAgent(ABC):
         all_outputs = []
 
         while True:
-            # THINK: Get Claude's response
-            response = await self.client.messages.create(
+            # THINK: Get response via OpenRouter
+            response = await self.client.chat(
                 model=self.model,
-                max_tokens=4096,
+                messages=messages,
                 system=self._build_system_prompt(context),
                 tools=self.tools,
-                messages=messages,
+                max_tokens=4096,
             )
 
-            # Track token usage from API response
-            if hasattr(response, "usage") and response.usage:
-                self._input_tokens += getattr(response.usage, "input_tokens", 0)
-                self._output_tokens += getattr(response.usage, "output_tokens", 0)
+            # Track token usage
+            usage = response.get("usage", {})
+            self._input_tokens += usage.get("prompt_tokens", 0)
+            self._output_tokens += usage.get("completion_tokens", 0)
 
-            # Check if we're done (no more tool calls)
-            if response.stop_reason == "end_turn":
-                final_text = self._extract_text(response)
-                all_outputs.append(final_text)
+            choice = response["choices"][0]
+            message = choice["message"]
+            finish_reason = choice.get("finish_reason", "stop")
+
+            # Check if we're done (no tool calls)
+            tool_calls = message.get("tool_calls", [])
+            text_content = message.get("content", "") or ""
+
+            if not tool_calls:
+                if text_content:
+                    all_outputs.append(text_content)
                 break
 
+            # Capture any text before tool calls
+            if text_content:
+                all_outputs.append(text_content)
+
             # ACT: Process tool calls -> transition to WORKING
-            assistant_content = response.content
-            messages.append({"role": "assistant", "content": assistant_content})
+            messages.append({
+                "role": "assistant",
+                "content": text_content,
+                "tool_calls": tool_calls,
+            })
 
-            tool_results = []
-            for block in assistant_content:
-                if block.type == "tool_use":
-                    # Transition to WORKING on first tool call
-                    if self._state != AgentState.WORKING:
-                        await self._set_state(AgentState.WORKING, context)
-                    result = await self._execute_tool(block.name, block.input)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": str(result),
-                    })
-                elif block.type == "text":
-                    all_outputs.append(block.text)
+            for tc in tool_calls:
+                func = tc.get("function", {})
+                tool_name = func.get("name", "")
+                try:
+                    tool_input = json.loads(func.get("arguments", "{}"))
+                except json.JSONDecodeError:
+                    tool_input = {}
 
-            if tool_results:
-                messages.append({"role": "user", "content": tool_results})
+                # Transition to WORKING on first tool call
+                if self._state != AgentState.WORKING:
+                    await self._set_state(AgentState.WORKING, context)
+
+                result = await self._execute_tool(tool_name, tool_input)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": str(result),
+                })
 
         # COMPLETE
         completion = StateCompletion(
@@ -392,40 +407,68 @@ class BaseAgent(ABC):
         messages = [self._build_user_message(context)]
 
         while True:
-            async with self.client.messages.stream(
+            # Accumulate the full response from streaming chunks
+            full_text = ""
+            tool_calls_accum: dict[int, dict] = {}  # index -> {id, function: {name, arguments}}
+
+            async for chunk in self.client.stream(
                 model=self.model,
-                max_tokens=4096,
+                messages=messages,
                 system=self._build_system_prompt(context),
                 tools=self.tools,
-                messages=messages,
-            ) as stream:
-                async for event in stream:
-                    if hasattr(event, "type"):
-                        if event.type == "content_block_delta":
-                            if hasattr(event.delta, "text"):
-                                yield f"data: {json.dumps({'type': 'message:stream', 'text': event.delta.text})}\n\n"
+                max_tokens=4096,
+            ):
+                choices = chunk.get("choices", [])
+                if not choices:
+                    continue
+                delta = choices[0].get("delta", {})
 
-                response = await stream.get_final_message()
+                # Stream text content
+                if delta.get("content"):
+                    full_text += delta["content"]
+                    yield f"data: {json.dumps({'type': 'message:stream', 'text': delta['content']})}\n\n"
 
-            if response.stop_reason == "end_turn":
+                # Accumulate tool calls from deltas
+                for tc_delta in delta.get("tool_calls", []):
+                    idx = tc_delta.get("index", 0)
+                    if idx not in tool_calls_accum:
+                        tool_calls_accum[idx] = {
+                            "id": tc_delta.get("id", ""),
+                            "type": "function",
+                            "function": {"name": "", "arguments": ""},
+                        }
+                    if tc_delta.get("id"):
+                        tool_calls_accum[idx]["id"] = tc_delta["id"]
+                    func_delta = tc_delta.get("function", {})
+                    if func_delta.get("name"):
+                        tool_calls_accum[idx]["function"]["name"] = func_delta["name"]
+                    if func_delta.get("arguments"):
+                        tool_calls_accum[idx]["function"]["arguments"] += func_delta["arguments"]
+
+            # No tool calls — we're done
+            if not tool_calls_accum:
                 break
 
             # Handle tool calls
-            assistant_content = response.content
-            messages.append({"role": "assistant", "content": assistant_content})
+            tool_calls = [tool_calls_accum[i] for i in sorted(tool_calls_accum)]
+            messages.append({
+                "role": "assistant",
+                "content": full_text,
+                "tool_calls": tool_calls,
+            })
 
-            tool_results = []
-            for block in assistant_content:
-                if block.type == "tool_use":
-                    result = await self._execute_tool(block.name, block.input)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": str(result),
-                    })
-
-            if tool_results:
-                messages.append({"role": "user", "content": tool_results})
+            for tc in tool_calls:
+                func = tc.get("function", {})
+                try:
+                    tool_input = json.loads(func.get("arguments", "{}"))
+                except json.JSONDecodeError:
+                    tool_input = {}
+                result = await self._execute_tool(func.get("name", ""), tool_input)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": str(result),
+                })
 
         # Emit completion
         completion_event = AgentStateUpdate(
@@ -458,10 +501,9 @@ Follow the Think → Act → Create paradigm:
 3. CREATE: Synthesize findings into actionable output
 """
 
-    def _extract_text(self, response) -> str:
-        """Extract text content from response."""
-        texts = []
-        for block in response.content:
-            if hasattr(block, "text"):
-                texts.append(block.text)
-        return "\n".join(texts)
+    def _extract_text(self, response: dict) -> str:
+        """Extract text content from OpenRouter response dict."""
+        choices = response.get("choices", [])
+        if choices:
+            return choices[0].get("message", {}).get("content", "") or ""
+        return ""

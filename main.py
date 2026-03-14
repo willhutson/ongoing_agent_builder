@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+import asyncio
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,8 +32,11 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting SpokeStack Agent Service...")
     try:
-        await init_db()
+        async with asyncio.timeout(10):
+            await init_db()
         logger.info("Database initialized")
+    except TimeoutError:
+        logger.warning("Database init timed out after 10s — starting without DB")
     except Exception as e:
         logger.warning(f"Database init skipped (may not be configured): {e}")
 
@@ -165,10 +169,10 @@ async def health():
         checks["redis"] = "unavailable"
         overall = "degraded"
 
-    # Check Anthropic key is set
+    # Check OpenRouter key is set (primary LLM gateway)
     settings = get_settings()
-    checks["anthropic"] = "configured" if settings.anthropic_api_key else "missing"
-    if not settings.anthropic_api_key:
+    checks["openrouter"] = "configured" if settings.openrouter_api_key else "missing"
+    if not settings.openrouter_api_key:
         overall = "unhealthy"
 
     return {

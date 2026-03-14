@@ -526,16 +526,16 @@ async def health_check():
     providers = []
     overall_status = "healthy"
 
-    # Check Anthropic (primary)
-    anthropic_healthy = bool(settings.anthropic_api_key)
+    # Check OpenRouter (primary LLM gateway)
+    openrouter_healthy = bool(settings.openrouter_api_key)
     providers.append(ProviderHealth(
-        provider="anthropic",
-        status="healthy" if anthropic_healthy else "unavailable",
-        latency_ms=50 if anthropic_healthy else None,  # Placeholder
+        provider="openrouter",
+        status="healthy" if openrouter_healthy else "unavailable",
+        latency_ms=50 if openrouter_healthy else None,  # Placeholder
         last_checked=datetime.utcnow().isoformat(),
     ))
 
-    if not anthropic_healthy:
+    if not openrouter_healthy:
         overall_status = "unhealthy"
 
     # Check external providers
