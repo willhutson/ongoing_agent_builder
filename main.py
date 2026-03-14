@@ -132,33 +132,37 @@ async def dashboard():
 @app.get("/health")
 async def health():
     """Health check endpoint for load balancers — verifies DB and Redis connectivity."""
+    import asyncio
+
     checks = {}
     overall = "healthy"
 
-    # Check database
+    # Check database (with 3s timeout so health check responds quickly)
     try:
         from src.db.session import engine as db_engine
         from sqlalchemy import text
-        async with db_engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))
+        async with asyncio.timeout(3):
+            async with db_engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
         checks["database"] = "connected"
-    except Exception as e:
-        checks["database"] = f"unavailable"
+    except Exception:
+        checks["database"] = "unavailable"
         overall = "degraded"
 
-    # Check Redis
+    # Check Redis (with 3s timeout)
     try:
         redis_url = os.environ.get("REDIS_URL", "")
         if redis_url:
             import redis.asyncio as aioredis
-            r = aioredis.from_url(redis_url, decode_responses=True)
-            await r.ping()
-            await r.aclose()
+            async with asyncio.timeout(3):
+                r = aioredis.from_url(redis_url, decode_responses=True)
+                await r.ping()
+                await r.aclose()
             checks["redis"] = "connected"
         else:
             checks["redis"] = "not_configured"
-    except Exception as e:
-        checks["redis"] = f"error: {str(e)[:80]}"
+    except Exception:
+        checks["redis"] = "unavailable"
         overall = "degraded"
 
     # Check Anthropic key is set
