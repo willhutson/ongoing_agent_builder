@@ -143,7 +143,8 @@ async def health():
 
     # Check database (with 3s timeout so health check responds quickly)
     try:
-        from src.db.session import engine as db_engine
+        from src.db.session import get_engine
+        db_engine = get_engine()
         from sqlalchemy import text
         async with asyncio.timeout(3):
             async with db_engine.connect() as conn:

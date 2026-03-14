@@ -5,10 +5,17 @@ Handles connection pooling and async sessions.
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
+import logging
 import os
 
 from ..config import get_settings
+
+logger = logging.getLogger(__name__)
+
+# Lazy engine — created on first use, not at import time
+_engine = None
+_session_factory = None
 
 
 def get_database_url() -> str:
@@ -39,24 +46,33 @@ def get_database_url() -> str:
     return f"postgresql+asyncpg://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
 
 
-# Create async engine with connection pooling
-engine = create_async_engine(
-    get_database_url(),
-    echo=os.getenv('DB_ECHO', 'false').lower() == 'true',
-    pool_size=20,
-    max_overflow=10,
-    pool_pre_ping=True,  # Verify connections before use
-    connect_args={"timeout": 5},  # Fail fast if DB unreachable (default 60s)
-)
+def get_engine():
+    """Get or create the async engine (lazy initialization)."""
+    global _engine
+    if _engine is None:
+        _engine = create_async_engine(
+            get_database_url(),
+            echo=os.getenv('DB_ECHO', 'false').lower() == 'true',
+            pool_size=20,
+            max_overflow=10,
+            pool_pre_ping=True,
+            connect_args={"timeout": 5},
+        )
+    return _engine
 
-# Session factory
-SessionLocal = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
+
+def get_session_factory():
+    """Get or create the session factory (lazy initialization)."""
+    global _session_factory
+    if _session_factory is None:
+        _session_factory = async_sessionmaker(
+            get_engine(),
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autocommit=False,
+            autoflush=False,
+        )
+    return _session_factory
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -69,7 +85,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         async def list_instances(db: AsyncSession = Depends(get_db)):
             ...
     """
-    async with SessionLocal() as session:
+    factory = get_session_factory()
+    async with factory() as session:
         try:
             yield session
             await session.commit()
@@ -87,7 +104,8 @@ async def init_db():
     """
     from .models import Base
 
-    async with engine.begin() as conn:
+    eng = get_engine()
+    async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
@@ -96,4 +114,5 @@ async def close_db():
     Close database connections.
     Called on application shutdown.
     """
-    await engine.dispose()
+    if _engine is not None:
+        await _engine.dispose()

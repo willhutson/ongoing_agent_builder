@@ -11,7 +11,7 @@ from .models import (
     AgentOutputFeedback,
     TuningAuditLog,
 )
-from .session import get_db, engine, SessionLocal
+from .session import get_db, get_engine, get_session_factory
 
 __all__ = [
     "Base",
@@ -25,6 +25,6 @@ __all__ = [
     "AgentOutputFeedback",
     "TuningAuditLog",
     "get_db",
-    "engine",
-    "SessionLocal",
+    "get_engine",
+    "get_session_factory",
 ]
