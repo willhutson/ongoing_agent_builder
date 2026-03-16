@@ -67,13 +67,17 @@ app = FastAPI(
     dependencies=[Security(api_key_header)],
 )
 
-# CORS — locked to SpokeStack domains
+# CORS — locked to SpokeStack domains (including all *.spokestack.app subdomains)
 _cors_origins = [
     "https://spokestack.app",
     "https://www.spokestack.app",
     "https://spokestack.com",
     "https://www.spokestack.com",
 ]
+# Add all module subdomains from the registry
+from src.services.module_registry import MODULE_REGISTRY
+for subdomain in MODULE_REGISTRY:
+    _cors_origins.append(f"https://{subdomain}.spokestack.app")
 # Allow extra origins via env (comma-separated) for staging/dev
 _extra_origins = os.environ.get("CORS_EXTRA_ORIGINS", "")
 if _extra_origins:

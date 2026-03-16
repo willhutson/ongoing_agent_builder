@@ -44,6 +44,10 @@ class AgentContext:
     project_id: Optional[str] = None
     session_id: Optional[str] = None
 
+    # Module context (subdomain architecture)
+    module_subdomain: Optional[str] = None
+    module_display_name: Optional[str] = None
+
     # Attachments (vision support, spec Section 11.8)
     attachments: list[dict] = field(default_factory=list)
 
@@ -485,13 +489,17 @@ class BaseAgent(ABC):
         yield completion_event.to_sse()
 
     def _build_system_prompt(self, context: AgentContext) -> str:
-        """Build system prompt with context."""
+        """Build system prompt with context including module scope."""
+        module_line = ""
+        if context.module_subdomain:
+            module_line = f"\n- Module: {context.module_display_name or context.module_subdomain} ({context.module_subdomain}.spokestack.app)"
+
         return f"""{self.system_prompt}
 
 ## Context
 - Tenant ID: {context.tenant_id}
 - User ID: {context.user_id}
-- Chat ID: {context.chat_id}
+- Chat ID: {context.chat_id}{module_line}
 - Additional context: {context.metadata}
 
 ## Approach

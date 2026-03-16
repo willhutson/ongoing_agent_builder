@@ -3,11 +3,17 @@ ERP Integration API - Endpoints for erp_staging_lmtd integration.
 
 Implements the contract defined in JAN_2026_ERP_TO_AGENT_BUILDER_HANDOFF.md:
 - POST /api/v1/agent/execute - Execute agents with ERP-resolved models
+- POST /api/v1/agent/stream - SSE streaming for Mission Control embedded chat
 - GET /api/health - Provider status with latency
+- GET /api/v1/modules - Module registry for subdomain architecture
 - Callback mechanism for result delivery
+
+Subdomain architecture: Each module subdomain (e.g., studio.spokestack.app)
+routes to module-scoped agents via X-Module-Subdomain header or context.moduleSubdomain.
 """
 
 from fastapi import APIRouter, HTTPException, Header, BackgroundTasks, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, Any
 from datetime import datetime
@@ -15,6 +21,7 @@ from enum import Enum
 import uuid
 import time
 import asyncio
+import json
 import httpx
 import hmac
 import hashlib
@@ -23,6 +30,10 @@ import logging
 from ..config import get_settings
 from ..services.model_registry import get_model_for_agent, get_agent_tier, AGENT_MODEL_RECOMMENDATIONS
 from ..services.external_llm_registry import get_configured_providers, get_provider_status
+from ..services.module_registry import (
+    MODULE_REGISTRY, get_module_config, get_available_agents,
+    resolve_agent_for_module, is_agent_allowed_for_module,
+)
 from ..services.task_store import save_task, get_task, update_task
 from ..agents.base import AgentContext
 from .routes import get_agent, AgentType
@@ -49,8 +60,12 @@ class AgentExecuteRequest(BaseModel):
 
     Note: ERP resolves tiers to models. Agent Builder uses the model sent directly.
     Field names match the ERP contract in JAN_2026_ERP_TO_AGENT_BUILDER_HANDOFF.md.
+
+    Module context: The ERP middleware sets x-module-subdomain header when requests
+    come from a module subdomain (e.g., studio.spokestack.app). This scopes agent
+    selection to module-appropriate agents. Can also be passed in context.moduleSubdomain.
     """
-    agent_type: str = Field(..., description="Agent type (one of 46 options)")
+    agent_type: Optional[str] = Field(default=None, description="Agent type — optional if module context provides a default")
     task: str = Field(..., description="Task/prompt text")
     llm_model: str = Field(..., alias="model", description="Resolved model name from ERP (e.g., claude-sonnet-4-20250514)")
     tier: ERPTier = Field(..., description="Tier designation for billing/tracking")
@@ -58,10 +73,11 @@ class AgentExecuteRequest(BaseModel):
     user_id: str = Field(..., description="User initiating the request")
     user_role: Optional[str] = Field(default=None, description="User permission level (e.g., ADMIN, MEMBER)")
     session_id: Optional[str] = Field(default=None, description="Session ID for conversation continuity")
-    context: Optional[dict] = Field(default_factory=dict, description="Additional context (moduleContext, clientId, projectId)")
+    context: Optional[dict] = Field(default_factory=dict, description="Additional context (moduleSubdomain, clientId, projectId)")
     metadata: Optional[dict] = Field(default_factory=dict, description="Optional additional metadata")
     callback_url: Optional[str] = Field(default=None, description="URL to PATCH results when complete")
     invocation_id: Optional[str] = Field(default=None, description="ERP invocation ID for callback")
+    stream: bool = Field(default=False, description="If true, return SSE stream instead of background task")
 
     model_config = {"populate_by_name": True}
 
@@ -328,17 +344,25 @@ async def execute_agent_with_callback(
         except ValueError:
             raise ValueError(f"Unknown agent type: {request.agent_type}")
 
-        # Create context
+        # Resolve module context
+        erp_context = request.context or {}
+        module_subdomain = erp_context.get("moduleSubdomain")
+
+        # Create context with module awareness
+        module_config = get_module_config(module_subdomain) if module_subdomain else None
         context = AgentContext(
             tenant_id=request.tenant_id,
             user_id=request.user_id,
             task=request.task,
+            module_subdomain=module_subdomain,
+            module_display_name=module_config.display_name if module_config else None,
             metadata={
                 "session_id": request.session_id,
-                "erp_context": request.context,
+                "erp_context": erp_context,
                 "erp_metadata": request.metadata,
                 "invocation_id": request.invocation_id,
                 "user_role": request.user_role,
+                "module_subdomain": module_subdomain,
             },
         )
 
@@ -415,47 +439,66 @@ async def execute_agent_with_callback(
 # API ENDPOINTS
 # =============================================================================
 
+def _resolve_module_subdomain(
+    request: AgentExecuteRequest,
+    header_subdomain: Optional[str],
+) -> Optional[str]:
+    """Extract module subdomain from header or request context."""
+    if header_subdomain:
+        return header_subdomain
+    ctx = request.context or {}
+    return ctx.get("moduleSubdomain")
+
+
 @router.post("/agent/execute", response_model=AgentExecuteResponse)
 async def execute_agent(
     request: AgentExecuteRequest,
     background_tasks: BackgroundTasks,
     x_organization_id: Optional[str] = Header(default=None, alias="X-Organization-Id"),
     x_request_id: Optional[str] = Header(default=None, alias="X-Request-Id"),
+    x_module_subdomain: Optional[str] = Header(default=None, alias="X-Module-Subdomain"),
 ):
     """
-    Execute an agent task.
+    Execute an agent task (module-aware).
 
     This endpoint accepts requests from erp_staging_lmtd with pre-resolved models.
     The ERP handles tier-to-model mapping; Agent Builder uses the provided model directly.
 
-    ## Request Headers (REQUIRED)
-    - X-API-Key: API key matching the ERP_API_KEY environment variable (required)
+    ## Module Routing
+    When called from a module subdomain (e.g., studio.spokestack.app), the ERP
+    middleware sets X-Module-Subdomain header. This scopes agent selection:
+    - If agent_type is omitted, the module's default agent is used.
+    - If agent_type is provided, it must be in the module's allowed list.
+    - If no module context, agent_type is required.
 
-    ## Optional Headers
-    - X-Organization-Id: Organization identifier (optional, can use tenant_id in body)
-    - X-Request-Id: Request tracking ID (optional)
+    ## Streaming (Mission Control)
+    Set `stream: true` to get an SSE response for the embedded Mission Control chat.
+    The stream emits state:update, message:stream, work events, and artifact events.
 
-    ## Request Body
-    - agent: One of 46 agent types
-    - task: The prompt/task for the agent
-    - model: Pre-resolved model name (e.g., claude-sonnet-4-20250514)
-    - tier: ERP tier (economy/standard/premium) for billing
-    - tenant_id: Organization ID
-    - user_id: User ID
-    - session_id: Optional session for conversation continuity
-    - context: Additional context object
-    - callback_url: URL to PATCH with results
-    - invocation_id: ERP invocation ID for callbacks
+    ## Request Headers
+    - X-API-Key: Required
+    - X-Organization-Id: Optional (can use tenant_id in body)
+    - X-Module-Subdomain: Optional (e.g., "studio", "crm", "briefs")
+    - X-Request-Id: Optional tracking ID
 
     ## Response
-    Returns execution_id immediately. Poll /agent/status/{execution_id} for results
-    or provide callback_url for async notification.
+    - stream=false: Returns execution_id. Poll /agent/status/{execution_id} for results.
+    - stream=true: Returns SSE event stream (text/event-stream).
     """
-    # Validate agent type
-    if request.agent_type not in AGENT_TIER_MAP:
+    # Resolve module subdomain from header or context
+    module_subdomain = _resolve_module_subdomain(request, x_module_subdomain)
+
+    # Resolve agent type using module context
+    try:
+        resolved_agent = resolve_agent_for_module(request.agent_type, module_subdomain)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Validate resolved agent type exists
+    if resolved_agent not in AGENT_TIER_MAP:
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown agent type: {request.agent_type}. Available: {list(AGENT_TIER_MAP.keys())}"
+            detail=f"Unknown agent type: {resolved_agent}. Available: {list(AGENT_TIER_MAP.keys())}"
         )
 
     # Use header org ID if provided, otherwise fall back to body
@@ -465,7 +508,65 @@ async def execute_agent(
     execution_id = x_request_id or str(uuid.uuid4())
     session_id = request.session_id or str(uuid.uuid4())
 
-    # Initialize task storage (Redis-backed)
+    # Build module-aware context
+    module_config = get_module_config(module_subdomain) if module_subdomain else None
+
+    # Handle SSE streaming for Mission Control embedded chat
+    if request.stream:
+        context = AgentContext(
+            tenant_id=request.tenant_id,
+            user_id=request.user_id,
+            task=request.task,
+            organization_id=org_id,
+            session_id=session_id,
+            module_subdomain=module_subdomain,
+            module_display_name=module_config.display_name if module_config else None,
+            metadata={
+                "session_id": session_id,
+                "erp_context": request.context or {},
+                "erp_metadata": request.metadata or {},
+                "invocation_id": request.invocation_id,
+                "user_role": request.user_role,
+                "module_subdomain": module_subdomain,
+            },
+        )
+
+        async def generate_sse():
+            try:
+                agent_type_enum = AgentType(resolved_agent)
+            except ValueError:
+                yield f"data: {json.dumps({'type': 'error', 'error': f'Unknown agent: {resolved_agent}'})}\n\n"
+                return
+
+            agent = get_agent(agent_type_enum)
+            if request.llm_model:
+                agent.model = request.llm_model
+
+            try:
+                async for chunk in agent.stream(context):
+                    yield chunk
+                yield "data: [DONE]\n\n"
+            except Exception as e:
+                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+            finally:
+                await agent.close()
+
+        return StreamingResponse(
+            generate_sse(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Chat-Id": session_id,
+                "X-Agent-Type": resolved_agent,
+                "X-Module-Subdomain": module_subdomain or "",
+            },
+        )
+
+    # Non-streaming: queue background task
+    # Patch the resolved agent type back onto the request for the background task
+    request.agent_type = resolved_agent
+
     await save_task(execution_id, {
         "status": "pending",
         "result": None,
@@ -473,9 +574,10 @@ async def execute_agent(
         "token_usage": None,
         "duration_ms": None,
         "session_id": session_id,
+        "module_subdomain": module_subdomain,
+        "agent_type": resolved_agent,
     })
 
-    # Queue background execution
     callback_service = get_callback_service()
     background_tasks.add_task(
         execute_agent_with_callback,
@@ -489,6 +591,8 @@ async def execute_agent(
         status="pending",
         is_complete=False,
         session_id=session_id,
+        message=f"Agent '{resolved_agent}' queued"
+            + (f" (module: {module_subdomain})" if module_subdomain else ""),
     )
 
 
@@ -753,3 +857,134 @@ def _get_example_task(agent_type: str) -> str:
         "copy": "Write social media copy for a luxury watch brand launching a new collection.",
     }
     return examples.get(agent_type, f"Execute {agent_type} task")
+
+
+# =============================================================================
+# MODULE REGISTRY ENDPOINTS (Subdomain Architecture)
+# =============================================================================
+
+@router.get("/modules")
+async def list_modules():
+    """
+    List all ERP module subdomains and their agent assignments.
+
+    Used by the ERP to discover which agents are available per module,
+    and by Mission Control to populate the agent selector dropdown.
+    """
+    modules = []
+    for subdomain, config in MODULE_REGISTRY.items():
+        modules.append({
+            "subdomain": config.subdomain,
+            "display_name": config.display_name,
+            "description": config.description,
+            "default_agent": config.default_agent,
+            "available_agents": config.available_agents,
+            "agent_count": len(config.available_agents),
+            "url": f"https://{config.subdomain}.spokestack.app",
+        })
+
+    return {
+        "modules": modules,
+        "total_modules": len(modules),
+    }
+
+
+@router.get("/modules/{subdomain}")
+async def get_module_details(subdomain: str):
+    """
+    Get agent configuration for a specific module subdomain.
+
+    Returns the default agent, available agents with their tiers,
+    and the module description.
+    """
+    config = get_module_config(subdomain)
+    if not config:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown module subdomain: {subdomain}. Available: {list(MODULE_REGISTRY.keys())}"
+        )
+
+    agents_with_tiers = []
+    for agent_type in config.available_agents:
+        tier = AGENT_TIER_MAP.get(agent_type, ERPTier.STANDARD)
+        agents_with_tiers.append({
+            "type": agent_type,
+            "tier": tier.value,
+            "model": TIER_TO_MODEL.get(tier),
+            "is_default": agent_type == config.default_agent,
+            "description": _get_agent_description(agent_type),
+        })
+
+    return {
+        "subdomain": config.subdomain,
+        "display_name": config.display_name,
+        "description": config.description,
+        "default_agent": config.default_agent,
+        "agents": agents_with_tiers,
+        "url": f"https://{config.subdomain}.spokestack.app",
+    }
+
+
+@router.get("/modules/{subdomain}/agents")
+async def get_module_agents(subdomain: str):
+    """
+    Get just the agent list for a module — lightweight endpoint for Mission Control
+    agent selector dropdown.
+    """
+    agents = get_available_agents(subdomain)
+    config = get_module_config(subdomain)
+    default = config.default_agent if config else agents[0] if agents else None
+
+    return {
+        "subdomain": subdomain,
+        "default_agent": default,
+        "agents": agents,
+    }
+
+
+# =============================================================================
+# PLATFORM SKILLS ENDPOINTS (Layer 2)
+# =============================================================================
+
+@router.get("/skills")
+async def list_skills():
+    """
+    List all Platform Skills (Layer 2).
+
+    Platform skills are universal capabilities available to all agents:
+    - brief_quality_scorer: Score briefs for completeness
+    - smart_assigner: Recommend optimal team assignments
+    - scope_creep_detector: Detect scope deviations
+    - timeline_estimator: Estimate project timelines
+
+    These encode 15+ years of agency expertise as reusable agent tools.
+    """
+    from ..skills.platform_skills import list_platform_skills, get_platform_skill_tools
+
+    skills = list_platform_skills()
+    return {
+        "skills": skills,
+        "total": len(skills),
+        "layer": "Layer 2 — Platform Skills",
+        "phase": "Phase 2",
+    }
+
+
+@router.get("/skills/{skill_name}")
+async def get_skill_detail(skill_name: str):
+    """
+    Get details for a specific platform skill, including its tool definition.
+    """
+    from ..skills.platform_skills import get_platform_skill
+
+    skill = get_platform_skill(skill_name)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Unknown skill: {skill_name}")
+
+    return {
+        "name": skill.name,
+        "display_name": skill.display_name,
+        "category": skill.category.value,
+        "description": skill.description,
+        "tool_definition": skill.tool_definition,
+    }
