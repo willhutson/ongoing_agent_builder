@@ -50,9 +50,9 @@ class AgentExecuteRequest(BaseModel):
     Note: ERP resolves tiers to models. Agent Builder uses the model sent directly.
     Field names match the ERP contract in JAN_2026_ERP_TO_AGENT_BUILDER_HANDOFF.md.
     """
-    agent_type: str = Field(..., alias="agent_type", description="Agent type (one of 46 options)")
+    agent_type: str = Field(..., description="Agent type (one of 46 options)")
     task: str = Field(..., description="Task/prompt text")
-    model: str = Field(..., description="Resolved model name from ERP (e.g., claude-sonnet-4-20250514)")
+    llm_model: str = Field(..., alias="model", description="Resolved model name from ERP (e.g., claude-sonnet-4-20250514)")
     tier: ERPTier = Field(..., description="Tier designation for billing/tracking")
     tenant_id: str = Field(..., description="Organization/tenant ID")
     user_id: str = Field(..., description="User initiating the request")
@@ -347,8 +347,8 @@ async def execute_agent_with_callback(
         agent = get_agent(agent_type)
 
         # Override model if ERP provided a specific one
-        if request.model:
-            agent.model = request.model
+        if request.llm_model:
+            agent.model = request.llm_model
 
         # Execute
         result = await agent.run(context)
