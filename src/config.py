@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from functools import lru_cache
 from typing import Optional
 from enum import Enum
@@ -96,6 +97,14 @@ class Settings(BaseSettings):
 
     # Service
     service_port: int = 8000
+
+    @field_validator("db_port", "service_port", mode="before")
+    @classmethod
+    def empty_str_to_default(cls, v, info):
+        if v == "":
+            defaults = {"db_port": 5432, "service_port": 8000}
+            return defaults.get(info.field_name, v)
+        return v
     log_level: str = "INFO"
 
     # Multi-tenant settings
