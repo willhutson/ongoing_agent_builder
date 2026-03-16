@@ -988,3 +988,166 @@ async def get_skill_detail(skill_name: str):
         "description": skill.description,
         "tool_definition": skill.tool_definition,
     }
+
+
+# =============================================================================
+# INSTANCE SKILLS (Layer 3) — Per-org custom skills (Phase 2+)
+# =============================================================================
+
+@router.get("/orgs/{organization_id}/skills")
+async def list_org_skills(organization_id: str):
+    """
+    List custom skills for an organization (Layer 3).
+
+    Phase 2+ feature: Organizations can define custom skills that encode
+    org-specific processes and expertise.
+    """
+    from ..skills.instance_skills import get_instance_skills
+
+    skills = await get_instance_skills(organization_id)
+    return {
+        "organization_id": organization_id,
+        "skills": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "display_name": s.display_name,
+                "description": s.description,
+                "status": s.status.value,
+                "allowed_agents": s.allowed_agents,
+                "version": s.version,
+            }
+            for s in skills
+        ],
+        "total": len(skills),
+        "layer": "Layer 3 — Instance Skills",
+    }
+
+
+@router.post("/orgs/{organization_id}/skills")
+async def create_org_skill(organization_id: str, body: dict):
+    """
+    Create a custom skill for an organization (Layer 3).
+
+    Required fields: name, display_name, description, system_prompt, tool_definition
+    Optional: allowed_agents (list of agent types that can use this skill)
+    """
+    from ..skills.instance_skills import InstanceSkill, InstanceSkillStatus, save_instance_skill
+
+    required = ["name", "display_name", "description", "system_prompt", "tool_definition"]
+    missing = [f for f in required if f not in body]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing required fields: {missing}")
+
+    skill = InstanceSkill(
+        id=str(uuid.uuid4()),
+        organization_id=organization_id,
+        name=body["name"],
+        display_name=body["display_name"],
+        description=body["description"],
+        system_prompt=body["system_prompt"],
+        tool_definition=body["tool_definition"],
+        allowed_agents=body.get("allowed_agents", []),
+        created_by=body.get("created_by"),
+        status=InstanceSkillStatus.DRAFT,
+    )
+
+    saved = await save_instance_skill(skill)
+    return {"id": saved.id, "status": saved.status.value, "message": "Skill created (draft)"}
+
+
+# =============================================================================
+# INSTANCE KNOWLEDGE (Layer 4) — Per-org context documents (Phase 2+)
+# =============================================================================
+
+@router.get("/orgs/{organization_id}/knowledge")
+async def list_org_knowledge(
+    organization_id: str,
+    category: Optional[str] = None,
+    agent_type: Optional[str] = None,
+    module: Optional[str] = None,
+):
+    """
+    List knowledge documents for an organization (Layer 4).
+
+    Phase 2+ feature: Organizations upload brand guides, process docs,
+    client preferences, etc. These are injected into agent context at runtime.
+    """
+    from ..knowledge.instance_knowledge import (
+        get_knowledge_documents, KnowledgeCategory,
+    )
+
+    cat = None
+    if category:
+        try:
+            cat = KnowledgeCategory(category)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid category: {category}. Valid: {[c.value for c in KnowledgeCategory]}"
+            )
+
+    docs = await get_knowledge_documents(
+        organization_id=organization_id,
+        category=cat,
+        agent_type=agent_type,
+        module_subdomain=module,
+    )
+
+    return {
+        "organization_id": organization_id,
+        "documents": [
+            {
+                "id": d.id,
+                "title": d.title,
+                "category": d.category.value,
+                "tags": d.tags,
+                "version": d.version,
+                "created_at": d.created_at,
+            }
+            for d in docs
+        ],
+        "total": len(docs),
+        "layer": "Layer 4 — Instance Knowledge",
+    }
+
+
+@router.post("/orgs/{organization_id}/knowledge")
+async def create_org_knowledge(organization_id: str, body: dict):
+    """
+    Upload a knowledge document for an organization (Layer 4).
+
+    Required fields: title, content, category
+    Optional: tags, allowed_agents, allowed_modules, created_by
+    """
+    from ..knowledge.instance_knowledge import (
+        KnowledgeDocument, KnowledgeCategory, save_knowledge_document,
+    )
+
+    required = ["title", "content", "category"]
+    missing = [f for f in required if f not in body]
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing required fields: {missing}")
+
+    try:
+        cat = KnowledgeCategory(body["category"])
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid category: {body['category']}. Valid: {[c.value for c in KnowledgeCategory]}"
+        )
+
+    doc = KnowledgeDocument(
+        id=str(uuid.uuid4()),
+        organization_id=organization_id,
+        title=body["title"],
+        content=body["content"],
+        category=cat,
+        tags=body.get("tags", []),
+        allowed_agents=body.get("allowed_agents", []),
+        allowed_modules=body.get("allowed_modules", []),
+        created_by=body.get("created_by"),
+    )
+
+    saved = await save_knowledge_document(doc)
+    return {"id": saved.id, "title": saved.title, "message": "Knowledge document saved"}
