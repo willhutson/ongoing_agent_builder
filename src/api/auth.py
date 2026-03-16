@@ -4,17 +4,23 @@ API Authentication Middleware
 Validates requests using API key or ERP callback signature.
 - Public endpoints (health, docs) are excluded.
 - All /api/v1/* endpoints require a valid API key via X-API-Key header
-  or a valid ERP callback HMAC signature via X-Signature header.
+  or a valid ERP webhook signature via X-Webhook-Signature header.
 """
 
 import hmac
 import hashlib
+import json
 import os
 import logging
-from fastapi import Request, HTTPException
+from fastapi import Request, Security
+from fastapi.security import APIKeyHeader
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
+
+# OpenAPI security scheme — adds "Authorize" button to Swagger UI
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 # Paths that don't require authentication
 PUBLIC_PATHS = {
@@ -52,14 +58,15 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         if api_key and expected_key and hmac.compare_digest(api_key, expected_key):
             return await call_next(request)
 
-        # Check ERP callback HMAC signature
-        signature = request.headers.get("X-Signature")
+        # Check ERP webhook HMAC signature
+        signature = request.headers.get("X-Webhook-Signature")
         callback_secret = os.environ.get("ERP_CALLBACK_SECRET", "")
         if signature and callback_secret:
-            # Signature is validated per-request in the callback handler
-            # Here we just verify the header is present with a valid secret configured
             return await call_next(request)
 
-        # No valid auth — reject
+        # No valid auth — return 401 (not raise, to avoid Starlette middleware bug)
         logger.warning(f"Unauthorized request to {path} from {request.client.host}")
-        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Missing or invalid API key"},
+        )

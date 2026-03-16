@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 import asyncio
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 import uvicorn
@@ -13,7 +13,7 @@ from src.api.multi_tenant import router as multi_tenant_router
 from src.api.erp_integration import router as erp_router
 from src.api.chat_sessions import router as chat_sessions_router
 from src.api.websocket import router as websocket_router
-from src.api.auth import APIKeyAuthMiddleware
+from src.api.auth import APIKeyAuthMiddleware, api_key_header
 from src.api.rate_limit import RateLimitMiddleware
 from src.config import get_settings
 from src.db.session import init_db, close_db
@@ -57,12 +57,14 @@ app = FastAPI(
         "- Artifact creation and streaming\n"
         "- WebSocket real-time events\n"
         "- SpokeStack tool definitions\n"
-        "- Vision/attachment support"
+        "- Vision/attachment support\n\n"
+        "**Authentication:** Click the Authorize button and enter your API key."
     ),
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
+    dependencies=[Security(api_key_header)],
 )
 
 # CORS — locked to SpokeStack domains
