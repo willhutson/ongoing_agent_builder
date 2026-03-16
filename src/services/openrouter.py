@@ -18,6 +18,22 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Map Anthropic model IDs (with date suffixes) to OpenRouter model IDs
+OPENROUTER_MODEL_MAP = {
+    # Sonnet
+    "claude-sonnet-4-20250514": "anthropic/claude-sonnet-4",
+    "claude-sonnet-4.5": "anthropic/claude-sonnet-4.5",
+    "claude-sonnet-4.6": "anthropic/claude-sonnet-4.6",
+    # Opus
+    "claude-opus-4-20250514": "anthropic/claude-opus-4",
+    "claude-opus-4-5-20250514": "anthropic/claude-opus-4.5",
+    "claude-opus-4.6": "anthropic/claude-opus-4.6",
+    # Haiku
+    "claude-3-5-haiku-20241022": "anthropic/claude-3.5-haiku",
+    "claude-haiku-3-5-20241022": "anthropic/claude-3.5-haiku",
+    "claude-haiku-4.5": "anthropic/claude-haiku-4.5",
+}
+
 # Models that need the anthropic/ prefix on OpenRouter
 ANTHROPIC_MODEL_PREFIXES = (
     "claude-opus-",
@@ -29,9 +45,14 @@ ANTHROPIC_MODEL_PREFIXES = (
 
 
 def ensure_openrouter_model(model: str) -> str:
-    """Prefix bare Claude model names with 'anthropic/' for OpenRouter."""
+    """Map Anthropic model names to OpenRouter model IDs."""
+    # Check explicit mapping first (handles date-suffixed names)
+    if model in OPENROUTER_MODEL_MAP:
+        return OPENROUTER_MODEL_MAP[model]
+    # Already has provider prefix
     if "/" in model:
-        return model  # Already has provider prefix
+        return model
+    # Fallback: add anthropic/ prefix
     for prefix in ANTHROPIC_MODEL_PREFIXES:
         if model.startswith(prefix):
             return f"anthropic/{model}"
