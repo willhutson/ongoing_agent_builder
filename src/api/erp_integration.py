@@ -48,17 +48,22 @@ class AgentExecuteRequest(BaseModel):
     Request schema for POST /api/v1/agent/execute
 
     Note: ERP resolves tiers to models. Agent Builder uses the model sent directly.
+    Field names match the ERP contract in JAN_2026_ERP_TO_AGENT_BUILDER_HANDOFF.md.
     """
-    agent: str = Field(..., description="Agent type (one of 46 options)")
+    agent_type: str = Field(..., alias="agent_type", description="Agent type (one of 46 options)")
     task: str = Field(..., description="Task/prompt text")
     model: str = Field(..., description="Resolved model name from ERP (e.g., claude-sonnet-4-20250514)")
     tier: ERPTier = Field(..., description="Tier designation for billing/tracking")
     tenant_id: str = Field(..., description="Organization/tenant ID")
     user_id: str = Field(..., description="User initiating the request")
+    user_role: Optional[str] = Field(default=None, description="User permission level (e.g., ADMIN, MEMBER)")
     session_id: Optional[str] = Field(default=None, description="Session ID for conversation continuity")
-    context: Optional[dict] = Field(default_factory=dict, description="Additional context")
-    callback_url: Optional[str] = Field(default=None, description="URL to POST results when complete")
+    context: Optional[dict] = Field(default_factory=dict, description="Additional context (moduleContext, clientId, projectId)")
+    metadata: Optional[dict] = Field(default_factory=dict, description="Optional additional metadata")
+    callback_url: Optional[str] = Field(default=None, description="URL to PATCH results when complete")
     invocation_id: Optional[str] = Field(default=None, description="ERP invocation ID for callback")
+
+    model_config = {"populate_by_name": True}
 
 
 class TokenUsage(BaseModel):
@@ -71,12 +76,17 @@ class TokenUsage(BaseModel):
 class AgentExecuteResponse(BaseModel):
     """
     Response schema for POST /api/v1/agent/execute
+    Matches ERP handoff spec fields: output, structured_output, session_id, is_complete, usage.
     """
     execution_id: str
     status: str  # pending, running, completed, failed
     output: Optional[str] = None
+    message: Optional[str] = None  # Alternative to output
+    structured_output: Optional[dict] = None  # Structured data from agent
     result: Optional[dict] = None
+    is_complete: bool = False  # Whether task is complete
     token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    usage: Optional[dict] = None  # ERP-format usage: {input_tokens, output_tokens}
     session_id: Optional[str] = None
     duration_ms: Optional[int] = None
     error: Optional[str] = None
@@ -235,17 +245,13 @@ class ERPCallbackService:
     ) -> bool:
         """Send execution result to ERP callback URL with exponential backoff retry."""
         payload = {
-            "invocation_id": invocation_id,
-            "status": status,
-            "output": output,
-            "token_usage": {
-                "input_tokens": token_usage.input_tokens,
-                "output_tokens": token_usage.output_tokens,
-                "total_tokens": token_usage.total_tokens,
-            },
-            "duration_ms": duration_ms,
+            "status": "COMPLETED" if status == "completed" else "FAILED",
+            "output": {"text": output} if output else None,
+            "inputTokens": token_usage.input_tokens,
+            "outputTokens": token_usage.output_tokens,
+            "totalTokens": token_usage.total_tokens,
+            "durationMs": duration_ms,
             "error": error,
-            "completed_at": datetime.utcnow().isoformat(),
         }
 
         import json
@@ -253,7 +259,7 @@ class ERPCallbackService:
         signature = self._generate_signature(payload_str)
 
         headers = {
-            "X-Signature": signature,
+            "X-Webhook-Signature": f"v1={signature}",
             "Content-Type": "application/json",
         }
 
@@ -318,9 +324,9 @@ async def execute_agent_with_callback(
     try:
         # Map string agent type to enum
         try:
-            agent_type = AgentType(request.agent)
+            agent_type = AgentType(request.agent_type)
         except ValueError:
-            raise ValueError(f"Unknown agent type: {request.agent}")
+            raise ValueError(f"Unknown agent type: {request.agent_type}")
 
         # Create context
         context = AgentContext(
@@ -330,7 +336,9 @@ async def execute_agent_with_callback(
             metadata={
                 "session_id": request.session_id,
                 "erp_context": request.context,
+                "erp_metadata": request.metadata,
                 "invocation_id": request.invocation_id,
+                "user_role": request.user_role,
             },
         )
 
@@ -444,10 +452,10 @@ async def execute_agent(
     or provide callback_url for async notification.
     """
     # Validate agent type
-    if request.agent not in AGENT_TIER_MAP:
+    if request.agent_type not in AGENT_TIER_MAP:
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown agent type: {request.agent}. Available: {list(AGENT_TIER_MAP.keys())}"
+            detail=f"Unknown agent type: {request.agent_type}. Available: {list(AGENT_TIER_MAP.keys())}"
         )
 
     # Use header org ID if provided, otherwise fall back to body
@@ -479,6 +487,7 @@ async def execute_agent(
     return AgentExecuteResponse(
         execution_id=execution_id,
         status="pending",
+        is_complete=False,
         session_id=session_id,
     )
 
@@ -498,12 +507,18 @@ async def get_execution_status(execution_id: str):
     if task.get("token_usage"):
         token_usage = TokenUsage(**task["token_usage"])
 
+    result_data = task.get("result") or {}
+    is_done = task["status"] in ("completed", "failed")
+
     return AgentExecuteResponse(
         execution_id=execution_id,
         status=task["status"],
-        output=task.get("result", {}).get("output") if task.get("result") else None,
-        result=task.get("result"),
+        output=result_data.get("output") if result_data else None,
+        structured_output=result_data.get("artifacts") if result_data else None,
+        result=result_data or None,
+        is_complete=is_done,
         token_usage=token_usage,
+        usage={"input_tokens": token_usage.input_tokens, "output_tokens": token_usage.output_tokens} if is_done else None,
         session_id=task.get("session_id"),
         duration_ms=task.get("duration_ms"),
         error=task.get("error"),
