@@ -52,8 +52,10 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Check X-API-Key header
-        api_key = request.headers.get("X-API-Key")
-        expected_key = os.environ.get("ERP_API_KEY", "")
+        api_key = (request.headers.get("X-API-Key") or "").strip()
+        expected_key = (os.environ.get("ERP_API_KEY") or "").strip()
+
+        logger.debug(f"Auth check: key_provided={bool(api_key)}, key_configured={bool(expected_key)}, key_len={len(api_key)}/{len(expected_key)}")
 
         if api_key and expected_key and hmac.compare_digest(api_key, expected_key):
             return await call_next(request)
