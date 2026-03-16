@@ -18,6 +18,7 @@ import asyncio
 import json
 
 from ..services.openrouter import OpenRouterClient
+from ..skills.platform_skills import get_platform_skill_tools, PLATFORM_SKILLS
 from ..protocols.state import AgentState, AgentStateUpdate, StateProgress, StateCompletion, StateError
 from ..protocols.work import (
     AgentWorkState, AgentWorkModule, AgentAction, AgentActionType,
@@ -86,13 +87,18 @@ class BaseAgent(ABC):
     - Artifact creation and streaming
     """
 
+    # Platform skill names for dispatch routing
+    _platform_skill_names: set[str] = set(PLATFORM_SKILLS.keys())
+
     def __init__(self, client: OpenRouterClient, model: str,
                  erp_base_url: str = "", erp_api_key: str = ""):
         self.client = client
         self.model = model
         self.erp_base_url = erp_base_url
         self.erp_api_key = erp_api_key
-        self.tools = self._define_tools()
+
+        # Merge agent-specific tools + platform skills (Layer 2)
+        self.tools = self._define_tools() + get_platform_skill_tools()
 
         # State tracking
         self._state = AgentState.IDLE
@@ -129,6 +135,83 @@ class BaseAgent(ABC):
     async def close(self) -> None:
         """Clean up resources."""
         pass
+
+    # ============================================
+    # Platform Skills (Layer 2)
+    # ============================================
+
+    async def _execute_platform_skill(
+        self, skill_name: str, skill_input: dict, context: AgentContext
+    ) -> str:
+        """
+        Execute a platform skill (Layer 2).
+
+        Platform skills are processed by sending the structured input to the LLM
+        with a skill-specific system prompt. The LLM applies agency expertise
+        encoded in the skill definition to produce structured output.
+
+        For skills that need ERP data (e.g., smart_assigner checking team availability),
+        the agent should fetch that data via its own tools first and include it in the
+        skill input.
+        """
+        import httpx
+
+        skill = PLATFORM_SKILLS.get(skill_name)
+        if not skill:
+            return json.dumps({"error": f"Unknown platform skill: {skill_name}"})
+
+        # Build a focused skill prompt
+        skill_prompts = {
+            "brief_quality_scorer": (
+                "You are a brief quality assessment expert with 15+ years in professional services agencies.\n"
+                "Score the following brief on a 0-100 scale.\n"
+                "Return a JSON object with: score (int), grade (A/B/C/D/F), "
+                "missing_fields (list), weak_areas (list of {field, issue, suggestion}), "
+                "strengths (list), and overall_feedback (string)."
+            ),
+            "smart_assigner": (
+                "You are a resource allocation expert for professional services agencies.\n"
+                "Given the task description and requirements, recommend optimal team member assignments.\n"
+                "Return a JSON object with: recommendations (list of {role, skills_needed, priority, "
+                "estimated_hours}), assignment_rationale (string), risk_factors (list), "
+                "and alternatives (list)."
+            ),
+            "scope_creep_detector": (
+                "You are a scope management expert who protects agency profitability.\n"
+                "Compare the current work against the original scope.\n"
+                "Return a JSON object with: risk_level (low/medium/high/critical), "
+                "deviations (list of {area, original, current, impact}), "
+                "estimated_cost_impact (string), recommended_actions (list), "
+                "and change_order_needed (bool)."
+            ),
+            "timeline_estimator": (
+                "You are a project timeline estimation expert for creative and professional services.\n"
+                "Estimate the project timeline with confidence intervals.\n"
+                "Return a JSON object with: estimated_days (int), confidence (low/medium/high), "
+                "range_optimistic_days (int), range_pessimistic_days (int), "
+                "phases (list of {name, days, dependencies}), risks (list), "
+                "and assumptions (list)."
+            ),
+        }
+
+        system_prompt = skill_prompts.get(skill_name, f"Execute the {skill_name} skill.")
+
+        # Use the agent's own LLM client to run the skill
+        try:
+            response = await self.client.chat(
+                model=self.model,
+                messages=[{"role": "user", "content": json.dumps(skill_input)}],
+                system=system_prompt,
+                max_tokens=2048,
+            )
+            # Track token usage from skill call
+            usage = response.get("usage", {})
+            self._input_tokens += usage.get("prompt_tokens", 0)
+            self._output_tokens += usage.get("completion_tokens", 0)
+
+            return self._extract_text(response) or json.dumps({"error": "Empty skill response"})
+        except Exception as e:
+            return json.dumps({"error": f"Platform skill '{skill_name}' failed: {str(e)}"})
 
     # ============================================
     # State Machine
@@ -361,7 +444,11 @@ class BaseAgent(ABC):
                 if self._state != AgentState.WORKING:
                     await self._set_state(AgentState.WORKING, context)
 
-                result = await self._execute_tool(tool_name, tool_input)
+                # Route: platform skill or agent-specific tool
+                if tool_name in self._platform_skill_names:
+                    result = await self._execute_platform_skill(tool_name, tool_input, context)
+                else:
+                    result = await self._execute_tool(tool_name, tool_input)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],
@@ -463,11 +550,15 @@ class BaseAgent(ABC):
 
             for tc in tool_calls:
                 func = tc.get("function", {})
+                tool_name = func.get("name", "")
                 try:
                     tool_input = json.loads(func.get("arguments", "{}"))
                 except json.JSONDecodeError:
                     tool_input = {}
-                result = await self._execute_tool(func.get("name", ""), tool_input)
+                if tool_name in self._platform_skill_names:
+                    result = await self._execute_platform_skill(tool_name, tool_input, context)
+                else:
+                    result = await self._execute_tool(tool_name, tool_input)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],
