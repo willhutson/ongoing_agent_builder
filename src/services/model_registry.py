@@ -1,24 +1,23 @@
 """
-Agent Model Registry - Maps agents to recommended Claude model tiers.
+Agent Model Registry - Maps agents to recommended model tiers.
 
-This registry defines which Claude model tier each agent should use based on
-the complexity of reasoning required:
+5-Tier System:
+- OPUS/PREMIUM:     Complex reasoning, multi-step analysis, strategic decisions
+- SONNET/STANDARD:  Balanced - most agents, good reasoning with reasonable cost/speed
+- HAIKU/ECONOMY:    Fast, simple operations, high-volume tasks, gateways
+- CREATIVE:         Visual design, copywriting, deck building, brand voice (Kimi K2.5)
+- VISION:           Image generation, visual understanding (GPT-5 Image Mini)
 
-Internal Tiers (Technical):
-- OPUS: Complex reasoning, multi-step analysis, strategic decisions
-- SONNET: Balanced - most agents, good reasoning with reasonable cost/speed
-- HAIKU: Fast, simple operations, high-volume tasks, gateways
-
-External Tiers (User-Facing, aligned with erp_staging_lmtd):
-- Premium → OPUS
-- Standard → SONNET
-- Economy → HAIKU
+The CREATIVE and VISION tiers route to best-in-class non-Anthropic models via
+OpenRouter, giving agents specialized capabilities that Claude doesn't offer
+(visual design sense, native image generation).
 
 The registry supports:
 1. Per-agent model recommendations
 2. Runtime model tier override (force all to use same tier)
 3. Per-instance model customization
-4. External tier mapping for UI compatibility
+4. External tier mapping for ERP UI compatibility
+5. Per-tier model override via env vars (MODEL_TIER_CREATIVE, etc.)
 """
 
 from typing import Optional
@@ -35,6 +34,8 @@ class ExternalModelTier(str, Enum):
     PREMIUM = "premium"    # Maps to OPUS
     STANDARD = "standard"  # Maps to SONNET
     ECONOMY = "economy"    # Maps to HAIKU
+    CREATIVE = "creative"  # Maps to CREATIVE (non-Anthropic)
+    VISION = "vision"      # Maps to VISION (non-Anthropic)
 
 
 # Bidirectional tier mappings
@@ -42,22 +43,20 @@ INTERNAL_TO_EXTERNAL: dict[ClaudeModelTier, ExternalModelTier] = {
     ClaudeModelTier.OPUS: ExternalModelTier.PREMIUM,
     ClaudeModelTier.SONNET: ExternalModelTier.STANDARD,
     ClaudeModelTier.HAIKU: ExternalModelTier.ECONOMY,
+    ClaudeModelTier.CREATIVE: ExternalModelTier.CREATIVE,
+    ClaudeModelTier.VISION: ExternalModelTier.VISION,
 }
 
 EXTERNAL_TO_INTERNAL: dict[ExternalModelTier, ClaudeModelTier] = {
     ExternalModelTier.PREMIUM: ClaudeModelTier.OPUS,
     ExternalModelTier.STANDARD: ClaudeModelTier.SONNET,
     ExternalModelTier.ECONOMY: ClaudeModelTier.HAIKU,
+    ExternalModelTier.CREATIVE: ClaudeModelTier.CREATIVE,
+    ExternalModelTier.VISION: ClaudeModelTier.VISION,
 }
 
 
 # Agent to recommended model tier mapping
-# Aligned with ERP tier specifications from JAN_2026_ERP_TO_AGENT_BUILDER_HANDOFF.md
-#
-# ERP Tier Mapping:
-# - Economy → HAIKU (claude-3-5-haiku-20241022)
-# - Standard → SONNET (claude-sonnet-4-20250514)
-# - Premium → OPUS (claude-opus-4-20250514)
 AGENT_MODEL_RECOMMENDATIONS: dict[str, ClaudeModelTier] = {
     # =========================================================================
     # OPUS/PREMIUM TIER - Complex reasoning, analysis, strategic decisions
@@ -69,8 +68,25 @@ AGENT_MODEL_RECOMMENDATIONS: dict[str, ClaudeModelTier] = {
     "knowledge_agent": ClaudeModelTier.OPUS,      # Knowledge base - deep reasoning (premium)
 
     # =========================================================================
+    # CREATIVE TIER - Visual design, copywriting, brand voice
+    # Uses Kimi K2.5 (moonshotai/kimi-k2.5) — best visual coding + design sense
+    # =========================================================================
+    "presentation_agent": ClaudeModelTier.CREATIVE,     # Deck generation — HTML/CSS visual output
+    "copy_agent": ClaudeModelTier.CREATIVE,             # Copywriting — tone, brand voice
+    "brand_voice_agent": ClaudeModelTier.CREATIVE,      # Voice/tone definition
+    "brand_visual_agent": ClaudeModelTier.CREATIVE,     # Visual identity guidelines
+    "brand_guidelines_agent": ClaudeModelTier.CREATIVE, # Brand standards documentation
+    "video_script_agent": ClaudeModelTier.CREATIVE,     # Script writing — narrative craft
+    "video_storyboard_agent": ClaudeModelTier.CREATIVE, # Storyboard generation — visual layout
+
+    # =========================================================================
+    # VISION TIER - Image generation, visual understanding
+    # Uses GPT-5 Image Mini (openai/gpt-5-image-mini)
+    # =========================================================================
+    "image_agent": ClaudeModelTier.VISION,        # Image prompt crafting + generation
+
+    # =========================================================================
     # SONNET/STANDARD TIER - Balanced reasoning (default for most agents)
-    # Per handoff: Most agents use standard tier
     # =========================================================================
     # Foundation Layer
     "rfp_agent": ClaudeModelTier.SONNET,          # RFP analysis
@@ -78,20 +94,8 @@ AGENT_MODEL_RECOMMENDATIONS: dict[str, ClaudeModelTier] = {
     "content_agent": ClaudeModelTier.SONNET,      # Content generation
     "commercial_agent": ClaudeModelTier.SONNET,   # Commercial analysis
 
-    # Studio Layer
-    "presentation_agent": ClaudeModelTier.SONNET, # Presentation/deck generation
-    "copy_agent": ClaudeModelTier.SONNET,         # Copywriting
-    "image_agent": ClaudeModelTier.SONNET,        # Image prompts
-
-    # Video Layer
-    "video_script_agent": ClaudeModelTier.SONNET,      # Script writing
-    "video_storyboard_agent": ClaudeModelTier.SONNET,  # Storyboard generation
+    # Video Layer (production guidance stays standard — not creative writing)
     "video_production_agent": ClaudeModelTier.SONNET,  # Production guidance
-
-    # Brand Layer
-    "brand_voice_agent": ClaudeModelTier.SONNET,      # Voice/tone
-    "brand_visual_agent": ClaudeModelTier.SONNET,     # Visual guidelines
-    "brand_guidelines_agent": ClaudeModelTier.SONNET, # Brand standards
 
     # Operations Layer
     "resource_agent": ClaudeModelTier.SONNET,    # Resource allocation
@@ -140,7 +144,7 @@ AGENT_MODEL_RECOMMENDATIONS: dict[str, ClaudeModelTier] = {
     # HAIKU/ECONOMY TIER - Fast, simple operations, high-volume
     # Per handoff: Gateway agents, approval routing, brief updates
     # =========================================================================
-    # Distribution Layer (simple routing)
+    # Distribution Layer
     "report_agent": ClaudeModelTier.SONNET,       # Report generation (standard)
     "approve_agent": ClaudeModelTier.HAIKU,       # Approval routing (economy)
     "brief_update_agent": ClaudeModelTier.HAIKU,  # Update distribution (economy)
@@ -158,12 +162,30 @@ AGENT_MODEL_RECOMMENDATIONS: dict[str, ClaudeModelTier] = {
 }
 
 
+def _resolve_model_for_tier(tier: ClaudeModelTier) -> str:
+    """
+    Resolve the actual model ID for a tier, respecting env var overrides.
+
+    Checks MODEL_TIER_<NAME> env vars first (e.g., MODEL_TIER_CREATIVE),
+    then falls back to CLAUDE_MODELS defaults.
+    """
+    settings = get_settings()
+
+    # Check for per-tier env var override
+    tier_override_attr = f"model_tier_{tier.value}"
+    override = getattr(settings, tier_override_attr, None)
+    if override:
+        return override
+
+    return CLAUDE_MODELS[tier]
+
+
 def get_model_for_agent(
     agent_name: str,
     instance_override: Optional[ClaudeModelTier] = None,
 ) -> str:
     """
-    Get the Claude model ID for a specific agent.
+    Get the model ID for a specific agent.
 
     Priority:
     1. Global force_model_tier from settings (if set)
@@ -171,12 +193,8 @@ def get_model_for_agent(
     3. Agent's recommended tier from registry
     4. Default to SONNET if agent not in registry
 
-    Args:
-        agent_name: The agent's name (e.g., "rfp_agent")
-        instance_override: Optional tier override for this instance
-
     Returns:
-        Claude model ID string (e.g., "claude-sonnet-4-20250514")
+        Model ID string (e.g., "claude-sonnet-4-20250514" or "moonshotai/kimi-k2.5")
     """
     settings = get_settings()
 
@@ -184,17 +202,17 @@ def get_model_for_agent(
     if settings.force_model_tier:
         try:
             forced_tier = ClaudeModelTier(settings.force_model_tier)
-            return CLAUDE_MODELS[forced_tier]
+            return _resolve_model_for_tier(forced_tier)
         except ValueError:
             pass  # Invalid tier, continue with normal resolution
 
     # Check for instance override
     if instance_override:
-        return CLAUDE_MODELS[instance_override]
+        return _resolve_model_for_tier(instance_override)
 
     # Get agent's recommended tier
     tier = AGENT_MODEL_RECOMMENDATIONS.get(agent_name, ClaudeModelTier.SONNET)
-    return CLAUDE_MODELS[tier]
+    return _resolve_model_for_tier(tier)
 
 
 # Runtime tier overrides (persisted in memory, set via API)
@@ -227,7 +245,8 @@ def get_model_info() -> dict:
     return {
         "tiers": {
             tier.value: {
-                "model_id": CLAUDE_MODELS[tier],
+                "model_id": _resolve_model_for_tier(tier),
+                "default_model_id": CLAUDE_MODELS[tier],
                 "description": _get_tier_description(tier),
                 "agent_count": len(agents_by_tier[tier]),
                 "agents": agents_by_tier[tier],
@@ -244,6 +263,8 @@ def _get_tier_description(tier: ClaudeModelTier) -> str:
         ClaudeModelTier.OPUS: "Complex reasoning, analysis, strategic decisions",
         ClaudeModelTier.SONNET: "Balanced - good reasoning with reasonable cost/speed",
         ClaudeModelTier.HAIKU: "Fast, simple operations, high-volume tasks",
+        ClaudeModelTier.CREATIVE: "Visual design, copywriting, deck building, brand voice",
+        ClaudeModelTier.VISION: "Image generation, visual understanding",
     }
     return descriptions.get(tier, "")
 
@@ -259,9 +280,9 @@ def get_external_tier(agent_name: str) -> ExternalModelTier:
 
 
 def get_model_for_external_tier(external_tier: ExternalModelTier) -> str:
-    """Get the Claude model ID for an external tier."""
+    """Get the model ID for an external tier."""
     internal_tier = EXTERNAL_TO_INTERNAL[external_tier]
-    return CLAUDE_MODELS[internal_tier]
+    return _resolve_model_for_tier(internal_tier)
 
 
 def convert_external_to_internal(external_tier: ExternalModelTier) -> ClaudeModelTier:
@@ -282,7 +303,8 @@ def get_external_model_info() -> dict:
         "tiers": {
             external_tier.value: {
                 "internal_tier": internal_tier.value,
-                "model_id": CLAUDE_MODELS[internal_tier],
+                "model_id": _resolve_model_for_tier(internal_tier),
+                "default_model_id": CLAUDE_MODELS[internal_tier],
                 "description": _get_external_tier_description(external_tier),
                 "agent_count": len(agents_by_tier[internal_tier]),
                 "agents": agents_by_tier[internal_tier],
@@ -300,6 +322,8 @@ def _get_external_tier_description(tier: ExternalModelTier) -> str:
         ExternalModelTier.PREMIUM: "Highest capability for complex analysis and strategic decisions",
         ExternalModelTier.STANDARD: "Balanced capability and cost - recommended for most tasks",
         ExternalModelTier.ECONOMY: "Fast and cost-effective for simple, high-volume tasks",
+        ExternalModelTier.CREATIVE: "Visual design, copywriting, and brand-focused generation",
+        ExternalModelTier.VISION: "Image generation and visual understanding",
     }
     return descriptions.get(tier, "")
 
@@ -310,5 +334,7 @@ def _get_cost_indicator(tier: ExternalModelTier) -> dict:
         ExternalModelTier.PREMIUM: {"level": 3, "label": "$$$", "relative": "highest"},
         ExternalModelTier.STANDARD: {"level": 2, "label": "$$", "relative": "moderate"},
         ExternalModelTier.ECONOMY: {"level": 1, "label": "$", "relative": "lowest"},
+        ExternalModelTier.CREATIVE: {"level": 2, "label": "$$", "relative": "moderate"},
+        ExternalModelTier.VISION: {"level": 2, "label": "$$", "relative": "moderate"},
     }
     return indicators.get(tier, indicators[ExternalModelTier.STANDARD])

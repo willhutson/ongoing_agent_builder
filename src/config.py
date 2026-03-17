@@ -6,17 +6,25 @@ from enum import Enum
 
 
 class ClaudeModelTier(str, Enum):
-    """Claude model tiers for different complexity levels."""
-    OPUS = "opus"      # Complex reasoning, analysis, strategy
-    SONNET = "sonnet"  # Balanced - most tasks
-    HAIKU = "haiku"    # Fast, simple operations
+    """Model tiers for different complexity levels.
+
+    OPUS/SONNET/HAIKU are Anthropic-native tiers.
+    CREATIVE and VISION route to best-in-class non-Anthropic models via OpenRouter.
+    """
+    OPUS = "opus"          # Complex reasoning, analysis, strategy
+    SONNET = "sonnet"      # Balanced - most tasks
+    HAIKU = "haiku"        # Fast, simple operations
+    CREATIVE = "creative"  # Visual design, copywriting, deck building, brand voice
+    VISION = "vision"      # Image generation, visual understanding
 
 
-# Claude model IDs by tier
+# Default model IDs by tier (all routed through OpenRouter)
 CLAUDE_MODELS = {
     ClaudeModelTier.OPUS: "claude-opus-4-5-20250514",
     ClaudeModelTier.SONNET: "claude-sonnet-4-20250514",
     ClaudeModelTier.HAIKU: "claude-haiku-3-5-20241022",
+    ClaudeModelTier.CREATIVE: "moonshotai/kimi-k2.5",
+    ClaudeModelTier.VISION: "openai/gpt-5-image-mini",
 }
 
 
@@ -31,7 +39,14 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
 
     # Model tier overrides (allows forcing all agents to use a specific tier)
-    force_model_tier: Optional[str] = None  # "opus", "sonnet", "haiku", or None
+    force_model_tier: Optional[str] = None  # "opus", "sonnet", "haiku", "creative", "vision", or None
+
+    # Per-tier model overrides (env vars: MODEL_TIER_CREATIVE, MODEL_TIER_VISION, etc.)
+    model_tier_opus: Optional[str] = None
+    model_tier_sonnet: Optional[str] = None
+    model_tier_haiku: Optional[str] = None
+    model_tier_creative: Optional[str] = None
+    model_tier_vision: Optional[str] = None
 
     # ===========================================
     # External LLM Providers (Claude blindspots)

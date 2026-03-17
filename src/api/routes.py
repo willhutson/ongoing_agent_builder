@@ -315,7 +315,7 @@ async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTas
         try:
             model_override = ClaudeModelTier(request.model_tier)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid model tier: {request.model_tier}. Use 'opus', 'sonnet', or 'haiku'.")
+            raise HTTPException(status_code=400, detail=f"Invalid model tier: {request.model_tier}. Use 'opus', 'sonnet', 'haiku', 'creative', or 'vision'.")
 
     agent_kwargs = {
         "language": request.language,
@@ -662,7 +662,7 @@ async def update_agent_model_tier(agent_name: str, request: AgentModelOverrideRe
     try:
         tier = ClaudeModelTier(request.tier)
     except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {request.tier}. Use 'opus', 'sonnet', or 'haiku'.")
+        raise HTTPException(status_code=400, detail=f"Invalid tier: {request.tier}. Use 'opus', 'sonnet', 'haiku', 'creative', or 'vision'.")
 
     set_agent_tier(agent_name, tier)
     model_id = get_model_for_agent(agent_name)

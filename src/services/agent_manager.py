@@ -47,6 +47,8 @@ class AgentTier(str, Enum):
     ECONOMY = "economy"    # Maps to HAIKU - fast, cheap, high-volume
     STANDARD = "standard"  # Maps to SONNET - balanced
     PREMIUM = "premium"    # Maps to OPUS - complex reasoning
+    CREATIVE = "creative"  # Maps to CREATIVE - visual design, copywriting
+    VISION = "vision"      # Maps to VISION - image generation
 
 
 # Tier mappings
@@ -54,12 +56,16 @@ INTERNAL_TO_EXTERNAL_TIER = {
     ClaudeModelTier.HAIKU: AgentTier.ECONOMY,
     ClaudeModelTier.SONNET: AgentTier.STANDARD,
     ClaudeModelTier.OPUS: AgentTier.PREMIUM,
+    ClaudeModelTier.CREATIVE: AgentTier.CREATIVE,
+    ClaudeModelTier.VISION: AgentTier.VISION,
 }
 
 EXTERNAL_TO_INTERNAL_TIER = {
     AgentTier.ECONOMY: ClaudeModelTier.HAIKU,
     AgentTier.STANDARD: ClaudeModelTier.SONNET,
     AgentTier.PREMIUM: ClaudeModelTier.OPUS,
+    AgentTier.CREATIVE: ClaudeModelTier.CREATIVE,
+    AgentTier.VISION: ClaudeModelTier.VISION,
 }
 
 

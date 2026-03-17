@@ -21,6 +21,8 @@ class BaseModuleSettings(BaseSettings):
     model_premium: str = "anthropic/claude-opus-4-20250514"
     model_standard: str = "anthropic/claude-sonnet-4-20250514"
     model_economy: str = "anthropic/claude-haiku-3.5"
+    model_creative: str = "moonshotai/kimi-k2.5"
+    model_vision: str = "openai/gpt-5-image-mini"
 
     # Module identity
     module_name: str = "unknown"
@@ -48,6 +50,8 @@ MODEL_TIERS = {
     "premium": "model_premium",
     "standard": "model_standard",
     "economy": "model_economy",
+    "creative": "model_creative",
+    "vision": "model_vision",
 }
 
 
