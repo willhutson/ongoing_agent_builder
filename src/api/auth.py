@@ -64,6 +64,20 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         signature = request.headers.get("X-Webhook-Signature")
         callback_secret = os.environ.get("ERP_CALLBACK_SECRET", "")
         if signature and callback_secret:
+            body = await request.body()
+            expected_sig = "sha256=" + hmac.new(
+                callback_secret.encode(), body, hashlib.sha256
+            ).hexdigest()
+            if not hmac.compare_digest(signature, expected_sig):
+                logger.warning(f"Invalid HMAC signature for {path}")
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid webhook signature"},
+                )
+            # Re-attach body so downstream handlers can read it
+            async def receive():
+                return {"type": "http.request", "body": body}
+            request._receive = receive
             return await call_next(request)
 
         # No valid auth — return 401 (not raise, to avoid Starlette middleware bug)
