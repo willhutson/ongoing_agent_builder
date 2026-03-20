@@ -1,8 +1,9 @@
 # Agent Builder: Mission Control Routing Companion Spec
 
-**Version:** 1.0
+**Version:** 1.1
 **Companion to:** ERP Mission Control Routing Architecture v1.1
 **Scope:** Agent Builder endpoints, artifact protocol enforcement, and format-aware creation for the Mission Control routing contract.
+**Status:** Specification — fields marked [NEW] require implementation.
 
 > This document covers the Agent Builder's responsibilities in the two-MC routing system. The ERP owns persistence, UI, and format detection; the Agent Builder owns execution, artifact streaming, and orchestration.
 
@@ -36,7 +37,7 @@ ERP (Mission Control)                  Agent Builder
 │                        │<──SSE───── │    /agent/status       │
 └────────────────────────┘            │                        │
                                       │  Agent Execution       │
-                                      │  - 45 agents + base    │
+                                      │  - 46 agents + base    │
                                       │  - emit_artifact tool  │
                                       │  - Orchestrator engine │
                                       └────────────────────────┘
@@ -75,7 +76,7 @@ class HandoffContext(BaseModel):
     relevant_messages: list[dict] = []
     task: str
     constraints: Optional[list[str]] = None
-    artifact_format: Optional[str] = None   # NEW — format passthrough
+    artifact_format: Optional[str] = None   # [NEW] — not yet in handoffs.py
 ```
 
 ### Request Example
@@ -303,17 +304,31 @@ class ResumeRequest(BaseModel):
 
 ### Known Gap
 
-The current `resume_workflow()` implementation (orchestrator.py:356-389) sets the status back to `RUNNING` but does **not** re-execute remaining steps. The enhancement needed:
+The current `resume_workflow()` implementation (orchestrator.py:356-389) sets the status back to `RUNNING` but does **not** re-execute remaining steps. Two sub-gaps:
+
+1. **Workflow not stored** — `run_workflow()` receives a `Workflow` instance but does not persist it. The orchestrator stores executions in `self._executions` but has no `self._workflows` dict. The fix must also store the workflow definition so `resume` can retrieve it.
+2. **Remaining steps not executed** — after approval, the next steps after the review gate are never triggered.
+
+Combined fix:
 
 ```python
+# In __init__(), add:
+self._workflows: dict[str, Workflow] = {}
+
+# In run_workflow(), after creating execution:
+self._workflows[workflow.id] = workflow  # Persist workflow definition
+
+# In resume_workflow():
 if approval:
     execution.status = WorkflowStatus.RUNNING
-    # Retrieve the workflow definition (must be stored on the execution)
     workflow = self._workflows.get(execution.workflow_id)
+    if not workflow:
+        raise ValueError(f"Workflow definition not found for {execution.workflow_id}")
     review_step = workflow.get_step(execution.pending_review)
     if review_step and review_step.next_steps:
         remaining = [workflow.get_step(sid) for sid in review_step.next_steps]
-        await self._execute_steps(execution, remaining, execution.context)
+        remaining = [s for s in remaining if s is not None]
+        await self._execute_steps(workflow, execution, remaining)
     execution.pending_review = None
 ```
 
@@ -519,7 +534,7 @@ class ExecuteRequest(BaseModel):
 
 | Event | Source | Description |
 |-------|--------|-------------|
-| `state_update` | `BaseAgent` | Agent state machine transitions (IDLE → THINKING → ACTING → CREATING → COMPLETE) |
+| `state_update` | `BaseAgent` | Agent state machine transitions (IDLE → THINKING → WORKING → COMPLETE) |
 | `work_start` | `BaseAgent` | Agent begins processing |
 | `work_action` | `BaseAgent` | Agent performs an action (tool call) |
 | `entity_created` | `BaseAgent` | Agent creates a resource in the ERP |
@@ -531,63 +546,86 @@ class ExecuteRequest(BaseModel):
 
 ### New Events (workflow orchestration)
 
-| Event | Source | Description |
-|-------|--------|-------------|
-| `workflow_start` | `AgentOrchestrator` | Workflow execution begins |
-| `step_progress` | `AgentOrchestrator` | A step starts, completes, or fails |
-| `workflow_paused` | `AgentOrchestrator` | Workflow paused for human review |
-| `workflow_complete` | `AgentOrchestrator` | Workflow execution finished |
+The ERP-side `orchestrator-bridge.ts` expects colon-separated event types (e.g., `workflow:started`, `step:completed`). The Agent Builder must emit events using this convention for compatibility.
+
+| Agent Builder Event | ERP Expected Event | Source | Description |
+|----|----|--------|-------------|
+| `workflow:started` | `workflow:started` | `AgentOrchestrator` | Workflow execution begins |
+| `step:started` | `step:started` | `AgentOrchestrator` | A workflow step begins executing |
+| `step:progress` | `step:progress` | `AgentOrchestrator` | A step reports intermediate progress |
+| `step:completed` | `step:completed` | `AgentOrchestrator` | A workflow step completes successfully |
+| `step:failed` | `step:failed` | `AgentOrchestrator` | A workflow step fails |
+| `step:waiting_review` | `step:waiting_review` | `AgentOrchestrator` | Workflow paused for human review |
+| `workflow:completed` | `workflow:completed` | `AgentOrchestrator` | Workflow execution finished |
+| `workflow:failed` | `workflow:failed` | `AgentOrchestrator` | Workflow execution failed |
 
 ### New Event Payloads
 
-**`workflow_start`**
+All workflow events follow the `OrchestratorEvent` shape defined in the ERP bridge:
+
+```typescript
+interface OrchestratorEvent {
+  type: string;          // e.g., "workflow:started"
+  workflow_id: string;
+  step_id?: string;
+  data?: Record<string, unknown>;
+  timestamp: string;     // ISO 8601
+}
+```
+
+**`workflow:started`**
 ```json
 {
-  "event": "workflow_start",
+  "type": "workflow:started",
+  "workflow_id": "campaign_launch_checklist",
   "data": {
     "execution_id": "exec-abc-123",
-    "workflow_id": "campaign_launch_checklist",
     "workflow_name": "Campaign Launch Checklist",
     "step_count": 8,
     "initiated_by": "user-456"
-  }
+  },
+  "timestamp": "2026-03-20T12:00:00Z"
 }
 ```
 
-**`step_progress`**
+**`step:started` / `step:completed`**
 ```json
 {
-  "event": "step_progress",
+  "type": "step:started",
+  "workflow_id": "campaign_launch_checklist",
+  "step_id": "verify_landing",
   "data": {
     "execution_id": "exec-abc-123",
-    "step_id": "verify_landing",
     "step_name": "Verify Landing Page",
     "agent": "qa_agent",
-    "status": "running",
     "step_index": 1,
     "total_steps": 8
-  }
+  },
+  "timestamp": "2026-03-20T12:00:01Z"
 }
 ```
 
-**`workflow_paused`**
+**`step:waiting_review`**
 ```json
 {
-  "event": "workflow_paused",
+  "type": "step:waiting_review",
+  "workflow_id": "campaign_launch_checklist",
+  "step_id": "human_review",
   "data": {
     "execution_id": "exec-abc-123",
-    "pending_review_step_id": "human_review",
-    "pending_review_step_name": "Human Review Checkpoint",
+    "step_name": "Human Review Checkpoint",
     "completed_steps": 6,
     "total_steps": 8
-  }
+  },
+  "timestamp": "2026-03-20T12:00:30Z"
 }
 ```
 
-**`workflow_complete`**
+**`workflow:completed`**
 ```json
 {
-  "event": "workflow_complete",
+  "type": "workflow:completed",
+  "workflow_id": "campaign_launch_checklist",
   "data": {
     "execution_id": "exec-abc-123",
     "status": "completed",
@@ -604,7 +642,8 @@ class ExecuteRequest(BaseModel):
       "human_review": "approved",
       "capture_proof": "3 screenshots captured"
     }
-  }
+  },
+  "timestamp": "2026-03-20T12:00:45Z"
 }
 ```
 
@@ -646,7 +685,7 @@ class ExecuteRequest(BaseModel):
 
 ---
 
-## Appendix: Endpoint Compatibility Matrix
+## Appendix A: Endpoint Compatibility Matrix
 
 | ERP Feature | Endpoint Used | Response Type |
 |-------------|---------------|---------------|
@@ -655,3 +694,44 @@ class ExecuteRequest(BaseModel):
 | Cross-agent handoff (from artifact actions) | `POST /api/v1/handoff` | SSE stream or `HandoffResponse` |
 | Canvas workflow execution | `POST /api/v1/orchestrate` | SSE stream with workflow events |
 | Canvas workflow resume after review | `POST /api/v1/orchestrate/{id}/resume` | `WorkflowExecution` JSON |
+
+## Appendix B: Template ID Cross-Reference
+
+The ERP and Agent Builder each maintain workflow templates. The ERP side (in `workflow-templates.ts`) defines templates for the Canvas UI; the Agent Builder side (in `orchestration/templates.py`) defines execution templates for the orchestrator. When the ERP sends an orchestrate request, it maps its template ID to the Agent Builder's corresponding template.
+
+| ERP Template ID | Agent Builder Template ID | Category |
+|-----------------|--------------------------|----------|
+| `content_sprint` | _(inline workflow)_ | content |
+| `campaign_launch` | `campaign_launch_checklist` | campaign |
+| `client_onboarding` | `new_client_onboarding` | client |
+| `competitive_analysis` | `competitive_analysis` | analytics |
+| `brief_to_production` | _(inline workflow)_ | production |
+| `deck_review` | _(inline workflow)_ | content |
+| `report_review` | _(inline workflow)_ | analytics |
+| `generic_review` | _(inline workflow)_ | content |
+| — | `content_approval` | content |
+| — | `client_monthly_report` | reporting |
+| — | `ab_test_analysis` | campaign |
+| — | `gdpr_compliance_audit` | compliance |
+| — | `social_content_verification` | content |
+
+> **Note:** Templates without a direct match are sent as inline workflows via the `workflow` field on `OrchestrateRequest`. The ERP `orchestrator-bridge.ts` converts its template steps into the inline format.
+
+## Appendix C: Implementation Status
+
+| Item | File | Status |
+|------|------|--------|
+| `HandoffContext.artifact_format` | `src/protocols/handoffs.py` | Not yet added |
+| `AgentContext.artifact_format` | `src/agents/base.py` | Not yet added |
+| `emit_artifact` tool on BaseAgent | `src/agents/base.py` | Not yet added |
+| System prompt artifact protocol | `src/agents/base.py` | Not yet added |
+| Format-aware prompt injection | `src/agents/base.py` | Not yet added |
+| `ARTIFACT_DATA_SCHEMAS` | `src/protocols/artifacts.py` | Not yet added |
+| `ExecuteRequest.artifact_format` | `src/api/routes.py` | Not yet added |
+| `POST /api/v1/handoff` endpoint | `src/api/routes.py` | Not yet added |
+| `POST /api/v1/orchestrate` endpoint | `src/api/routes.py` | Not yet added |
+| `POST /api/v1/orchestrate/{id}/resume` | `src/api/routes.py` | Not yet added |
+| Workflow SSE event emission | `src/orchestration/orchestrator.py` | Not yet added |
+| `resume_workflow()` fix | `src/orchestration/orchestrator.py` | Not yet added |
+| `self._workflows` dict on orchestrator | `src/orchestration/orchestrator.py` | Not yet added |
+| Integration tests | `tests/` | Not yet added |
