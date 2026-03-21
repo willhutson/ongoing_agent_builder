@@ -78,6 +78,9 @@ class AgentOrchestrator:
         # Active executions
         self._executions: dict[str, WorkflowExecution] = {}
 
+        # Store workflow definitions for resume support
+        self._workflows: dict[str, Workflow] = {}
+
         # Execution locks for thread safety
         self._locks: dict[str, asyncio.Lock] = {}
 
@@ -123,7 +126,19 @@ class AgentOrchestrator:
 
         # Store and track execution
         self._executions[execution.id] = execution
+        self._workflows[workflow.id] = workflow
         self._locks[execution.id] = asyncio.Lock()
+
+        # Emit workflow_start notification
+        if self.notification_callback:
+            await self.notification_callback({
+                "type": "workflow_start",
+                "execution_id": execution.id,
+                "workflow_id": workflow.id,
+                "workflow_name": workflow.name,
+                "step_count": len(workflow.steps),
+                "initiated_by": initiated_by,
+            })
 
         try:
             # Get entry steps
@@ -234,11 +249,12 @@ class AgentOrchestrator:
                 execution.pending_review = step.id
                 if self.notification_callback:
                     await self.notification_callback({
-                        "type": "human_review_required",
-                        "workflow_id": workflow.id,
+                        "type": "workflow_paused",
                         "execution_id": execution.id,
-                        "step_id": step.id,
-                        "step_name": step.name,
+                        "pending_review_step_id": step.id,
+                        "pending_review_step_name": step.name,
+                        "completed_steps": len(execution.completed_steps),
+                        "total_steps": len(workflow.steps),
                     })
                 result.success = True
                 result.result = {"awaiting_review": True}
@@ -247,6 +263,17 @@ class AgentOrchestrator:
             # Mark step as current
             async with self._locks[execution.id]:
                 execution.current_steps.append(step.id)
+
+            # Emit step_progress (running)
+            if self.notification_callback:
+                await self.notification_callback({
+                    "type": "step_progress",
+                    "execution_id": execution.id,
+                    "step_id": step.id,
+                    "step_name": step.name,
+                    "agent": step.agent,
+                    "status": "running",
+                })
 
             # Get the agent
             agent = self.agent_factory(step.agent)
@@ -302,8 +329,32 @@ class AgentOrchestrator:
                     execution.set_step_result(step.id, result.result)
                     # Store result in context under output_key
                     execution.context[step.output_key] = result.result
+
+                    # Emit step_progress (completed)
+                    if self.notification_callback:
+                        await self.notification_callback({
+                            "type": "step_progress",
+                            "execution_id": execution.id,
+                            "step_id": step.id,
+                            "step_name": step.name,
+                            "agent": step.agent,
+                            "status": "completed",
+                            "duration_seconds": result.duration_seconds,
+                        })
                 else:
                     execution.mark_step_failed(step.id, result.error or "Unknown error")
+
+                    # Emit step_progress (failed)
+                    if self.notification_callback:
+                        await self.notification_callback({
+                            "type": "step_progress",
+                            "execution_id": execution.id,
+                            "step_id": step.id,
+                            "step_name": step.name,
+                            "agent": step.agent,
+                            "status": "failed",
+                            "error": result.error,
+                        })
 
                     # Handle failure
                     if step.on_failure == "stop":
@@ -381,10 +432,27 @@ class AgentOrchestrator:
 
         if approval:
             execution.status = WorkflowStatus.RUNNING
-            # Continue from next steps after the review step
-            # This would need the workflow definition to be stored/retrieved
+            execution.set_step_result(execution.pending_review, {"approved": True, "notes": review_notes})
+
+            # Retrieve workflow and find remaining steps after the review step
+            workflow = self._workflows.get(execution.workflow_id)
+            if workflow:
+                review_step = workflow.get_step(execution.pending_review)
+                if review_step and review_step.next_steps:
+                    remaining = [workflow.get_step(sid) for sid in review_step.next_steps]
+                    remaining = [s for s in remaining if s is not None]
+                    if remaining:
+                        await self._execute_steps(workflow, execution, remaining)
+
+                # Mark complete if still running
+                if execution.status == WorkflowStatus.RUNNING:
+                    execution.status = WorkflowStatus.COMPLETED
+                    execution.completed_at = datetime.now()
+
+            execution.pending_review = None
         else:
             execution.status = WorkflowStatus.CANCELLED
+            execution.completed_at = datetime.now()
 
         return execution
 

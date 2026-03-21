@@ -18,6 +18,7 @@ class HandoffContext(BaseModel):
     relevant_messages: list[dict] = Field(default_factory=list)
     task: str
     constraints: Optional[list[str]] = None
+    artifact_format: Optional[str] = None  # Format passthrough for Mission Control routing
 
 
 class HandoffRequest(BaseModel):

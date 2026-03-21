@@ -324,6 +324,76 @@ def get_callback_service() -> ERPCallbackService:
     return _callback_service
 
 
+class UsageReportService:
+    """Reports token usage to the ERP billing endpoint."""
+
+    def __init__(self, service_key: str = None, base_url: str = None):
+        settings = get_settings()
+        self.service_key = service_key or settings.erp_service_key
+        self.base_url = base_url or settings.erp_api_base_url
+        self.http_client = httpx.AsyncClient(timeout=30.0)
+
+    async def report_usage(
+        self,
+        organization_id: str,
+        token_input: int,
+        token_output: int,
+        model: str,
+        agent_type: str,
+        module: Optional[str] = None,
+        max_retries: int = 3,
+    ) -> bool:
+        """Report usage to ERP billing. Fire-and-forget with retry."""
+        payload = {
+            "organizationId": organization_id,
+            "tokenInput": token_input,
+            "tokenOutput": token_output,
+            "model": model,
+            "agentType": agent_type,
+            "module": module,
+        }
+
+        headers = {
+            "X-Service-Key": self.service_key,
+            "Content-Type": "application/json",
+        }
+
+        url = f"{self.base_url}/api/v1/billing/usage/report"
+
+        for attempt in range(max_retries + 1):
+            try:
+                response = await self.http_client.post(
+                    url, json=payload, headers=headers,
+                )
+                if response.status_code in (200, 201, 204):
+                    logger.info(f"Billing reported: {agent_type} ({token_input}+{token_output} tokens)")
+                    return True
+                if 400 <= response.status_code < 500:
+                    logger.error(f"Billing rejected: {response.status_code}")
+                    return False
+            except Exception as e:
+                logger.warning(f"Billing attempt {attempt + 1} error: {e}")
+
+            if attempt < max_retries:
+                await asyncio.sleep(2 ** (attempt + 1))
+
+        logger.error(f"Billing report failed after {max_retries + 1} attempts")
+        return False
+
+    async def close(self):
+        await self.http_client.aclose()
+
+
+# Singleton usage report service
+_usage_service: Optional[UsageReportService] = None
+
+def get_usage_service() -> UsageReportService:
+    global _usage_service
+    if _usage_service is None:
+        _usage_service = UsageReportService()
+    return _usage_service
+
+
 # =============================================================================
 # AGENT EXECUTION
 # =============================================================================

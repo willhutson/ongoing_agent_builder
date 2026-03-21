@@ -83,6 +83,7 @@ class Settings(BaseSettings):
     erp_api_base_url: str = ""
     erp_api_key: str = ""
     erp_callback_secret: str = ""  # HMAC secret for callback signature verification
+    erp_service_key: str = ""  # Static service key for billing endpoint auth
 
     # Database
     database_url: Optional[str] = None  # Full URL (takes precedence)

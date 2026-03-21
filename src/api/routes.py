@@ -64,6 +64,11 @@ from ..agents import (
     InfluencerAgent, PRAgent, EventsAgent, LocalizationAgent, AccessibilityAgent,
 )
 from ..agents.base import AgentContext, AgentResult
+from ..protocols.handoffs import HandoffRequest, HandoffResponse
+from ..orchestration import AgentOrchestrator, Workflow, WorkflowStep, WorkflowTrigger, WorkflowTemplates, StepType, TriggerType
+from ..orchestration.workflow import WorkflowExecution, WorkflowStatus
+from ..services.module_registry import is_agent_allowed_for_module
+from ..services.model_registry import get_model_for_agent as _get_model_for_agent
 
 
 router = APIRouter(prefix="/api/v1", tags=["agents"])
@@ -155,6 +160,8 @@ class ExecuteRequest(BaseModel):
     region: Optional[str] = Field(default=None, description="Region specialization")
     # Model tier override (optional - uses agent's recommended tier if not set)
     model_tier: Optional[str] = Field(default=None, description="Override model tier: 'opus', 'sonnet', or 'haiku'")
+    # Format-aware artifact creation (Mission Control routing)
+    artifact_format: Optional[str] = Field(default=None, description="Desired output format: calendar, deck, brief, report, etc.")
 
 
 class ExecuteResponse(BaseModel):
@@ -284,6 +291,22 @@ async def run_agent_task(task_id: str, agent_type: AgentType, context: AgentCont
             },
             "token_usage": getattr(result, "_token_usage", None),
         })
+
+        # Report billing usage
+        try:
+            from ..api.erp_integration import get_usage_service
+            usage_service = get_usage_service()
+            await usage_service.report_usage(
+                organization_id=context.organization_id or context.tenant_id,
+                token_input=agent._input_tokens,
+                token_output=agent._output_tokens,
+                model=agent.model,
+                agent_type=agent_type.value,
+                module=context.module_subdomain,
+            )
+        except Exception:
+            pass  # Billing is fire-and-forget
+
         await agent.close()
     except asyncio.CancelledError:
         await update_task(task_id, {"status": "cancelled"})
@@ -307,6 +330,7 @@ async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTas
         user_id=request.user_id,
         task=request.task,
         metadata=request.metadata,
+        artifact_format=request.artifact_format,
     )
 
     # Parse model tier override if provided
@@ -845,6 +869,258 @@ async def get_prompt_suggestions(request: PromptSuggestionsRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate suggestions: {str(e)}")
+
+
+# ============================================
+# Mission Control Routing Endpoints
+# ============================================
+
+class OrchestrateRequest(BaseModel):
+    """Request to execute a workflow via the orchestrator."""
+    workflow_id: Optional[str] = None
+    workflow: Optional[dict] = None
+    context: dict = Field(default_factory=dict)
+    organization_id: str
+    user_id: str
+    stream: bool = True
+
+
+class ResumeRequest(BaseModel):
+    """Request to resume a paused workflow after human review."""
+    approval: bool
+    review_notes: str = ""
+    reviewer_id: str
+
+
+# Shared orchestrator instance for resume support
+_orchestrators: dict[str, AgentOrchestrator] = {}
+
+
+@router.post("/handoff")
+async def handoff_agent(request: HandoffRequest, background_tasks: BackgroundTasks):
+    """
+    Accept cross-agent handoff requests from the ERP router.
+    Validates target agent, checks module scope, and either auto-starts
+    or returns a pending-approval response.
+    """
+    # 1. Validate target agent type
+    try:
+        target_type = AgentType(request.to_agent_type)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Unknown agent type: {request.to_agent_type}")
+
+    # 2. Module-scope check (if module context present)
+    module_subdomain = request.context.artifacts[0].get("module") if request.context.artifacts else None
+    if module_subdomain and not is_agent_allowed_for_module(request.to_agent_type, module_subdomain):
+        raise HTTPException(status_code=403, detail=f"Agent '{request.to_agent_type}' not allowed for module '{module_subdomain}'")
+
+    # 3. Build AgentContext for child agent
+    new_chat_id = str(uuid.uuid4())
+    context = AgentContext(
+        tenant_id=request.from_chat_id.split("-")[0] if "-" in request.from_chat_id else "default",
+        user_id="handoff",
+        task=request.context.task,
+        chat_id=new_chat_id,
+        metadata={
+            "parent_chat_id": request.context.parent_chat_id,
+            "parent_agent_type": request.context.parent_agent_type,
+            "parent_summary": request.context.parent_summary,
+            "parent_artifacts": request.context.artifacts,
+        },
+        artifact_format=request.context.artifact_format,
+    )
+
+    # 4. Auto-start path
+    if request.auto_start and not request.requires_user_approval:
+        async def generate():
+            agent = get_agent(target_type)
+            try:
+                async for chunk in agent.stream(context):
+                    yield chunk
+                yield "data: [DONE]\n\n"
+            finally:
+                # Report billing (lazy import to avoid circular dependency)
+                from ..api.erp_integration import get_usage_service
+                usage_service = get_usage_service()
+                background_tasks.add_task(
+                    usage_service.report_usage,
+                    organization_id=context.metadata.get("parent_chat_id", ""),
+                    token_input=agent._input_tokens,
+                    token_output=agent._output_tokens,
+                    model=agent.model,
+                    agent_type=request.to_agent_type,
+                    module=module_subdomain,
+                )
+                await agent.close()
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Chat-Id": new_chat_id,
+                "X-Agent-Type": request.to_agent_type,
+            },
+        )
+
+    # 5. Approval-required path
+    return HandoffResponse(
+        approved=False,
+        new_chat_id=new_chat_id,
+        new_agent_type=request.to_agent_type,
+        message=f"Handoff to {request.to_agent_type} agent queued pending user approval",
+    )
+
+
+@router.post("/orchestrate")
+async def orchestrate_workflow(request: OrchestrateRequest, background_tasks: BackgroundTasks):
+    """
+    Execute a multi-agent workflow. Bridges the ERP Canvas to AgentOrchestrator.
+    Accepts either a template workflow_id or an inline workflow definition.
+    """
+    # 1. Resolve workflow
+    workflow = None
+    if request.workflow:
+        # Inline workflow from Canvas
+        steps = []
+        for step_data in request.workflow.get("steps", []):
+            step = WorkflowStep(
+                id=step_data["id"],
+                name=step_data.get("name", step_data["id"]),
+                agent=step_data["agent"],
+                tool=step_data["tool"],
+                input_mapping=step_data.get("input_mapping", {}),
+                output_key=step_data.get("output_key", ""),
+                next_steps=step_data.get("next_steps", []),
+                step_type=StepType(step_data.get("step_type", "sequential")),
+                description=step_data.get("description", ""),
+            )
+            steps.append(step)
+
+        workflow = Workflow(
+            id=request.workflow.get("id", str(uuid.uuid4())),
+            name=request.workflow.get("name", "Custom Workflow"),
+            description=request.workflow.get("description", ""),
+            steps=steps,
+            trigger=WorkflowTrigger(type=TriggerType.MANUAL),
+        )
+    elif request.workflow_id:
+        templates = WorkflowTemplates.get_all_templates()
+        workflow = templates.get(request.workflow_id)
+        if not workflow:
+            raise HTTPException(status_code=404, detail=f"Workflow template not found: {request.workflow_id}")
+    else:
+        raise HTTPException(status_code=400, detail="Either workflow_id or workflow must be provided")
+
+    # 2. Validate
+    is_valid, errors = workflow.validate()
+    if not is_valid:
+        raise HTTPException(status_code=422, detail=f"Invalid workflow: {errors}")
+
+    # 3. Create orchestrator with agent factory
+    sse_events: list[dict] = []
+
+    async def notification_callback(event: dict):
+        sse_events.append(event)
+
+    orchestrator = AgentOrchestrator(
+        agent_factory=lambda agent_id: get_agent(AgentType(agent_id.replace("_agent", ""))),
+        notification_callback=notification_callback,
+    )
+
+    if request.stream:
+        # 4. Streaming response with workflow SSE events
+        import json as _json
+
+        async def stream_workflow():
+            # Emit workflow_start
+            yield f"event: workflow_start\ndata: {_json.dumps({'execution_id': 'pending', 'workflow_id': workflow.id, 'workflow_name': workflow.name, 'step_count': len(workflow.steps), 'initiated_by': request.user_id})}\n\n"
+
+            try:
+                execution = await orchestrator.run_workflow(
+                    workflow, request.context,
+                    initiated_by=request.user_id,
+                    organization_id=request.organization_id,
+                )
+
+                # Store orchestrator for resume
+                _orchestrators[execution.id] = orchestrator
+
+                # Emit any queued notifications as SSE
+                for event in sse_events:
+                    yield f"event: {event.get('type', 'notification')}\ndata: {_json.dumps(event)}\n\n"
+
+                # Emit workflow_complete
+                yield f"event: workflow_complete\ndata: {_json.dumps({'execution_id': execution.id, 'status': execution.status.value, 'completed_steps': len(execution.completed_steps), 'failed_steps': len(execution.failed_steps)})}\n\n"
+                yield "data: [DONE]\n\n"
+
+            except Exception as e:
+                yield f"event: workflow_error\ndata: {_json.dumps({'error': str(e)})}\n\n"
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            stream_workflow(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        )
+
+    # 5. Non-streaming: execute and return snapshot
+    execution = await orchestrator.run_workflow(
+        workflow, request.context,
+        initiated_by=request.user_id,
+        organization_id=request.organization_id,
+    )
+    _orchestrators[execution.id] = orchestrator
+
+    return {
+        "execution_id": execution.id,
+        "workflow_id": workflow.id,
+        "status": execution.status.value,
+        "current_steps": execution.current_steps,
+        "completed_steps": execution.completed_steps,
+        "initiated_by": request.user_id,
+        "organization_id": request.organization_id,
+    }
+
+
+@router.post("/orchestrate/{execution_id}/resume")
+async def resume_workflow(execution_id: str, request: ResumeRequest):
+    """
+    Resume a paused workflow after human review.
+    Finds the paused execution and continues from the review step.
+    """
+    # Find the orchestrator that owns this execution
+    orchestrator = None
+    for orch in _orchestrators.values():
+        if orch.get_execution(execution_id):
+            orchestrator = orch
+            break
+
+    if not orchestrator:
+        raise HTTPException(status_code=404, detail=f"Execution not found: {execution_id}")
+
+    execution = orchestrator.get_execution(execution_id)
+    if execution.status != WorkflowStatus.PAUSED:
+        raise HTTPException(status_code=409, detail=f"Execution is not paused (status: {execution.status.value})")
+
+    try:
+        execution = await orchestrator.resume_workflow(
+            execution_id=execution_id,
+            approval=request.approval,
+            review_notes=request.review_notes,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {
+        "execution_id": execution.id,
+        "workflow_id": execution.workflow_id,
+        "status": execution.status.value,
+        "completed_steps": execution.completed_steps,
+        "current_steps": execution.current_steps,
+        "review_notes": execution.review_notes,
+    }
 
 
 @router.get("/health")
