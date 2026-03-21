@@ -16,6 +16,7 @@
 - [Endpoint: POST /api/v1/orchestrate/{execution_id}/resume](#endpoint-post-apiv1orchestrateexecution_idresume)
 - [Artifact Protocol Enforcement](#artifact-protocol-enforcement)
 - [Format-Aware Creation Loop](#format-aware-creation-loop)
+- [Billing Usage Reporting](#billing-usage-reporting)
 - [SSE Event Catalog](#sse-event-catalog)
 - [Implementation Sequence](#implementation-sequence)
 
@@ -513,6 +514,149 @@ class ExecuteRequest(BaseModel):
 
 ---
 
+## Billing Usage Reporting
+
+### Background
+
+The existing `ERPCallbackService` (erp_integration.py:234-308) piggybacks token usage onto the per-request `callback_url` via HMAC-signed PATCH. This works for `/api/v1/agent/execute` but doesn't generalize — the new endpoints (`/handoff`, `/orchestrate`) don't always have a callback URL, and the callback payload lacks model/agent/module context needed for granular billing.
+
+Billing is unified: **all endpoints** report usage to the new dedicated billing endpoint. The existing HMAC callback remains for completion notification but is no longer the source of truth for billing.
+
+### ERP Billing Endpoint Contract
+
+```
+POST {erp_api_base_url}/api/v1/billing/usage/report
+Headers:
+  X-Service-Key: <AGENT_BUILDER_SERVICE_KEY>
+  Content-Type: application/json
+```
+
+### Request Body
+
+```json
+{
+  "organizationId": "org-123",
+  "tokenInput": 1234,
+  "tokenOutput": 5678,
+  "model": "claude-sonnet-4-20250514",
+  "agentType": "content",
+  "module": "studio"
+}
+```
+
+| Field | Type | Source | Description |
+|-------|------|--------|-------------|
+| `organizationId` | string | `AgentContext.organization_id` or `ExecuteRequest.tenant_id` | Tenant for billing |
+| `tokenInput` | int | `BaseAgent._input_tokens` (accumulated at base.py:109, 406-410) | Prompt tokens consumed |
+| `tokenOutput` | int | `BaseAgent._output_tokens` (accumulated at base.py:110, 406-410) | Completion tokens consumed |
+| `model` | string | `get_model_for_agent()` from `src/services/model_registry.py` | Model ID used for execution |
+| `agentType` | string | `AgentType` enum value (e.g., `"content"`, `"brief"`) | Which agent ran |
+| `module` | string | `AgentContext.module_subdomain` (e.g., `"studio"`, `"briefs"`) | Module context; `null` if general MC |
+
+### Auth: X-Service-Key
+
+Unlike the existing HMAC callback (which signs each payload with `erp_callback_secret`), the billing endpoint uses a static service key:
+
+- New config field: `erp_service_key: str` in `Settings` (config.py)
+- Sent as `X-Service-Key` header on every billing POST
+- The ERP validates this key against the Agent Builder's registered service identity
+
+### Implementation: UsageReportService
+
+New class in `src/api/erp_integration.py`, alongside the existing `ERPCallbackService`:
+
+```python
+class UsageReportService:
+    """Reports token usage to the ERP billing endpoint."""
+
+    def __init__(self, service_key: str = None, base_url: str = None):
+        settings = get_settings()
+        self.service_key = service_key or settings.erp_service_key
+        self.base_url = base_url or settings.erp_api_base_url
+        self.http_client = httpx.AsyncClient(timeout=30.0)
+
+    async def report_usage(
+        self,
+        organization_id: str,
+        token_input: int,
+        token_output: int,
+        model: str,
+        agent_type: str,
+        module: Optional[str] = None,
+        max_retries: int = 3,
+    ) -> bool:
+        """Report usage to ERP billing. Fire-and-forget with retry."""
+        payload = {
+            "organizationId": organization_id,
+            "tokenInput": token_input,
+            "tokenOutput": token_output,
+            "model": model,
+            "agentType": agent_type,
+            "module": module,
+        }
+
+        headers = {
+            "X-Service-Key": self.service_key,
+            "Content-Type": "application/json",
+        }
+
+        url = f"{self.base_url}/api/v1/billing/usage/report"
+
+        for attempt in range(max_retries + 1):
+            try:
+                response = await self.http_client.post(
+                    url, json=payload, headers=headers,
+                )
+                if response.status_code in (200, 201, 204):
+                    return True
+                if 400 <= response.status_code < 500:
+                    logger.error(f"Billing rejected: {response.status_code}")
+                    return False
+            except Exception as e:
+                logger.warning(f"Billing attempt {attempt + 1} error: {e}")
+
+            if attempt < max_retries:
+                await asyncio.sleep(2 ** (attempt + 1))
+
+        return False
+```
+
+### Integration Points
+
+| Endpoint | When | What |
+|----------|------|------|
+| `POST /api/v1/agent/execute` | After agent completes (in background task) | Single report with agent's accumulated tokens |
+| `POST /api/v1/handoff` | After child agent completes | Report with `agentType=to_agent_type`, module from handoff context |
+| `POST /api/v1/orchestrate` | After each workflow step completes | Per-step report; each step may use a different agent/model |
+| `POST /api/v1/orchestrate/{id}/resume` | After resumed steps complete | Per-step report for the post-review steps |
+
+### Orchestration: Per-Step Reporting
+
+For workflow orchestration, usage is reported per step rather than aggregated, since each step may use a different agent and model:
+
+```
+Workflow: Campaign Launch Checklist
+├─ Step 1: qa_agent (haiku) → report: {tokenInput: 800, tokenOutput: 200, model: "haiku", agentType: "qa"}
+├─ Step 2: qa_agent (haiku) → report: {tokenInput: 600, tokenOutput: 150, ...}
+├─ Step 3: legal_agent (opus) → report: {tokenInput: 2000, tokenOutput: 800, model: "opus", agentType: "legal"}
+└─ Step 4: report_agent (sonnet) → report: {tokenInput: 1500, tokenOutput: 3000, model: "sonnet", agentType: "report"}
+```
+
+### Relationship to Existing Callback
+
+| Aspect | HMAC Callback (`ERPCallbackService`) | Billing Report (`UsageReportService`) |
+|--------|--------------------------------------|--------------------------------------|
+| Purpose | Completion notification + result delivery | Usage/cost tracking |
+| Auth | Per-payload HMAC signature | Static `X-Service-Key` |
+| Method | PATCH to per-request `callback_url` | POST to fixed `/api/v1/billing/usage/report` |
+| Payload | status, output, token counts, duration | token counts, model, agent, module |
+| Trigger | Only when `callback_url` provided | Always (all endpoints) |
+| Required | Optional (ERP-integrated mode only) | Always |
+
+Both continue to operate. The HMAC callback delivers results; the billing service reports usage.
+
+---
+
 ## SSE Event Catalog
 
 ### Existing Events (unchanged)
@@ -622,36 +766,40 @@ class ExecuteRequest(BaseModel):
 | 4 | Add `emit_artifact` tool dispatch in `run()` and `stream()` | `src/agents/base.py` |
 | 5 | Update `_build_system_prompt()` with artifact protocol instructions and format-specific schema | `src/agents/base.py` |
 
-### Phase 2: New Endpoints
+### Phase 2: New Endpoints + Billing
 
 | # | Task | File |
 |---|------|------|
 | 6 | Add `artifact_format` field to `ExecuteRequest` | `src/api/routes.py` |
 | 7 | Add `artifact_format` field to `HandoffContext` | `src/protocols/handoffs.py` |
-| 8 | Implement `POST /api/v1/handoff` endpoint | `src/api/routes.py` |
-| 9 | Implement `POST /api/v1/orchestrate` endpoint with `OrchestrateRequest` model | `src/api/routes.py` |
-| 10 | Implement `POST /api/v1/orchestrate/{execution_id}/resume` endpoint with `ResumeRequest` model | `src/api/routes.py` |
-| 11 | Define workflow SSE event emission in orchestrator `notification_callback` | `src/orchestration/orchestrator.py` |
-| 12 | Fix `resume_workflow()` to re-execute remaining steps after approval | `src/orchestration/orchestrator.py` |
+| 8 | Add `erp_service_key` config field to `Settings` | `src/config.py` |
+| 9 | Implement `UsageReportService` class | `src/api/erp_integration.py` |
+| 10 | Implement `POST /api/v1/handoff` endpoint | `src/api/routes.py` |
+| 11 | Implement `POST /api/v1/orchestrate` endpoint with `OrchestrateRequest` model | `src/api/routes.py` |
+| 12 | Implement `POST /api/v1/orchestrate/{execution_id}/resume` endpoint with `ResumeRequest` model | `src/api/routes.py` |
+| 13 | Define workflow SSE event emission in orchestrator `notification_callback` | `src/orchestration/orchestrator.py` |
+| 14 | Fix `resume_workflow()` to re-execute remaining steps after approval | `src/orchestration/orchestrator.py` |
+| 15 | Wire `UsageReportService.report_usage()` into all four endpoints as background task | `src/api/routes.py` |
 
 ### Phase 3: Validation and Testing
 
 | # | Task | File |
 |---|------|------|
-| 13 | Add module-level agent validation to handoff endpoint | `src/api/routes.py` |
-| 14 | Add JSON schema validation for artifact `data` payloads against `ARTIFACT_DATA_SCHEMAS` | `src/protocols/artifacts.py` |
-| 15 | Integration tests: handoff flow (auto-start + approval paths) | `tests/` |
-| 16 | Integration tests: orchestration flow (template + inline + resume) | `tests/` |
-| 17 | Integration tests: artifact emission (verify SSE events contain structured data) | `tests/` |
+| 16 | Add module-level agent validation to handoff endpoint | `src/api/routes.py` |
+| 17 | Add JSON schema validation for artifact `data` payloads against `ARTIFACT_DATA_SCHEMAS` | `src/protocols/artifacts.py` |
+| 18 | Integration tests: handoff flow (auto-start + approval paths) | `tests/` |
+| 19 | Integration tests: orchestration flow (template + inline + resume) | `tests/` |
+| 20 | Integration tests: artifact emission (verify SSE events contain structured data) | `tests/` |
+| 21 | Integration tests: billing reports sent for all endpoints with correct payload | `tests/` |
 
 ---
 
 ## Appendix: Endpoint Compatibility Matrix
 
-| ERP Feature | Endpoint Used | Response Type |
-|-------------|---------------|---------------|
-| Mission Control chat (conversational) | `POST /api/v1/agent/execute` | SSE stream / JSON |
-| Mission Control chat (artifact) | `POST /api/v1/agent/execute` + `artifact_format` | SSE stream with `artifact:create`/`artifact:complete` |
-| Cross-agent handoff (from artifact actions) | `POST /api/v1/handoff` | SSE stream or `HandoffResponse` |
-| Canvas workflow execution | `POST /api/v1/orchestrate` | SSE stream with workflow events |
-| Canvas workflow resume after review | `POST /api/v1/orchestrate/{id}/resume` | `WorkflowExecution` JSON |
+| ERP Feature | Endpoint Used | Response Type | Billing |
+|-------------|---------------|---------------|---------|
+| Mission Control chat (conversational) | `POST /api/v1/agent/execute` | SSE stream / JSON | `UsageReportService` (background) |
+| Mission Control chat (artifact) | `POST /api/v1/agent/execute` + `artifact_format` | SSE stream with `artifact:create`/`artifact:complete` | `UsageReportService` (background) |
+| Cross-agent handoff (from artifact actions) | `POST /api/v1/handoff` | SSE stream or `HandoffResponse` | `UsageReportService` (background) |
+| Canvas workflow execution | `POST /api/v1/orchestrate` | SSE stream with workflow events | `UsageReportService` per step |
+| Canvas workflow resume after review | `POST /api/v1/orchestrate/{id}/resume` | `WorkflowExecution` JSON | `UsageReportService` per step |
