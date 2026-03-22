@@ -30,6 +30,8 @@ class ArtifactType(str, Enum):
     CONTRACT = "contract"
     SURVEY = "survey"
     COURSE = "course"
+    ASSESSMENT = "assessment"
+    LEARNING_PATH = "learning_path"
     WORKFLOW = "workflow"
 
 
@@ -315,6 +317,60 @@ ARTIFACT_DATA_SCHEMAS: dict[ArtifactType, dict] = {
             "objectives": {"type": "array", "items": {"type": "string"}},
         },
     },
+    ArtifactType.ASSESSMENT: {
+        "type": "object",
+        "required": ["title", "questions"],
+        "properties": {
+            "title": {"type": "string"},
+            "course_id": {"type": "string"},
+            "difficulty_level": {"type": "string", "enum": ["beginner", "intermediate", "advanced"]},
+            "questions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "type": {"type": "string", "enum": ["multiple_choice", "open_ended", "code", "fill_blank", "matching"]},
+                        "text": {"type": "string"},
+                        "options": {"type": "array", "items": {"type": "string"}},
+                        "correct_answer": {},
+                        "explanation": {"type": "string"},
+                        "difficulty": {"type": "integer"},
+                        "bloom_level": {"type": "string"},
+                        "citations": {"type": "array", "items": {"type": "object"}},
+                    },
+                },
+            },
+            "time_limit_minutes": {"type": "integer"},
+            "passing_score": {"type": "integer"},
+            "adaptive": {"type": "boolean"},
+        },
+    },
+    ArtifactType.LEARNING_PATH: {
+        "type": "object",
+        "required": ["title", "nodes"],
+        "properties": {
+            "title": {"type": "string"},
+            "learner_level": {"type": "string"},
+            "estimated_hours": {"type": "number"},
+            "nodes": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "title": {"type": "string"},
+                        "type": {"type": "string", "enum": ["lesson", "assessment", "project", "review"]},
+                        "description": {"type": "string"},
+                        "prerequisites": {"type": "array", "items": {"type": "string"}},
+                        "estimated_minutes": {"type": "integer"},
+                        "resources": {"type": "array"},
+                    },
+                },
+            },
+            "milestones": {"type": "array", "items": {"type": "object"}},
+        },
+    },
     ArtifactType.WORKFLOW: {
         "type": "object",
         "required": ["title", "steps"],
@@ -389,6 +445,12 @@ STANDARD_ACTIONS: dict[ArtifactType, list[str]] = {
         "share_internal", "handoff_agent", "add_to_module",
     ],
     ArtifactType.COURSE: [
+        "share_internal", "add_to_module", "export",
+    ],
+    ArtifactType.ASSESSMENT: [
+        "share_internal", "add_to_module", "export",
+    ],
+    ArtifactType.LEARNING_PATH: [
         "share_internal", "add_to_module", "export",
     ],
 }
