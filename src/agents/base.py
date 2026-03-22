@@ -25,7 +25,7 @@ from ..protocols.work import (
     CreatedEntity, WorkStartEvent, WorkActionEvent,
     EntityCreatedEvent, WorkCompleteEvent, WorkErrorEvent,
 )
-from ..protocols.artifacts import ArtifactEvent, ArtifactEventType, Artifact, ArtifactType
+from ..protocols.artifacts import ArtifactEvent, ArtifactEventType, Artifact, ArtifactType, ArtifactPreview, ARTIFACT_DATA_SCHEMAS, validate_artifact_data
 from ..protocols.events import MessageWithAttachments
 
 
@@ -51,6 +51,9 @@ class AgentContext:
 
     # Attachments (vision support, spec Section 11.8)
     attachments: list[dict] = field(default_factory=list)
+
+    # Format-aware creation (Mission Control routing)
+    artifact_format: Optional[str] = None  # e.g., "calendar", "deck", "brief"
 
     # SSE callback for emitting events
     _sse_callback: Optional[Callable] = field(default=None, repr=False)
@@ -97,8 +100,8 @@ class BaseAgent(ABC):
         self.erp_base_url = erp_base_url
         self.erp_api_key = erp_api_key
 
-        # Merge agent-specific tools + platform skills (Layer 2)
-        self.tools = self._define_tools() + get_platform_skill_tools()
+        # Merge agent-specific tools + platform skills (Layer 2) + universal emit_artifact
+        self.tools = self._define_tools() + get_platform_skill_tools() + [self._emit_artifact_tool_def()]
 
         # State tracking
         self._state = AgentState.IDLE
@@ -212,6 +215,74 @@ class BaseAgent(ABC):
             return self._extract_text(response) or json.dumps({"error": "Empty skill response"})
         except Exception as e:
             return json.dumps({"error": f"Platform skill '{skill_name}' failed: {str(e)}"})
+
+    # ============================================
+    # Universal Artifact Tool
+    # ============================================
+
+    @staticmethod
+    def _emit_artifact_tool_def() -> dict:
+        """Tool definition for the universal emit_artifact tool."""
+        return {
+            "type": "function",
+            "function": {
+                "name": "emit_artifact",
+                "description": "Emit a structured artifact for display in Mission Control. Use this instead of including full artifact content as inline text.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "artifact_type": {
+                            "type": "string",
+                            "enum": [t.value for t in ArtifactType],
+                            "description": "Type of artifact being created",
+                        },
+                        "title": {
+                            "type": "string",
+                            "description": "Human-readable title for the artifact",
+                        },
+                        "data": {
+                            "type": "object",
+                            "description": "Structured artifact data matching the schema for this type",
+                        },
+                        "preview_type": {
+                            "type": "string",
+                            "enum": ["html", "markdown", "json"],
+                            "description": "Format of the preview content",
+                        },
+                        "preview_content": {
+                            "type": "string",
+                            "description": "Short preview/summary for UI card display",
+                        },
+                    },
+                    "required": ["artifact_type", "title", "data"],
+                },
+            },
+        }
+
+    async def _handle_emit_artifact(self, tool_input: dict, context: "AgentContext") -> dict:
+        """Handle the emit_artifact tool call."""
+        # Validate artifact data against schema
+        artifact_type = ArtifactType(tool_input["artifact_type"])
+        is_valid, errors = validate_artifact_data(artifact_type, tool_input["data"])
+        if not is_valid:
+            return {"status": "validation_error", "errors": errors}
+
+        artifact = Artifact(
+            id=str(uuid4()),
+            type=ArtifactType(tool_input["artifact_type"]),
+            title=tool_input["title"],
+            data=tool_input["data"],
+            status="final",
+            preview=ArtifactPreview(
+                type=tool_input.get("preview_type", "markdown"),
+                content=tool_input.get("preview_content", ""),
+            ) if tool_input.get("preview_content") else None,
+            client_id=context.client_id,
+            project_id=context.project_id,
+        )
+        await self._emit_artifact_create(context, artifact)
+        await self._emit_artifact_complete(context, artifact)
+        return {"status": "artifact_emitted", "artifact_id": artifact.id}
 
     # ============================================
     # State Machine
@@ -444,15 +515,17 @@ class BaseAgent(ABC):
                 if self._state != AgentState.WORKING:
                     await self._set_state(AgentState.WORKING, context)
 
-                # Route: platform skill or agent-specific tool
-                if tool_name in self._platform_skill_names:
+                # Route: emit_artifact, platform skill, or agent-specific tool
+                if tool_name == "emit_artifact":
+                    result = await self._handle_emit_artifact(tool_input, context)
+                elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
                     result = await self._execute_tool(tool_name, tool_input)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],
-                    "content": str(result),
+                    "content": str(result) if not isinstance(result, str) else result,
                 })
 
         # COMPLETE
@@ -555,14 +628,16 @@ class BaseAgent(ABC):
                     tool_input = json.loads(func.get("arguments", "{}"))
                 except json.JSONDecodeError:
                     tool_input = {}
-                if tool_name in self._platform_skill_names:
+                if tool_name == "emit_artifact":
+                    result = await self._handle_emit_artifact(tool_input, context)
+                elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
                     result = await self._execute_tool(tool_name, tool_input)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tc["id"],
-                    "content": str(result),
+                    "content": str(result) if not isinstance(result, str) else result,
                 })
 
         # Emit completion
@@ -580,10 +655,28 @@ class BaseAgent(ABC):
         yield completion_event.to_sse()
 
     def _build_system_prompt(self, context: AgentContext) -> str:
-        """Build system prompt with context including module scope."""
+        """Build system prompt with context including module scope and artifact protocol."""
         module_line = ""
         if context.module_subdomain:
             module_line = f"\n- Module: {context.module_display_name or context.module_subdomain} ({context.module_subdomain}.spokestack.app)"
+
+        # Format-aware creation: inject schema when artifact_format is specified
+        format_section = ""
+        if context.artifact_format:
+            try:
+                artifact_type = ArtifactType(context.artifact_format)
+                schema = ARTIFACT_DATA_SCHEMAS.get(artifact_type, {})
+            except ValueError:
+                schema = {}
+            schema_str = json.dumps(schema, indent=2) if schema else "No specific schema defined."
+            format_section = f"""
+
+## Output Format
+The user's request should be delivered as a {context.artifact_format} artifact.
+Expected data structure:
+{schema_str}
+
+Emit the result using the emit_artifact tool with type="{context.artifact_format}"."""
 
         return f"""{self.system_prompt}
 
@@ -598,6 +691,19 @@ Follow the Think → Act → Create paradigm:
 1. THINK: Analyze the request, understand requirements
 2. ACT: Use tools to gather data, validate, iterate
 3. CREATE: Synthesize findings into actionable output
+
+## Artifact Output Protocol
+When you produce a deliverable (brief, calendar, deck, report, table, chart,
+contract, document, etc.), you MUST emit it as a structured artifact using the
+`emit_artifact` tool rather than including the full content as inline text.
+
+Steps:
+1. Call emit_artifact with the artifact_type, title, and structured data
+2. Continue with a brief text summary in your response
+3. Do NOT dump the full artifact content as text
+
+Available artifact types: calendar, brief, document, deck, moodboard, script,
+storyboard, shot_list, report, table, chart, contract, survey, course, workflow{format_section}
 """
 
     def _extract_text(self, response: dict) -> str:
