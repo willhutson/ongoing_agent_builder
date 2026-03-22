@@ -568,6 +568,14 @@ class BaseAgent(ABC):
         )
         yield state_event.to_sse()
 
+        # Wire up SSE callback so artifact events flow into the stream
+        event_queue: asyncio.Queue[str] = asyncio.Queue()
+
+        async def sse_callback(event: dict):
+            await event_queue.put(f"data: {json.dumps(event)}\n\n")
+
+        context._sse_callback = sse_callback
+
         messages = [self._build_user_message(context)]
 
         while True:
@@ -639,6 +647,14 @@ class BaseAgent(ABC):
                     "tool_call_id": tc["id"],
                     "content": str(result) if not isinstance(result, str) else result,
                 })
+
+            # Drain any SSE events queued during tool execution (e.g. artifact events)
+            while not event_queue.empty():
+                yield await event_queue.get()
+
+        # Drain any remaining queued SSE events
+        while not event_queue.empty():
+            yield await event_queue.get()
 
         # Emit completion
         completion_event = AgentStateUpdate(
