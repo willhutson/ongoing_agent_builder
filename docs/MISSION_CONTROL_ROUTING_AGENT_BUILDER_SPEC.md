@@ -1,8 +1,9 @@
 # Agent Builder: Mission Control Routing Companion Spec
 
-**Version:** 1.0
+**Version:** 1.1
 **Companion to:** ERP Mission Control Routing Architecture v1.1
 **Scope:** Agent Builder endpoints, artifact protocol enforcement, and format-aware creation for the Mission Control routing contract.
+**Status:** Specification — fields marked [NEW] require implementation.
 
 > This document covers the Agent Builder's responsibilities in the two-MC routing system. The ERP owns persistence, UI, and format detection; the Agent Builder owns execution, artifact streaming, and orchestration.
 
@@ -16,7 +17,6 @@
 - [Endpoint: POST /api/v1/orchestrate/{execution_id}/resume](#endpoint-post-apiv1orchestrateexecution_idresume)
 - [Artifact Protocol Enforcement](#artifact-protocol-enforcement)
 - [Format-Aware Creation Loop](#format-aware-creation-loop)
-- [Billing Usage Reporting](#billing-usage-reporting)
 - [SSE Event Catalog](#sse-event-catalog)
 - [Implementation Sequence](#implementation-sequence)
 
@@ -37,7 +37,7 @@ ERP (Mission Control)                  Agent Builder
 │                        │<──SSE───── │    /agent/status       │
 └────────────────────────┘            │                        │
                                       │  Agent Execution       │
-                                      │  - 45 agents + base    │
+                                      │  - 46 agents + base    │
                                       │  - emit_artifact tool  │
                                       │  - Orchestrator engine │
                                       └────────────────────────┘
@@ -76,7 +76,7 @@ class HandoffContext(BaseModel):
     relevant_messages: list[dict] = []
     task: str
     constraints: Optional[list[str]] = None
-    artifact_format: Optional[str] = None   # NEW — format passthrough
+    artifact_format: Optional[str] = None   # [NEW] — not yet in handoffs.py
 ```
 
 ### Request Example
@@ -304,17 +304,31 @@ class ResumeRequest(BaseModel):
 
 ### Known Gap
 
-The current `resume_workflow()` implementation (orchestrator.py:356-389) sets the status back to `RUNNING` but does **not** re-execute remaining steps. The enhancement needed:
+The current `resume_workflow()` implementation (orchestrator.py:356-389) sets the status back to `RUNNING` but does **not** re-execute remaining steps. Two sub-gaps:
+
+1. **Workflow not stored** — `run_workflow()` receives a `Workflow` instance but does not persist it. The orchestrator stores executions in `self._executions` but has no `self._workflows` dict. The fix must also store the workflow definition so `resume` can retrieve it.
+2. **Remaining steps not executed** — after approval, the next steps after the review gate are never triggered.
+
+Combined fix:
 
 ```python
+# In __init__(), add:
+self._workflows: dict[str, Workflow] = {}
+
+# In run_workflow(), after creating execution:
+self._workflows[workflow.id] = workflow  # Persist workflow definition
+
+# In resume_workflow():
 if approval:
     execution.status = WorkflowStatus.RUNNING
-    # Retrieve the workflow definition (must be stored on the execution)
     workflow = self._workflows.get(execution.workflow_id)
+    if not workflow:
+        raise ValueError(f"Workflow definition not found for {execution.workflow_id}")
     review_step = workflow.get_step(execution.pending_review)
     if review_step and review_step.next_steps:
         remaining = [workflow.get_step(sid) for sid in review_step.next_steps]
-        await self._execute_steps(execution, remaining, execution.context)
+        remaining = [s for s in remaining if s is not None]
+        await self._execute_steps(workflow, execution, remaining)
     execution.pending_review = None
 ```
 
@@ -514,156 +528,13 @@ class ExecuteRequest(BaseModel):
 
 ---
 
-## Billing Usage Reporting
-
-### Background
-
-The existing `ERPCallbackService` (erp_integration.py:234-308) piggybacks token usage onto the per-request `callback_url` via HMAC-signed PATCH. This works for `/api/v1/agent/execute` but doesn't generalize — the new endpoints (`/handoff`, `/orchestrate`) don't always have a callback URL, and the callback payload lacks model/agent/module context needed for granular billing.
-
-Billing is unified: **all endpoints** report usage to the new dedicated billing endpoint. The existing HMAC callback remains for completion notification but is no longer the source of truth for billing.
-
-### ERP Billing Endpoint Contract
-
-```
-POST {erp_api_base_url}/api/v1/billing/usage/report
-Headers:
-  X-Service-Key: <AGENT_BUILDER_SERVICE_KEY>
-  Content-Type: application/json
-```
-
-### Request Body
-
-```json
-{
-  "organizationId": "org-123",
-  "tokenInput": 1234,
-  "tokenOutput": 5678,
-  "model": "claude-sonnet-4-20250514",
-  "agentType": "content",
-  "module": "studio"
-}
-```
-
-| Field | Type | Source | Description |
-|-------|------|--------|-------------|
-| `organizationId` | string | `AgentContext.organization_id` or `ExecuteRequest.tenant_id` | Tenant for billing |
-| `tokenInput` | int | `BaseAgent._input_tokens` (accumulated at base.py:109, 406-410) | Prompt tokens consumed |
-| `tokenOutput` | int | `BaseAgent._output_tokens` (accumulated at base.py:110, 406-410) | Completion tokens consumed |
-| `model` | string | `get_model_for_agent()` from `src/services/model_registry.py` | Model ID used for execution |
-| `agentType` | string | `AgentType` enum value (e.g., `"content"`, `"brief"`) | Which agent ran |
-| `module` | string | `AgentContext.module_subdomain` (e.g., `"studio"`, `"briefs"`) | Module context; `null` if general MC |
-
-### Auth: X-Service-Key
-
-Unlike the existing HMAC callback (which signs each payload with `erp_callback_secret`), the billing endpoint uses a static service key:
-
-- New config field: `erp_service_key: str` in `Settings` (config.py)
-- Sent as `X-Service-Key` header on every billing POST
-- The ERP validates this key against the Agent Builder's registered service identity
-
-### Implementation: UsageReportService
-
-New class in `src/api/erp_integration.py`, alongside the existing `ERPCallbackService`:
-
-```python
-class UsageReportService:
-    """Reports token usage to the ERP billing endpoint."""
-
-    def __init__(self, service_key: str = None, base_url: str = None):
-        settings = get_settings()
-        self.service_key = service_key or settings.erp_service_key
-        self.base_url = base_url or settings.erp_api_base_url
-        self.http_client = httpx.AsyncClient(timeout=30.0)
-
-    async def report_usage(
-        self,
-        organization_id: str,
-        token_input: int,
-        token_output: int,
-        model: str,
-        agent_type: str,
-        module: Optional[str] = None,
-        max_retries: int = 3,
-    ) -> bool:
-        """Report usage to ERP billing. Fire-and-forget with retry."""
-        payload = {
-            "organizationId": organization_id,
-            "tokenInput": token_input,
-            "tokenOutput": token_output,
-            "model": model,
-            "agentType": agent_type,
-            "module": module,
-        }
-
-        headers = {
-            "X-Service-Key": self.service_key,
-            "Content-Type": "application/json",
-        }
-
-        url = f"{self.base_url}/api/v1/billing/usage/report"
-
-        for attempt in range(max_retries + 1):
-            try:
-                response = await self.http_client.post(
-                    url, json=payload, headers=headers,
-                )
-                if response.status_code in (200, 201, 204):
-                    return True
-                if 400 <= response.status_code < 500:
-                    logger.error(f"Billing rejected: {response.status_code}")
-                    return False
-            except Exception as e:
-                logger.warning(f"Billing attempt {attempt + 1} error: {e}")
-
-            if attempt < max_retries:
-                await asyncio.sleep(2 ** (attempt + 1))
-
-        return False
-```
-
-### Integration Points
-
-| Endpoint | When | What |
-|----------|------|------|
-| `POST /api/v1/agent/execute` | After agent completes (in background task) | Single report with agent's accumulated tokens |
-| `POST /api/v1/handoff` | After child agent completes | Report with `agentType=to_agent_type`, module from handoff context |
-| `POST /api/v1/orchestrate` | After each workflow step completes | Per-step report; each step may use a different agent/model |
-| `POST /api/v1/orchestrate/{id}/resume` | After resumed steps complete | Per-step report for the post-review steps |
-
-### Orchestration: Per-Step Reporting
-
-For workflow orchestration, usage is reported per step rather than aggregated, since each step may use a different agent and model:
-
-```
-Workflow: Campaign Launch Checklist
-├─ Step 1: qa_agent (haiku) → report: {tokenInput: 800, tokenOutput: 200, model: "haiku", agentType: "qa"}
-├─ Step 2: qa_agent (haiku) → report: {tokenInput: 600, tokenOutput: 150, ...}
-├─ Step 3: legal_agent (opus) → report: {tokenInput: 2000, tokenOutput: 800, model: "opus", agentType: "legal"}
-└─ Step 4: report_agent (sonnet) → report: {tokenInput: 1500, tokenOutput: 3000, model: "sonnet", agentType: "report"}
-```
-
-### Relationship to Existing Callback
-
-| Aspect | HMAC Callback (`ERPCallbackService`) | Billing Report (`UsageReportService`) |
-|--------|--------------------------------------|--------------------------------------|
-| Purpose | Completion notification + result delivery | Usage/cost tracking |
-| Auth | Per-payload HMAC signature | Static `X-Service-Key` |
-| Method | PATCH to per-request `callback_url` | POST to fixed `/api/v1/billing/usage/report` |
-| Payload | status, output, token counts, duration | token counts, model, agent, module |
-| Trigger | Only when `callback_url` provided | Always (all endpoints) |
-| Required | Optional (ERP-integrated mode only) | Always |
-
-Both continue to operate. The HMAC callback delivers results; the billing service reports usage.
-
----
-
 ## SSE Event Catalog
 
 ### Existing Events (unchanged)
 
 | Event | Source | Description |
 |-------|--------|-------------|
-| `state_update` | `BaseAgent` | Agent state machine transitions (IDLE → THINKING → ACTING → CREATING → COMPLETE) |
+| `state_update` | `BaseAgent` | Agent state machine transitions (IDLE → THINKING → WORKING → COMPLETE) |
 | `work_start` | `BaseAgent` | Agent begins processing |
 | `work_action` | `BaseAgent` | Agent performs an action (tool call) |
 | `entity_created` | `BaseAgent` | Agent creates a resource in the ERP |
@@ -675,63 +546,86 @@ Both continue to operate. The HMAC callback delivers results; the billing servic
 
 ### New Events (workflow orchestration)
 
-| Event | Source | Description |
-|-------|--------|-------------|
-| `workflow_start` | `AgentOrchestrator` | Workflow execution begins |
-| `step_progress` | `AgentOrchestrator` | A step starts, completes, or fails |
-| `workflow_paused` | `AgentOrchestrator` | Workflow paused for human review |
-| `workflow_complete` | `AgentOrchestrator` | Workflow execution finished |
+The ERP-side `orchestrator-bridge.ts` expects colon-separated event types (e.g., `workflow:started`, `step:completed`). The Agent Builder must emit events using this convention for compatibility.
+
+| Agent Builder Event | ERP Expected Event | Source | Description |
+|----|----|--------|-------------|
+| `workflow:started` | `workflow:started` | `AgentOrchestrator` | Workflow execution begins |
+| `step:started` | `step:started` | `AgentOrchestrator` | A workflow step begins executing |
+| `step:progress` | `step:progress` | `AgentOrchestrator` | A step reports intermediate progress |
+| `step:completed` | `step:completed` | `AgentOrchestrator` | A workflow step completes successfully |
+| `step:failed` | `step:failed` | `AgentOrchestrator` | A workflow step fails |
+| `step:waiting_review` | `step:waiting_review` | `AgentOrchestrator` | Workflow paused for human review |
+| `workflow:completed` | `workflow:completed` | `AgentOrchestrator` | Workflow execution finished |
+| `workflow:failed` | `workflow:failed` | `AgentOrchestrator` | Workflow execution failed |
 
 ### New Event Payloads
 
-**`workflow_start`**
+All workflow events follow the `OrchestratorEvent` shape defined in the ERP bridge:
+
+```typescript
+interface OrchestratorEvent {
+  type: string;          // e.g., "workflow:started"
+  workflow_id: string;
+  step_id?: string;
+  data?: Record<string, unknown>;
+  timestamp: string;     // ISO 8601
+}
+```
+
+**`workflow:started`**
 ```json
 {
-  "event": "workflow_start",
+  "type": "workflow:started",
+  "workflow_id": "campaign_launch_checklist",
   "data": {
     "execution_id": "exec-abc-123",
-    "workflow_id": "campaign_launch_checklist",
     "workflow_name": "Campaign Launch Checklist",
     "step_count": 8,
     "initiated_by": "user-456"
-  }
+  },
+  "timestamp": "2026-03-20T12:00:00Z"
 }
 ```
 
-**`step_progress`**
+**`step:started` / `step:completed`**
 ```json
 {
-  "event": "step_progress",
+  "type": "step:started",
+  "workflow_id": "campaign_launch_checklist",
+  "step_id": "verify_landing",
   "data": {
     "execution_id": "exec-abc-123",
-    "step_id": "verify_landing",
     "step_name": "Verify Landing Page",
     "agent": "qa_agent",
-    "status": "running",
     "step_index": 1,
     "total_steps": 8
-  }
+  },
+  "timestamp": "2026-03-20T12:00:01Z"
 }
 ```
 
-**`workflow_paused`**
+**`step:waiting_review`**
 ```json
 {
-  "event": "workflow_paused",
+  "type": "step:waiting_review",
+  "workflow_id": "campaign_launch_checklist",
+  "step_id": "human_review",
   "data": {
     "execution_id": "exec-abc-123",
-    "pending_review_step_id": "human_review",
-    "pending_review_step_name": "Human Review Checkpoint",
+    "step_name": "Human Review Checkpoint",
     "completed_steps": 6,
     "total_steps": 8
-  }
+  },
+  "timestamp": "2026-03-20T12:00:30Z"
 }
 ```
 
-**`workflow_complete`**
+**`workflow:completed`**
 ```json
 {
-  "event": "workflow_complete",
+  "type": "workflow:completed",
+  "workflow_id": "campaign_launch_checklist",
   "data": {
     "execution_id": "exec-abc-123",
     "status": "completed",
@@ -748,7 +642,8 @@ Both continue to operate. The HMAC callback delivers results; the billing servic
       "human_review": "approved",
       "capture_proof": "3 screenshots captured"
     }
-  }
+  },
+  "timestamp": "2026-03-20T12:00:45Z"
 }
 ```
 
@@ -766,40 +661,77 @@ Both continue to operate. The HMAC callback delivers results; the billing servic
 | 4 | Add `emit_artifact` tool dispatch in `run()` and `stream()` | `src/agents/base.py` |
 | 5 | Update `_build_system_prompt()` with artifact protocol instructions and format-specific schema | `src/agents/base.py` |
 
-### Phase 2: New Endpoints + Billing
+### Phase 2: New Endpoints
 
 | # | Task | File |
 |---|------|------|
 | 6 | Add `artifact_format` field to `ExecuteRequest` | `src/api/routes.py` |
 | 7 | Add `artifact_format` field to `HandoffContext` | `src/protocols/handoffs.py` |
-| 8 | Add `erp_service_key` config field to `Settings` | `src/config.py` |
-| 9 | Implement `UsageReportService` class | `src/api/erp_integration.py` |
-| 10 | Implement `POST /api/v1/handoff` endpoint | `src/api/routes.py` |
-| 11 | Implement `POST /api/v1/orchestrate` endpoint with `OrchestrateRequest` model | `src/api/routes.py` |
-| 12 | Implement `POST /api/v1/orchestrate/{execution_id}/resume` endpoint with `ResumeRequest` model | `src/api/routes.py` |
-| 13 | Define workflow SSE event emission in orchestrator `notification_callback` | `src/orchestration/orchestrator.py` |
-| 14 | Fix `resume_workflow()` to re-execute remaining steps after approval | `src/orchestration/orchestrator.py` |
-| 15 | Wire `UsageReportService.report_usage()` into all four endpoints as background task | `src/api/routes.py` |
+| 8 | Implement `POST /api/v1/handoff` endpoint | `src/api/routes.py` |
+| 9 | Implement `POST /api/v1/orchestrate` endpoint with `OrchestrateRequest` model | `src/api/routes.py` |
+| 10 | Implement `POST /api/v1/orchestrate/{execution_id}/resume` endpoint with `ResumeRequest` model | `src/api/routes.py` |
+| 11 | Define workflow SSE event emission in orchestrator `notification_callback` | `src/orchestration/orchestrator.py` |
+| 12 | Fix `resume_workflow()` to re-execute remaining steps after approval | `src/orchestration/orchestrator.py` |
 
 ### Phase 3: Validation and Testing
 
 | # | Task | File |
 |---|------|------|
-| 16 | Add module-level agent validation to handoff endpoint | `src/api/routes.py` |
-| 17 | Add JSON schema validation for artifact `data` payloads against `ARTIFACT_DATA_SCHEMAS` | `src/protocols/artifacts.py` |
-| 18 | Integration tests: handoff flow (auto-start + approval paths) | `tests/` |
-| 19 | Integration tests: orchestration flow (template + inline + resume) | `tests/` |
-| 20 | Integration tests: artifact emission (verify SSE events contain structured data) | `tests/` |
-| 21 | Integration tests: billing reports sent for all endpoints with correct payload | `tests/` |
+| 13 | Add module-level agent validation to handoff endpoint | `src/api/routes.py` |
+| 14 | Add JSON schema validation for artifact `data` payloads against `ARTIFACT_DATA_SCHEMAS` | `src/protocols/artifacts.py` |
+| 15 | Integration tests: handoff flow (auto-start + approval paths) | `tests/` |
+| 16 | Integration tests: orchestration flow (template + inline + resume) | `tests/` |
+| 17 | Integration tests: artifact emission (verify SSE events contain structured data) | `tests/` |
 
 ---
 
-## Appendix: Endpoint Compatibility Matrix
+## Appendix A: Endpoint Compatibility Matrix
 
-| ERP Feature | Endpoint Used | Response Type | Billing |
-|-------------|---------------|---------------|---------|
-| Mission Control chat (conversational) | `POST /api/v1/agent/execute` | SSE stream / JSON | `UsageReportService` (background) |
-| Mission Control chat (artifact) | `POST /api/v1/agent/execute` + `artifact_format` | SSE stream with `artifact:create`/`artifact:complete` | `UsageReportService` (background) |
-| Cross-agent handoff (from artifact actions) | `POST /api/v1/handoff` | SSE stream or `HandoffResponse` | `UsageReportService` (background) |
-| Canvas workflow execution | `POST /api/v1/orchestrate` | SSE stream with workflow events | `UsageReportService` per step |
-| Canvas workflow resume after review | `POST /api/v1/orchestrate/{id}/resume` | `WorkflowExecution` JSON | `UsageReportService` per step |
+| ERP Feature | Endpoint Used | Response Type |
+|-------------|---------------|---------------|
+| Mission Control chat (conversational) | `POST /api/v1/agent/execute` | SSE stream / JSON |
+| Mission Control chat (artifact) | `POST /api/v1/agent/execute` + `artifact_format` | SSE stream with `artifact:create`/`artifact:complete` |
+| Cross-agent handoff (from artifact actions) | `POST /api/v1/handoff` | SSE stream or `HandoffResponse` |
+| Canvas workflow execution | `POST /api/v1/orchestrate` | SSE stream with workflow events |
+| Canvas workflow resume after review | `POST /api/v1/orchestrate/{id}/resume` | `WorkflowExecution` JSON |
+
+## Appendix B: Template ID Cross-Reference
+
+The ERP and Agent Builder each maintain workflow templates. The ERP side (in `workflow-templates.ts`) defines templates for the Canvas UI; the Agent Builder side (in `orchestration/templates.py`) defines execution templates for the orchestrator. When the ERP sends an orchestrate request, it maps its template ID to the Agent Builder's corresponding template.
+
+| ERP Template ID | Agent Builder Template ID | Category |
+|-----------------|--------------------------|----------|
+| `content_sprint` | _(inline workflow)_ | content |
+| `campaign_launch` | `campaign_launch_checklist` | campaign |
+| `client_onboarding` | `new_client_onboarding` | client |
+| `competitive_analysis` | `competitive_analysis` | analytics |
+| `brief_to_production` | _(inline workflow)_ | production |
+| `deck_review` | _(inline workflow)_ | content |
+| `report_review` | _(inline workflow)_ | analytics |
+| `generic_review` | _(inline workflow)_ | content |
+| — | `content_approval` | content |
+| — | `client_monthly_report` | reporting |
+| — | `ab_test_analysis` | campaign |
+| — | `gdpr_compliance_audit` | compliance |
+| — | `social_content_verification` | content |
+
+> **Note:** Templates without a direct match are sent as inline workflows via the `workflow` field on `OrchestrateRequest`. The ERP `orchestrator-bridge.ts` converts its template steps into the inline format.
+
+## Appendix C: Implementation Status
+
+| Item | File | Status |
+|------|------|--------|
+| `HandoffContext.artifact_format` | `src/protocols/handoffs.py` | Not yet added |
+| `AgentContext.artifact_format` | `src/agents/base.py` | Not yet added |
+| `emit_artifact` tool on BaseAgent | `src/agents/base.py` | Not yet added |
+| System prompt artifact protocol | `src/agents/base.py` | Not yet added |
+| Format-aware prompt injection | `src/agents/base.py` | Not yet added |
+| `ARTIFACT_DATA_SCHEMAS` | `src/protocols/artifacts.py` | Not yet added |
+| `ExecuteRequest.artifact_format` | `src/api/routes.py` | Not yet added |
+| `POST /api/v1/handoff` endpoint | `src/api/routes.py` | Not yet added |
+| `POST /api/v1/orchestrate` endpoint | `src/api/routes.py` | Not yet added |
+| `POST /api/v1/orchestrate/{id}/resume` | `src/api/routes.py` | Not yet added |
+| Workflow SSE event emission | `src/orchestration/orchestrator.py` | Not yet added |
+| `resume_workflow()` fix | `src/orchestration/orchestrator.py` | Not yet added |
+| `self._workflows` dict on orchestrator | `src/orchestration/orchestrator.py` | Not yet added |
+| Integration tests | `tests/` | Not yet added |
