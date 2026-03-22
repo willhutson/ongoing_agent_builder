@@ -73,6 +73,11 @@ from .legal_agent import LegalAgent
 from .knowledge_agent import KnowledgeAgent
 from .training_agent import TrainingAgent
 
+# LMS agents
+from .lms_tutor_agent import LmsTutorAgent
+from .lms_content_agent import LmsContentAgent
+from .lms_assessment_agent import LmsAssessmentAgent
+
 # Specialized agents
 from .influencer_agent import InfluencerAgent
 from .pr_agent import PRAgent
@@ -144,6 +149,10 @@ __all__ = [
     # Knowledge
     "KnowledgeAgent",
     "TrainingAgent",
+    # LMS
+    "LmsTutorAgent",
+    "LmsContentAgent",
+    "LmsAssessmentAgent",
     # Specialized
     "InfluencerAgent",
     "PRAgent",

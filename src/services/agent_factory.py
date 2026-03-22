@@ -52,6 +52,8 @@ from ..agents import (
     QAAgent, LegalAgent,
     # Knowledge
     KnowledgeAgent, TrainingAgent,
+    # LMS
+    LmsTutorAgent, LmsContentAgent, LmsAssessmentAgent,
     # Specialized
     InfluencerAgent, PRAgent, EventsAgent, LocalizationAgent, AccessibilityAgent,
     # Meta
@@ -122,6 +124,10 @@ AGENT_REGISTRY: dict[str, Type] = {
     # Knowledge
     "knowledge": KnowledgeAgent,
     "training": TrainingAgent,
+    # LMS
+    "lms_tutor": LmsTutorAgent,
+    "lms_content": LmsContentAgent,
+    "lms_assessment": LmsAssessmentAgent,
     # Specialized
     "influencer": InfluencerAgent,
     "pr": PRAgent,
