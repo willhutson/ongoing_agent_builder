@@ -523,3 +523,175 @@ def test_system_prompt_includes_format_schema():
     assert "Output Format" in prompt
     assert "brief" in prompt
     assert "client_name" in prompt  # From the BRIEF schema
+
+
+# ============================================
+# Fix 1 & 2: HandoffContext new fields
+# ============================================
+
+def test_handoff_context_organization_id():
+    """HandoffContext supports organization_id field."""
+    from src.protocols.handoffs import HandoffContext
+
+    ctx = HandoffContext(
+        parent_chat_id="chat-123",
+        parent_agent_type="brief",
+        parent_summary="Summary",
+        task="Create calendar",
+        organization_id="org-456",
+        user_id="user-789",
+    )
+    assert ctx.organization_id == "org-456"
+    assert ctx.user_id == "user-789"
+
+
+def test_handoff_context_module_subdomain():
+    """HandoffContext supports module_subdomain field."""
+    from src.protocols.handoffs import HandoffContext
+
+    ctx = HandoffContext(
+        parent_chat_id="chat-123",
+        parent_agent_type="brief",
+        parent_summary="Summary",
+        task="Create deck",
+        module_subdomain="studio",
+    )
+    assert ctx.module_subdomain == "studio"
+
+
+def test_handoff_request_organization_id():
+    """HandoffRequest supports top-level organization_id."""
+    from src.protocols.handoffs import HandoffRequest, HandoffContext
+
+    req = HandoffRequest(
+        from_chat_id="chat-abc",
+        from_agent_type="brief",
+        to_agent_type="content",
+        context=HandoffContext(
+            parent_chat_id="chat-abc",
+            parent_agent_type="brief",
+            parent_summary="Created brief",
+            task="Create content",
+        ),
+        organization_id="org-override",
+    )
+    assert req.organization_id == "org-override"
+
+
+# ============================================
+# Fix 5: Type validation in validate_artifact_data
+# ============================================
+
+def test_validate_artifact_data_type_mismatch_string():
+    """validate_artifact_data catches type mismatches (string expected, got int)."""
+    from src.protocols.artifacts import ArtifactType, validate_artifact_data
+
+    bad_data = {
+        "client_name": 123,  # Should be string
+        "project_name": "Test",
+        "objectives": ["obj1"],
+    }
+    is_valid, errors = validate_artifact_data(ArtifactType.BRIEF, bad_data)
+    assert not is_valid
+    assert any("client_name" in e for e in errors)
+
+
+def test_validate_artifact_data_type_mismatch_array():
+    """validate_artifact_data catches type mismatches (array expected, got string)."""
+    from src.protocols.artifacts import ArtifactType, validate_artifact_data
+
+    bad_data = {
+        "client_name": "Acme",
+        "project_name": "Test",
+        "objectives": "not_a_list",  # Should be array
+    }
+    is_valid, errors = validate_artifact_data(ArtifactType.BRIEF, bad_data)
+    assert not is_valid
+    assert any("objectives" in e and "array" in e for e in errors)
+
+
+def test_validate_artifact_data_type_check_passes():
+    """validate_artifact_data passes when types are correct."""
+    from src.protocols.artifacts import ArtifactType, validate_artifact_data
+
+    good_data = {
+        "title": "Q3 Report",
+        "sections": [{"heading": "Overview", "content": "Good quarter."}],
+        "executive_summary": "Great results.",
+        "recommendations": ["Do more"],
+    }
+    is_valid, errors = validate_artifact_data(ArtifactType.REPORT, good_data)
+    assert is_valid
+    assert errors == []
+
+
+# ============================================
+# Fix 4: Unknown artifact_format in system prompt
+# ============================================
+
+def test_system_prompt_handles_unknown_artifact_format():
+    """Unknown artifact_format doesn't crash _build_system_prompt."""
+    from src.agents.base import BaseAgent, AgentContext
+    from src.services.openrouter import OpenRouterClient
+
+    class TestAgent(BaseAgent):
+        @property
+        def name(self):
+            return "test_agent"
+
+        @property
+        def system_prompt(self):
+            return "You are a test agent."
+
+        def _define_tools(self):
+            return []
+
+        async def _execute_tool(self, tool_name, tool_input):
+            return {}
+
+    client = OpenRouterClient(api_key="test-key")
+    agent = TestAgent(client=client, model="test-model")
+
+    ctx = AgentContext(tenant_id="t", user_id="u", task="test", artifact_format="nonexistent_type")
+    # Should not raise
+    prompt = agent._build_system_prompt(ctx)
+    assert "Output Format" in prompt
+    assert "nonexistent_type" in prompt
+
+
+# ============================================
+# Fix 7: _resolve_agent
+# ============================================
+
+def test_resolve_agent_direct_match():
+    """_resolve_agent handles direct AgentType values."""
+    try:
+        from src.api.routes import _resolve_agent
+    except ImportError:
+        pytest.skip("Circular import in src.api.routes")
+
+    # "brief" is a valid AgentType — should not raise
+    agent = _resolve_agent("brief")
+    assert agent is not None
+
+
+def test_resolve_agent_with_suffix():
+    """_resolve_agent strips _agent suffix."""
+    try:
+        from src.api.routes import _resolve_agent
+    except ImportError:
+        pytest.skip("Circular import in src.api.routes")
+
+    agent = _resolve_agent("brief_agent")
+    assert agent is not None
+
+
+def test_resolve_agent_unknown_raises():
+    """_resolve_agent raises ValueError for unknown agents."""
+    try:
+        from src.api.routes import _resolve_agent
+    except ImportError:
+        pytest.skip("Circular import in src.api.routes")
+
+    with pytest.raises(ValueError, match="Unknown agent type"):
+        _resolve_agent("totally_fake_nonexistent_agent_xyz")

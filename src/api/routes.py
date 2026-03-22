@@ -1,10 +1,11 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
 import uuid
 import asyncio
+import time
 
 from ..config import get_settings, ClaudeModelTier, CLAUDE_MODELS
 from ..services.openrouter import OpenRouterClient
@@ -892,11 +893,45 @@ class ResumeRequest(BaseModel):
     reviewer_id: str
 
 
-# Shared orchestrator instance for resume support
-_orchestrators: dict[str, AgentOrchestrator] = {}
+def _resolve_agent(agent_id: str):
+    """Resolve agent ID from workflow step to agent instance.
+    Handles both direct AgentType values (e.g., 'qa') and suffixed names (e.g., 'qa_agent').
+    """
+    # Try direct match first
+    try:
+        return get_agent(AgentType(agent_id))
+    except ValueError:
+        pass
+    # Try stripping common suffixes
+    for suffix in ("_agent", "_specialist", "_assistant"):
+        try:
+            return get_agent(AgentType(agent_id.removesuffix(suffix)))
+        except ValueError:
+            continue
+    raise ValueError(f"Unknown agent type in workflow: {agent_id}")
 
 
-@router.post("/handoff")
+async def verify_service_key(x_service_key: str = Header(...)):
+    """Validate X-Service-Key header for inter-service auth."""
+    settings = get_settings()
+    if not settings.erp_service_key or x_service_key != settings.erp_service_key:
+        raise HTTPException(status_code=401, detail="Invalid service key")
+
+
+# WARNING: In-memory storage — paused workflows are lost on container restart.
+# TODO: Persist WorkflowExecution state to Redis or ERP database for production resilience.
+_orchestrators: dict[str, tuple[AgentOrchestrator, float]] = {}  # (orchestrator, created_timestamp)
+
+
+def _cleanup_stale_orchestrators():
+    """Remove orchestrators older than 24 hours to prevent memory leak."""
+    cutoff = time.time() - 86400
+    stale = [k for k, (_, ts) in _orchestrators.items() if ts < cutoff]
+    for k in stale:
+        del _orchestrators[k]
+
+
+@router.post("/handoff", dependencies=[Depends(verify_service_key)])
 async def handoff_agent(request: HandoffRequest, background_tasks: BackgroundTasks):
     """
     Accept cross-agent handoff requests from the ERP router.
@@ -910,17 +945,22 @@ async def handoff_agent(request: HandoffRequest, background_tasks: BackgroundTas
         raise HTTPException(status_code=400, detail=f"Unknown agent type: {request.to_agent_type}")
 
     # 2. Module-scope check (if module context present)
-    module_subdomain = request.context.artifacts[0].get("module") if request.context.artifacts else None
+    module_subdomain = request.context.module_subdomain
     if module_subdomain and not is_agent_allowed_for_module(request.to_agent_type, module_subdomain):
         raise HTTPException(status_code=403, detail=f"Agent '{request.to_agent_type}' not allowed for module '{module_subdomain}'")
 
-    # 3. Build AgentContext for child agent
+    # 3. Resolve organization_id: top-level override > context > fallback
+    org_id = request.organization_id or request.context.organization_id or "default"
+
+    # 4. Build AgentContext for child agent
     new_chat_id = str(uuid.uuid4())
     context = AgentContext(
-        tenant_id=request.from_chat_id.split("-")[0] if "-" in request.from_chat_id else "default",
-        user_id="handoff",
+        tenant_id=org_id,
+        user_id=request.context.user_id or "handoff",
         task=request.context.task,
         chat_id=new_chat_id,
+        organization_id=org_id,
+        module_subdomain=module_subdomain,
         metadata={
             "parent_chat_id": request.context.parent_chat_id,
             "parent_agent_type": request.context.parent_agent_type,
@@ -944,7 +984,7 @@ async def handoff_agent(request: HandoffRequest, background_tasks: BackgroundTas
                 usage_service = get_usage_service()
                 background_tasks.add_task(
                     usage_service.report_usage,
-                    organization_id=context.metadata.get("parent_chat_id", ""),
+                    organization_id=org_id,
                     token_input=agent._input_tokens,
                     token_output=agent._output_tokens,
                     model=agent.model,
@@ -973,12 +1013,14 @@ async def handoff_agent(request: HandoffRequest, background_tasks: BackgroundTas
     )
 
 
-@router.post("/orchestrate")
+@router.post("/orchestrate", dependencies=[Depends(verify_service_key)])
 async def orchestrate_workflow(request: OrchestrateRequest, background_tasks: BackgroundTasks):
     """
     Execute a multi-agent workflow. Bridges the ERP Canvas to AgentOrchestrator.
     Accepts either a template workflow_id or an inline workflow definition.
     """
+    _cleanup_stale_orchestrators()
+
     # 1. Resolve workflow
     workflow = None
     if request.workflow:
@@ -1025,7 +1067,7 @@ async def orchestrate_workflow(request: OrchestrateRequest, background_tasks: Ba
         sse_events.append(event)
 
     orchestrator = AgentOrchestrator(
-        agent_factory=lambda agent_id: get_agent(AgentType(agent_id.replace("_agent", ""))),
+        agent_factory=_resolve_agent,
         notification_callback=notification_callback,
     )
 
@@ -1045,7 +1087,7 @@ async def orchestrate_workflow(request: OrchestrateRequest, background_tasks: Ba
                 )
 
                 # Store orchestrator for resume
-                _orchestrators[execution.id] = orchestrator
+                _orchestrators[execution.id] = (orchestrator, time.time())
 
                 # Emit any queued notifications as SSE
                 for event in sse_events:
@@ -1071,7 +1113,7 @@ async def orchestrate_workflow(request: OrchestrateRequest, background_tasks: Ba
         initiated_by=request.user_id,
         organization_id=request.organization_id,
     )
-    _orchestrators[execution.id] = orchestrator
+    _orchestrators[execution.id] = (orchestrator, time.time())
 
     return {
         "execution_id": execution.id,
@@ -1084,15 +1126,17 @@ async def orchestrate_workflow(request: OrchestrateRequest, background_tasks: Ba
     }
 
 
-@router.post("/orchestrate/{execution_id}/resume")
+@router.post("/orchestrate/{execution_id}/resume", dependencies=[Depends(verify_service_key)])
 async def resume_workflow(execution_id: str, request: ResumeRequest):
     """
     Resume a paused workflow after human review.
     Finds the paused execution and continues from the review step.
     """
+    _cleanup_stale_orchestrators()
+
     # Find the orchestrator that owns this execution
     orchestrator = None
-    for orch in _orchestrators.values():
+    for orch, _ in _orchestrators.values():
         if orch.get_execution(execution_id):
             orchestrator = orch
             break

@@ -663,7 +663,11 @@ class BaseAgent(ABC):
         # Format-aware creation: inject schema when artifact_format is specified
         format_section = ""
         if context.artifact_format:
-            schema = ARTIFACT_DATA_SCHEMAS.get(ArtifactType(context.artifact_format), {})
+            try:
+                artifact_type = ArtifactType(context.artifact_format)
+                schema = ARTIFACT_DATA_SCHEMAS.get(artifact_type, {})
+            except ValueError:
+                schema = {}
             schema_str = json.dumps(schema, indent=2) if schema else "No specific schema defined."
             format_section = f"""
 

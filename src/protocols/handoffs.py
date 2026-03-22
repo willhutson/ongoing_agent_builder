@@ -19,6 +19,9 @@ class HandoffContext(BaseModel):
     task: str
     constraints: Optional[list[str]] = None
     artifact_format: Optional[str] = None  # Format passthrough for Mission Control routing
+    organization_id: Optional[str] = None  # Tenant for billing and scoping
+    user_id: Optional[str] = None  # User initiating the handoff
+    module_subdomain: Optional[str] = None  # Module scope for agent validation
 
 
 class HandoffRequest(BaseModel):
@@ -29,6 +32,7 @@ class HandoffRequest(BaseModel):
     context: HandoffContext
     requires_user_approval: bool = True
     auto_start: bool = False
+    organization_id: Optional[str] = None  # Top-level org override
 
 
 class HandoffResponse(BaseModel):

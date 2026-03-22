@@ -344,10 +344,20 @@ def validate_artifact_data(artifact_type: ArtifactType, data: dict) -> tuple[boo
         return True, []  # No schema defined, accept anything
 
     errors = []
-    required_fields = schema.get("required", [])
-    for field_name in required_fields:
+    properties = schema.get("properties", {})
+
+    # Check required fields exist
+    for field_name in schema.get("required", []):
         if field_name not in data:
             errors.append(f"Missing required field: {field_name}")
+
+    # Check types for present fields
+    type_map = {"string": str, "array": list, "object": dict, "integer": int, "number": (int, float)}
+    for field_name, field_schema in properties.items():
+        if field_name in data:
+            expected_type = type_map.get(field_schema.get("type", ""))
+            if expected_type and not isinstance(data[field_name], expected_type):
+                errors.append(f"Field '{field_name}' expected {field_schema['type']}, got {type(data[field_name]).__name__}")
 
     return len(errors) == 0, errors
 
