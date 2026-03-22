@@ -28,6 +28,10 @@ class AgentWorkModule(str, Enum):
     TIME = "time"
     RESOURCES = "resources"
     LMS_COURSES = "lms/courses"
+    LMS_ASSESSMENTS = "lms/assessments"
+    LMS_TUTORING = "lms/tutoring"
+    LMS_CONTENT = "lms/content"
+    LMS_ANALYTICS = "lms/analytics"
     TEAM = "team"
 
 
