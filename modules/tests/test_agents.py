@@ -10,7 +10,7 @@ MODULES = {
     "foundation": ("foundation.agents", "create_agents", 4),
     "studio": ("studio.agents", "create_agents", 5),
     "brand": ("brand.agents", "create_agents", 4),
-    "research": ("research.agents", "create_agents", 6),
+    "research": ("research.agents", "create_agents", 7),
     "strategy": ("strategy.agents", "create_agents", 6),
     "operations": ("operations.agents", "create_agents", 7),
     "client": ("client.agents", "create_agents", 7),
@@ -89,6 +89,95 @@ async def test_brief_agent_tools(llm_client, settings):
     assert result["complexity"] == "high"
 
     result = await agent._execute_tool("unknown_tool", {})
+    assert "error" in result
+
+
+# ── Observer Agent ─────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_observer_collect_mentions(llm_client, settings):
+    """ObserverAgent collect_mentions returns normalized mentions."""
+    from research.observer_agent import ObserverAgent
+    from shared.config import get_model_id
+
+    agent = ObserverAgent(llm_client, get_model_id(settings, "standard"))
+
+    result = await agent._execute_tool("collect_mentions", {
+        "brand": "TestBrand",
+        "sources": ["twitter", "reddit"],
+        "period": "week",
+    })
+    assert "mentions" in result
+    assert result["total_mentions"] > 0
+    assert len(result["sources"]) == 2
+    # All mentions should have the required shape
+    for mention in result["mentions"]:
+        assert "source" in mention
+        assert "text" in mention
+        assert "author" in mention
+        assert "timestamp" in mention
+
+
+@pytest.mark.asyncio
+async def test_observer_collect_reviews(llm_client, settings):
+    """ObserverAgent collect_reviews returns app store reviews."""
+    from research.observer_agent import ObserverAgent
+    from shared.config import get_model_id
+
+    agent = ObserverAgent(llm_client, get_model_id(settings, "standard"))
+
+    result = await agent._execute_tool("collect_reviews", {
+        "app_id": "com.testapp",
+        "platform": "ios",
+    })
+    assert result["count"] > 0
+    assert result["source"] == "app_store_ios"
+    assert result["mock"] is True
+
+
+@pytest.mark.asyncio
+async def test_observer_collect_competitor(llm_client, settings):
+    """ObserverAgent collect_competitor_content returns multi-source data."""
+    from research.observer_agent import ObserverAgent
+    from shared.config import get_model_id
+
+    agent = ObserverAgent(llm_client, get_model_id(settings, "standard"))
+
+    result = await agent._execute_tool("collect_competitor_content", {
+        "competitor_name": "Acme Corp",
+        "sources": ["news", "social"],
+    })
+    assert result["competitor"] == "Acme Corp"
+    assert "news" in result["sources_collected"]
+    assert "social" in result["sources_collected"]
+
+
+@pytest.mark.asyncio
+async def test_observer_route_insights(llm_client, settings):
+    """ObserverAgent route_insights structures data for handoff."""
+    from research.observer_agent import ObserverAgent
+    from shared.config import get_model_id
+
+    agent = ObserverAgent(llm_client, get_model_id(settings, "standard"))
+
+    result = await agent._execute_tool("route_insights", {
+        "target_agent": "social_listening",
+        "insights": {"sentiment": "positive", "score": 78},
+        "summary": "Brand sentiment trending positive",
+    })
+    assert result["status"] == "routed"
+    assert result["target_agent"] == "social_listening"
+    assert result["insights"]["score"] == 78
+
+
+@pytest.mark.asyncio
+async def test_observer_unknown_tool(llm_client, settings):
+    """ObserverAgent returns error for unknown tools."""
+    from research.observer_agent import ObserverAgent
+    from shared.config import get_model_id
+
+    agent = ObserverAgent(llm_client, get_model_id(settings, "standard"))
+    result = await agent._execute_tool("nonexistent", {})
     assert "error" in result
 
 

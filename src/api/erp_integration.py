@@ -199,6 +199,7 @@ AGENT_TIER_MAP = {
     "brand_performance": ERPTier.STANDARD,
     "campaign_analytics": ERPTier.STANDARD,
     "competitor": ERPTier.STANDARD,
+    "observer": ERPTier.STANDARD,
 
     # Finance Layer (premium - accuracy critical)
     "invoice": ERPTier.STANDARD,
