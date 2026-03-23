@@ -9,6 +9,8 @@ from shared.base_agent import BaseAgent
 from shared.openrouter import OpenRouterClient
 from shared.config import BaseModuleSettings, get_model_id
 
+from .observer_agent import ObserverAgent
+
 
 class CompetitorAgent(BaseAgent):
     """Competitive landscape analysis."""
@@ -284,4 +286,5 @@ def create_agents(llm: OpenRouterClient, settings: BaseModuleSettings) -> dict[s
         "campaign_analytics": CampaignAnalyticsAgent(llm, model),
         "social_analytics": SocialAnalyticsAgent(llm, model),
         "commercial": CommercialAgent(llm, model),
+        "observer": ObserverAgent(llm, model),
     }

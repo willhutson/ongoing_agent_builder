@@ -33,7 +33,7 @@ async def test_list_agents(client):
     resp = await client.get("/agents")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["total"] == 47  # 46 module agents + wizard
+    assert data["total"] == 48  # 46 module agents + wizard + observer
     assert "wizard" in str(data["by_module"])
 
 
