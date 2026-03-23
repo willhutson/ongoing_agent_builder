@@ -153,6 +153,71 @@ When using browser tools:
                     "required": ["name", "conditions"],
                 },
             },
+            # ===== Social Suite Tools =====
+            {
+                "name": "get_mention_summary",
+                "description": "Get aggregated mention summary for a brand/client. Calls ERP listening dashboard.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "client_id": {"type": "string"},
+                        "period": {"type": "string", "enum": ["day", "week", "month"]},
+                        "platforms": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["client_id"],
+                },
+            },
+            {
+                "name": "analyze_sentiment_trends",
+                "description": "Analyze sentiment trends over time for a brand. Uses collected mention data.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "client_id": {"type": "string"},
+                        "period": {"type": "string"},
+                        "compare_to": {"type": "string", "description": "Previous period for comparison"},
+                    },
+                    "required": ["client_id", "period"],
+                },
+            },
+            {
+                "name": "detect_crisis",
+                "description": "Check for potential crisis signals — sudden negative sentiment spikes, viral complaints, etc.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "client_id": {"type": "string"},
+                        "threshold": {"type": "number", "description": "Negative sentiment threshold (0-1)", "default": 0.3},
+                    },
+                    "required": ["client_id"],
+                },
+            },
+            {
+                "name": "generate_listening_report",
+                "description": "Generate a comprehensive listening report for a client. Emits a LISTENING_REPORT artifact.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "client_id": {"type": "string"},
+                        "period": {"type": "string"},
+                        "include_competitors": {"type": "boolean", "default": False},
+                    },
+                    "required": ["client_id", "period"],
+                },
+            },
+            {
+                "name": "delegate_to_observer",
+                "description": "Trigger the Observer Agent to collect fresh mentions from platforms.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "brand": {"type": "string"},
+                        "sources": {"type": "array", "items": {"type": "string"}},
+                        "period": {"type": "string"},
+                    },
+                    "required": ["brand", "sources"],
+                },
+            },
             # ===== Browser-Based Tools =====
             {
                 "name": "scrape_trending_content",
@@ -369,6 +434,67 @@ When using browser tools:
                     json={**tool_input, "client_id": client_id}
                 )
                 return response.json() if response.status_code in (200, 201) else {"error": "Failed to create"}
+
+            # ===== Social Suite Tools =====
+            elif tool_name == "get_mention_summary":
+                response = await self.http_client.get(
+                    "/api/v1/listening/mentions/summary",
+                    params={
+                        "client_id": client_id,
+                        "period": tool_input.get("period", "week"),
+                        "platforms": ",".join(tool_input.get("platforms", [])),
+                    },
+                )
+                return response.json() if response.status_code == 200 else {"mentions": [], "total": 0}
+
+            elif tool_name == "analyze_sentiment_trends":
+                response = await self.http_client.get(
+                    "/api/v1/listening/sentiment/trends",
+                    params={
+                        "client_id": client_id,
+                        "period": tool_input["period"],
+                        "compare_to": tool_input.get("compare_to"),
+                    },
+                )
+                return response.json() if response.status_code == 200 else {"trends": [], "comparison": None}
+
+            elif tool_name == "detect_crisis":
+                response = await self.http_client.get(
+                    "/api/v1/listening/crisis/detect",
+                    params={
+                        "client_id": client_id,
+                        "threshold": tool_input.get("threshold", 0.3),
+                    },
+                )
+                return response.json() if response.status_code == 200 else {"crisis_detected": False, "alerts": []}
+
+            elif tool_name == "generate_listening_report":
+                response = await self.http_client.post(
+                    "/api/v1/listening/reports",
+                    json={
+                        "client_id": client_id,
+                        "period": tool_input["period"],
+                        "include_competitors": tool_input.get("include_competitors", False),
+                    },
+                )
+                return response.json() if response.status_code in (200, 201) else {"error": "Failed to generate report"}
+
+            elif tool_name == "delegate_to_observer":
+                response = await self.http_client.post(
+                    "/api/v1/agents/handoff",
+                    json={
+                        "target_agent": "observer",
+                        "tool": "collect_mentions",
+                        "input": {
+                            "brand": tool_input["brand"],
+                            "sources": tool_input["sources"],
+                            "period": tool_input.get("period", "week"),
+                        },
+                        "callback_agent": "social_listening",
+                        "client_id": client_id,
+                    },
+                )
+                return response.json() if response.status_code in (200, 201) else {"error": "Handoff failed"}
 
             # ===== Browser-Based Tools =====
             elif tool_name == "scrape_trending_content":

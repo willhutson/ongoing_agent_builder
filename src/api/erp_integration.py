@@ -194,6 +194,7 @@ AGENT_TIER_MAP = {
     "social_listening": ERPTier.STANDARD,
     "community": ERPTier.STANDARD,
     "social_analytics": ERPTier.STANDARD,
+    "publisher": ERPTier.STANDARD,
 
     # Performance Layer (standard)
     "brand_performance": ERPTier.STANDARD,

@@ -54,6 +54,7 @@ from .campaign_agent import CampaignAgent
 from .social_listening_agent import SocialListeningAgent
 from .community_agent import CommunityAgent
 from .social_analytics_agent import SocialAnalyticsAgent
+from .publisher_agent import PublisherAgent
 
 # Performance agents
 from .brand_performance_agent import BrandPerformanceAgent
@@ -135,6 +136,7 @@ __all__ = [
     "SocialListeningAgent",
     "CommunityAgent",
     "SocialAnalyticsAgent",
+    "PublisherAgent",
     # Performance
     "BrandPerformanceAgent",
     "CampaignAnalyticsAgent",

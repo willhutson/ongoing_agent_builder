@@ -220,6 +220,52 @@ Guidelines:
                     "required": ["topic", "audience"],
                 },
             },
+            # ===== Social Publishing Tools =====
+            {
+                "name": "schedule_post",
+                "description": "Schedule a social media post for publishing. Calls ERP publisher API.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "content": {"type": "string"},
+                        "platforms": {"type": "array", "items": {"type": "string"}},
+                        "scheduled_for": {"type": "string", "description": "ISO datetime"},
+                        "client_id": {"type": "string"},
+                        "media_urls": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["content", "platforms", "scheduled_for", "client_id"],
+                },
+            },
+            {
+                "name": "get_optimal_posting_times",
+                "description": "Analyze past post performance to suggest optimal posting times for a client.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "client_id": {"type": "string"},
+                        "platform": {"type": "string"},
+                        "content_type": {
+                            "type": "string",
+                            "enum": ["image", "video", "carousel", "text"],
+                        },
+                    },
+                    "required": ["client_id", "platform"],
+                },
+            },
+            {
+                "name": "adapt_content_for_platform",
+                "description": "Take a piece of content and adapt it for different platforms (character limits, hashtag strategies, format differences).",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "original_content": {"type": "string"},
+                        "source_platform": {"type": "string"},
+                        "target_platforms": {"type": "array", "items": {"type": "string"}},
+                        "brand_guidelines": {"type": "string"},
+                    },
+                    "required": ["original_content", "target_platforms"],
+                },
+            },
         ]
 
     async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
@@ -239,6 +285,12 @@ Guidelines:
                 return await self._get_meeting_transcript(tool_input)
             elif tool_name == "generate_presentation_outline":
                 return await self._generate_presentation_outline(tool_input)
+            elif tool_name == "schedule_post":
+                return await self._schedule_post(tool_input)
+            elif tool_name == "get_optimal_posting_times":
+                return await self._get_optimal_posting_times(tool_input)
+            elif tool_name == "adapt_content_for_platform":
+                return await self._adapt_content_for_platform(tool_input)
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
         except Exception as e:
@@ -351,6 +403,51 @@ Guidelines:
             "key_messages": params.get("key_messages", []),
             "include_data_slides": params.get("include_data_slides", True),
             "instruction": "Generate a structured presentation outline with slide suggestions.",
+        }
+
+    async def _schedule_post(self, params: dict) -> dict:
+        """Schedule a social media post via ERP publisher."""
+        response = await self.http_client.post(
+            "/api/v1/publishing/posts/schedule",
+            json={
+                "content": params["content"],
+                "platforms": params["platforms"],
+                "scheduled_for": params["scheduled_for"],
+                "client_id": params["client_id"],
+                "media_urls": params.get("media_urls", []),
+            },
+        )
+        if response.status_code in (200, 201):
+            return response.json()
+        return {"error": "Failed to schedule post", "status": response.status_code}
+
+    async def _get_optimal_posting_times(self, params: dict) -> dict:
+        """Get optimal posting times from analytics."""
+        response = await self.http_client.get(
+            "/api/v1/publishing/optimal-times",
+            params={
+                "client_id": params["client_id"],
+                "platform": params["platform"],
+                "content_type": params.get("content_type"),
+            },
+        )
+        if response.status_code == 200:
+            return response.json()
+        return {"times": [], "note": "No historical data available for optimization"}
+
+    async def _adapt_content_for_platform(self, params: dict) -> dict:
+        """Adapt content for multiple platforms — LLM handles the rewriting."""
+        return {
+            "original_content": params["original_content"],
+            "source_platform": params.get("source_platform", "generic"),
+            "target_platforms": params["target_platforms"],
+            "brand_guidelines": params.get("brand_guidelines", ""),
+            "instruction": (
+                "Adapt the original content for each target platform. "
+                "Consider character limits (X: 280, LinkedIn: 3000, Instagram caption: 2200), "
+                "hashtag strategies, format differences, and audience expectations. "
+                "Return a dict of platform -> adapted_content."
+            ),
         }
 
     async def close(self):
