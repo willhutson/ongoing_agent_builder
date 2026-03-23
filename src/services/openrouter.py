@@ -90,6 +90,7 @@ class OpenRouterClient:
         system: Optional[str] = None,
         tools: Optional[list[dict]] = None,
         max_tokens: int = 4096,
+        tool_choice: Optional[dict] = None,
     ) -> dict:
         """
         Non-streaming chat completion.
@@ -101,7 +102,7 @@ class OpenRouterClient:
         }
         """
         model = ensure_openrouter_model(model)
-        payload = self._build_payload(model, messages, system, tools, max_tokens, stream=False)
+        payload = self._build_payload(model, messages, system, tools, max_tokens, stream=False, tool_choice=tool_choice)
         response = await self.http.post("/chat/completions", json=payload)
         response.raise_for_status()
         return response.json()
@@ -113,10 +114,11 @@ class OpenRouterClient:
         system: Optional[str] = None,
         tools: Optional[list[dict]] = None,
         max_tokens: int = 4096,
+        tool_choice: Optional[dict] = None,
     ) -> AsyncIterator[dict]:
         """Streaming chat completion. Yields parsed SSE chunks."""
         model = ensure_openrouter_model(model)
-        payload = self._build_payload(model, messages, system, tools, max_tokens, stream=True)
+        payload = self._build_payload(model, messages, system, tools, max_tokens, stream=True, tool_choice=tool_choice)
         async with self.http.stream("POST", "/chat/completions", json=payload) as response:
             response.raise_for_status()
             async for line in response.aiter_lines():
@@ -137,6 +139,7 @@ class OpenRouterClient:
         tools: Optional[list[dict]],
         max_tokens: int,
         stream: bool,
+        tool_choice: Optional[dict] = None,
     ) -> dict:
         """Build the OpenRouter API payload."""
         all_messages = []
@@ -160,6 +163,9 @@ class OpenRouterClient:
 
         if tools:
             payload["tools"] = self._convert_tools(tools)
+
+        if tool_choice:
+            payload["tool_choice"] = tool_choice
 
         return payload
 
