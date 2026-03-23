@@ -463,8 +463,12 @@ class BaseAgent(ABC):
 
         messages = [self._build_user_message(context)]
         all_outputs = []
+        artifact_emitted = False
 
         while True:
+            # Force emit_artifact on first call when artifact_format is set
+            tc = {"type": "function", "function": {"name": "emit_artifact"}} if (context.artifact_format and not artifact_emitted) else None
+
             # THINK: Get response via OpenRouter
             response = await self.client.chat(
                 model=self.model,
@@ -472,6 +476,7 @@ class BaseAgent(ABC):
                 system=self._build_system_prompt(context),
                 tools=self.tools,
                 max_tokens=4096,
+                tool_choice=tc,
             )
 
             # Track token usage
@@ -518,6 +523,7 @@ class BaseAgent(ABC):
                 # Route: emit_artifact, platform skill, or agent-specific tool
                 if tool_name == "emit_artifact":
                     result = await self._handle_emit_artifact(tool_input, context)
+                    artifact_emitted = True
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
@@ -577,11 +583,15 @@ class BaseAgent(ABC):
         context._sse_callback = sse_callback
 
         messages = [self._build_user_message(context)]
+        artifact_emitted = False
 
         while True:
             # Accumulate the full response from streaming chunks
             full_text = ""
             tool_calls_accum: dict[int, dict] = {}  # index -> {id, function: {name, arguments}}
+
+            # Force emit_artifact on first call when artifact_format is set
+            tc = {"type": "function", "function": {"name": "emit_artifact"}} if (context.artifact_format and not artifact_emitted) else None
 
             async for chunk in self.client.stream(
                 model=self.model,
@@ -589,6 +599,7 @@ class BaseAgent(ABC):
                 system=self._build_system_prompt(context),
                 tools=self.tools,
                 max_tokens=4096,
+                tool_choice=tc,
             ):
                 choices = chunk.get("choices", [])
                 if not choices:
@@ -638,6 +649,7 @@ class BaseAgent(ABC):
                     tool_input = {}
                 if tool_name == "emit_artifact":
                     result = await self._handle_emit_artifact(tool_input, context)
+                    artifact_emitted = True
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
