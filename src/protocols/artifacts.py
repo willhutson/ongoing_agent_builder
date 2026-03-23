@@ -26,6 +26,10 @@ class ArtifactType(str, Enum):
     REPORT = "report"
     TABLE = "table"
     CHART = "chart"
+    # Social
+    SOCIAL_POST = "social_post"
+    SOCIAL_REPORT = "social_report"
+    LISTENING_REPORT = "listening_report"
     # Operations
     CONTRACT = "contract"
     SURVEY = "survey"
@@ -390,6 +394,44 @@ ARTIFACT_DATA_SCHEMAS: dict[ArtifactType, dict] = {
             },
         },
     },
+    ArtifactType.SOCIAL_POST: {
+        "type": "object",
+        "required": ["content", "platforms"],
+        "properties": {
+            "content": {"type": "string"},
+            "platforms": {"type": "array", "items": {"type": "string"}},
+            "scheduled_for": {"type": "string"},
+            "media_urls": {"type": "array", "items": {"type": "string"}},
+            "hashtags": {"type": "array", "items": {"type": "string"}},
+            "caption_variants": {"type": "object"},  # platform -> caption
+        },
+    },
+    ArtifactType.SOCIAL_REPORT: {
+        "type": "object",
+        "required": ["title", "period", "metrics"],
+        "properties": {
+            "title": {"type": "string"},
+            "period": {"type": "string"},
+            "metrics": {"type": "object"},
+            "platform_breakdown": {"type": "array"},
+            "top_posts": {"type": "array"},
+            "recommendations": {"type": "array", "items": {"type": "string"}},
+        },
+    },
+    ArtifactType.LISTENING_REPORT: {
+        "type": "object",
+        "required": ["title", "period", "mention_count"],
+        "properties": {
+            "title": {"type": "string"},
+            "period": {"type": "string"},
+            "mention_count": {"type": "integer"},
+            "sentiment_breakdown": {"type": "object"},
+            "top_topics": {"type": "array"},
+            "top_mentions": {"type": "array"},
+            "crisis_alerts": {"type": "array"},
+            "recommendations": {"type": "array", "items": {"type": "string"}},
+        },
+    },
 }
 
 
@@ -452,5 +494,14 @@ STANDARD_ACTIONS: dict[ArtifactType, list[str]] = {
     ],
     ArtifactType.LEARNING_PATH: [
         "share_internal", "add_to_module", "export",
+    ],
+    ArtifactType.SOCIAL_POST: [
+        "schedule", "edit", "duplicate", "approve",
+    ],
+    ArtifactType.SOCIAL_REPORT: [
+        "share_internal", "export", "schedule_recurring",
+    ],
+    ArtifactType.LISTENING_REPORT: [
+        "share_internal", "export", "share_with_client",
     ],
 }

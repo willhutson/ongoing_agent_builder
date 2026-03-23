@@ -121,6 +121,53 @@ Your role is to measure and optimize campaigns:
                     "required": ["campaign_id"],
                 },
             },
+            # ===== Social Analytics Tools =====
+            {
+                "name": "get_social_performance",
+                "description": "Get aggregated social media performance metrics for a client across platforms.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "client_id": {"type": "string"},
+                        "period": {"type": "string"},
+                        "platforms": {"type": "array", "items": {"type": "string"}},
+                        "metrics": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "impressions, engagements, clicks, shares, comments",
+                        },
+                    },
+                    "required": ["client_id", "period"],
+                },
+            },
+            {
+                "name": "generate_social_report",
+                "description": "Generate a comprehensive social media performance report. Emits a SOCIAL_REPORT artifact.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "client_id": {"type": "string"},
+                        "period": {"type": "string"},
+                        "include_listening": {"type": "boolean", "default": True},
+                        "include_publishing": {"type": "boolean", "default": True},
+                        "include_inbox": {"type": "boolean", "default": True},
+                    },
+                    "required": ["client_id", "period"],
+                },
+            },
+            {
+                "name": "benchmark_against_competitors",
+                "description": "Compare client's social performance against competitors.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "client_id": {"type": "string"},
+                        "competitor_names": {"type": "array", "items": {"type": "string"}},
+                        "metrics": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["client_id", "competitor_names"],
+                },
+            },
         ]
 
     async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
@@ -141,6 +188,43 @@ Your role is to measure and optimize campaigns:
                 return {"status": "ready_to_analyze", "instruction": "Identify campaign optimization opportunities based on data."}
             elif tool_name == "generate_campaign_report":
                 return {"status": "ready_to_generate", "instruction": "Generate comprehensive campaign analytics report."}
+            # ===== Social Analytics Tools =====
+            elif tool_name == "get_social_performance":
+                client_id = tool_input.get("client_id") or self.client_specific_id
+                response = await self.http_client.get(
+                    "/api/v1/analytics/social/performance",
+                    params={
+                        "client_id": client_id,
+                        "period": tool_input["period"],
+                        "platforms": ",".join(tool_input.get("platforms", [])),
+                        "metrics": ",".join(tool_input.get("metrics", [])),
+                    },
+                )
+                return response.json() if response.status_code == 200 else {"metrics": {}, "platforms": []}
+            elif tool_name == "generate_social_report":
+                client_id = tool_input.get("client_id") or self.client_specific_id
+                response = await self.http_client.post(
+                    "/api/v1/analytics/social/reports",
+                    json={
+                        "client_id": client_id,
+                        "period": tool_input["period"],
+                        "include_listening": tool_input.get("include_listening", True),
+                        "include_publishing": tool_input.get("include_publishing", True),
+                        "include_inbox": tool_input.get("include_inbox", True),
+                    },
+                )
+                return response.json() if response.status_code in (200, 201) else {"error": "Failed to generate report"}
+            elif tool_name == "benchmark_against_competitors":
+                client_id = tool_input.get("client_id") or self.client_specific_id
+                response = await self.http_client.post(
+                    "/api/v1/analytics/social/benchmark",
+                    json={
+                        "client_id": client_id,
+                        "competitor_names": tool_input["competitor_names"],
+                        "metrics": tool_input.get("metrics", []),
+                    },
+                )
+                return response.json() if response.status_code == 200 else {"benchmarks": [], "error": "Benchmark data unavailable"}
             return {"error": f"Unknown tool: {tool_name}"}
         except Exception as e:
             return {"error": str(e)}

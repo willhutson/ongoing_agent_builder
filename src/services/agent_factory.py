@@ -43,7 +43,7 @@ from ..agents import (
     # Media
     MediaBuyingAgent, CampaignAgent,
     # Social
-    SocialListeningAgent, CommunityAgent, SocialAnalyticsAgent,
+    SocialListeningAgent, CommunityAgent, SocialAnalyticsAgent, PublisherAgent,
     # Performance
     BrandPerformanceAgent, CampaignAnalyticsAgent, CompetitorAgent,
     # Finance
@@ -110,6 +110,7 @@ AGENT_REGISTRY: dict[str, Type] = {
     "social_listening": SocialListeningAgent,
     "community": CommunityAgent,
     "social_analytics": SocialAnalyticsAgent,
+    "publisher": PublisherAgent,
     # Performance
     "brand_performance": BrandPerformanceAgent,
     "campaign_analytics": CampaignAnalyticsAgent,
