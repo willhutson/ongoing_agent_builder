@@ -64,3 +64,11 @@ AI-powered asset generation with provider fallback chains and quality tiers.
 ## Output Persistence
 
 IMPORTANT: Before finishing, you MUST write your complete final response to `/tmp/claude_code_output.md` using the Write tool. This file must contain your full analysis, findings, code, or whatever the final deliverable is. This is a hard requirement — do not skip it.
+
+## ERP Integration Rules
+
+When writing ERPToolkit methods or tool definitions that reference ERP Prisma models:
+- **Do NOT guess field names.** The Agent Builder doesn't have the Prisma schema — refer to the integration contracts doc or the ERP's CLAUDE.md.
+- Known field mappings: Client has `logoUrl` (not brandColor/logo), Comment has `user` (not author)
+- All ERP service endpoints are at `/api/v1/service/*`
+- Json fields in responses are plain dicts — no special casting needed on the Python side
