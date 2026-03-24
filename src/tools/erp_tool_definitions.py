@@ -423,6 +423,115 @@ AGENT_VIDEO_TOOL_MAP: dict[str, list[str]] = {
 }
 
 
+# ══════════════════════════════════════════════════════════════
+# MOODBOARD TOOLS
+# ══════════════════════════════════════════════════════════════
+
+MOODBOARD_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_moodboard",
+            "description": (
+                "Get a moodboard with all its items (images, colors, text notes, links). "
+                "Use to understand the visual direction before generating content."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "moodboard_id": {"type": "string"},
+                },
+                "required": ["moodboard_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_moodboards",
+            "description": (
+                "List moodboards for a client or brief. "
+                "Use to find existing visual direction before creating new content."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "client_id": {"type": "string"},
+                    "brief_id": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_moodboard_item",
+            "description": (
+                "Add an item to a moodboard. Can add images (from generate_image), "
+                "colors, text notes, or reference links."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "moodboard_id": {"type": "string"},
+                    "type": {
+                        "type": "string",
+                        "enum": ["IMAGE", "COLOR", "TEXT", "LINK", "VIDEO"],
+                    },
+                    "file_url": {"type": "string", "description": "URL for IMAGE/VIDEO items"},
+                    "color": {"type": "string", "description": "Hex color for COLOR items"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string", "description": "Note or annotation"},
+                    "source_url": {"type": "string", "description": "Reference URL for LINK items"},
+                },
+                "required": ["moodboard_id", "type"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_moodboard",
+            "description": (
+                "Create a new moodboard for a client or brief. "
+                "Types: GENERAL, BRAND, CAMPAIGN, VIDEO, PHOTO, DESIGN, PITCH."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "type": {
+                        "type": "string",
+                        "enum": ["GENERAL", "BRAND", "CAMPAIGN", "VIDEO", "PHOTO", "DESIGN", "PITCH"],
+                    },
+                    "client_id": {"type": "string"},
+                    "brief_id": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+]
+
+
+# Moodboard tools available to multiple agents
+AGENT_MOODBOARD_TOOL_MAP: dict[str, list[str]] = {
+    # Full access — can create moodboards and add items
+    "image": ["get_moodboard", "list_moodboards", "add_moodboard_item", "create_moodboard"],
+    "brand_visual": ["get_moodboard", "list_moodboards", "add_moodboard_item", "create_moodboard"],
+    # Read + add items — can reference moodboards and contribute to them
+    "content": ["get_moodboard", "list_moodboards", "add_moodboard_item"],
+    "video_editor": ["get_moodboard", "list_moodboards"],
+    "video_production": ["get_moodboard", "list_moodboards"],
+    "copy": ["get_moodboard", "list_moodboards"],
+    "presentation": ["get_moodboard", "list_moodboards"],
+    # Read-only — can reference moodboard for context
+    "brief": ["get_moodboard", "list_moodboards"],
+    "content_strategist": ["get_moodboard", "list_moodboards"],
+}
+
+
 # Set of all ERP read tool names for fast lookup in BaseAgent
 ERP_READ_TOOL_NAMES = {t["function"]["name"] for t in ERP_READ_TOOLS}
 
@@ -432,5 +541,8 @@ ERP_WRITE_TOOL_NAMES = {t["function"]["name"] for t in ERP_WRITE_TOOLS}
 # Set of all video studio tool names
 VIDEO_TOOL_NAMES = {t["function"]["name"] for t in VIDEO_STUDIO_TOOLS}
 
-# Combined set (read + write + video)
-ERP_TOOL_NAMES = ERP_READ_TOOL_NAMES | ERP_WRITE_TOOL_NAMES | VIDEO_TOOL_NAMES
+# Set of all moodboard tool names
+MOODBOARD_TOOL_NAMES = {t["function"]["name"] for t in MOODBOARD_TOOLS}
+
+# Combined set (read + write + video + moodboard)
+ERP_TOOL_NAMES = ERP_READ_TOOL_NAMES | ERP_WRITE_TOOL_NAMES | VIDEO_TOOL_NAMES | MOODBOARD_TOOL_NAMES

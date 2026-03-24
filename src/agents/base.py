@@ -31,6 +31,7 @@ from ..tools.erp_tool_definitions import (
     ERP_READ_TOOLS, ERP_WRITE_TOOLS, AGENT_WRITE_TOOL_MAP,
     ERP_TOOL_NAMES,
     VIDEO_STUDIO_TOOLS, AGENT_VIDEO_TOOL_MAP, VIDEO_TOOL_NAMES,
+    MOODBOARD_TOOLS, AGENT_MOODBOARD_TOOL_MAP, MOODBOARD_TOOL_NAMES,
 )
 from ..tools.creative_tool_definitions import (
     CREATIVE_TOOLS, AGENT_CREATIVE_TOOL_MAP, CREATIVE_TOOL_NAMES,
@@ -140,6 +141,14 @@ class BaseAgent(ABC):
             if video_tool_names:
                 for tool_def in VIDEO_STUDIO_TOOLS:
                     if tool_def["function"]["name"] in video_tool_names:
+                        self.tools.append(tool_def)
+
+        # Inject moodboard tools selectively based on agent type
+        if self.erp_toolkit:
+            moodboard_tool_names = AGENT_MOODBOARD_TOOL_MAP.get(agent_type, [])
+            if moodboard_tool_names:
+                for tool_def in MOODBOARD_TOOLS:
+                    if tool_def["function"]["name"] in moodboard_tool_names:
                         self.tools.append(tool_def)
 
         # State tracking
@@ -255,6 +264,16 @@ class BaseAgent(ABC):
                 )
             elif tool_name == "get_video_templates":
                 data = await tk.get_video_templates(org_id)
+            # ── Moodboard tools ──
+            elif tool_name == "get_moodboard":
+                data = await tk.get_moodboard(org_id, args["moodboard_id"])
+            elif tool_name == "list_moodboards":
+                data = await tk.list_moodboards(org_id, **args)
+            elif tool_name == "add_moodboard_item":
+                moodboard_id = args.pop("moodboard_id")
+                data = await tk.add_moodboard_item(org_id, user_id, moodboard_id, args)
+            elif tool_name == "create_moodboard":
+                data = await tk.create_moodboard(org_id, user_id, args)
             else:
                 data = {"error": f"Unknown ERP tool: {tool_name}"}
             return json.dumps(data)
@@ -905,6 +924,16 @@ Expected data structure:
 
 Emit the result using the emit_artifact tool with type="{context.artifact_format}"."""
 
+        # Moodboard context injection
+        moodboard_section = ""
+        if context.metadata.get("moodboard_context"):
+            moodboard_section = (
+                f"\n\nMOODBOARD CONTEXT:\n{context.metadata['moodboard_context']}\n"
+                "Use this moodboard as visual direction. Match the colors, mood, and style "
+                "in any images, designs, or creative content you generate.\n"
+                "If generating images, reference specific moodboard items as style guides.\n"
+            )
+
         # Canvas context injection (Phase 3: multi-step workflow context from upstream nodes)
         canvas_section = ""
         project_context = context.metadata.get("project_context")
@@ -926,7 +955,7 @@ Emit the result using the emit_artifact tool with type="{context.artifact_format
 - Tenant ID: {context.tenant_id}
 - User ID: {context.user_id}
 - Chat ID: {context.chat_id}{module_line}
-- Additional context: {context.metadata}{canvas_section}
+- Additional context: {context.metadata}{moodboard_section}{canvas_section}
 
 ## Approach
 Follow the Think → Act → Create paradigm:
