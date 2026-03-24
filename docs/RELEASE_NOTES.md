@@ -1,3 +1,73 @@
+# Release Notes
+
+## v3.0 — Social Suite, LMS, Artifact Streaming (PRs #34-39)
+
+### PR #39: Social Suite Agents
+**Branch**: `feat/social-suite-agents`
+
+New **PublisherAgent** with 8 tools for social media publishing orchestration (create_post_draft, schedule_post, get_publishing_calendar, suggest_posting_times, adapt_for_platforms, get_post_performance, create_content_series, generate_captions).
+
+Upgraded 4 existing agents:
+- **SocialListeningAgent**: +5 Social Suite tools (get_mention_summary, analyze_sentiment_trends, detect_crisis, generate_listening_report, delegate_to_observer). Total: 23 tools.
+- **CommunityAgent**: Rewritten for OCM unified inbox (get_inbox_summary, categorize_messages, draft_response, send_response, escalate_message).
+- **ContentAgent**: +3 publishing tools (schedule_post, get_optimal_posting_times, adapt_content_for_platform). Total: 10 tools.
+- **CampaignAnalyticsAgent**: +3 social analytics tools (get_social_performance, generate_social_report, benchmark_against_competitors). Total: 9 tools.
+
+New artifact types: `SOCIAL_POST`, `SOCIAL_REPORT`, `LISTENING_REPORT` with schemas and standard actions.
+
+Publisher registered in agent registry, factory, and ERP tier map (STANDARD tier).
+
+### PR #38: Observer Agent + Source Adapters
+**Branch**: `claude/fix-artifact-streaming-vdtAi`
+
+New **ObserverAgent** — Obsei-inspired Source → Analyze → Route pipeline. Shared data ingestion backbone for social_listening, social_analytics, competitor, and brand_performance agents.
+
+- `modules/research/observer_agent.py`: 5 tools (collect_mentions, analyze_sentiment, collect_reviews, collect_competitor_content, route_insights)
+- `modules/research/source_adapters.py`: Normalized Mention/MentionBatch data shapes + 6 async adapters (Twitter, Reddit, App Store, Google Reviews, News, Website). Mock data when no API keys configured.
+- `modules/research/source_config.py`: Per-tenant SourceConfig loaded from context metadata.
+
+Registered in research module factory (7 agents), ERP tier map (STANDARD).
+
+### PR #37: tool_choice Forcing for emit_artifact
+**Commit**: `a4ac110`
+
+When `artifact_format` is set on an agent execution, the system now forces `tool_choice: {"type": "tool", "name": "emit_artifact"}`. This ensures the LLM always produces a structured artifact instead of returning plain text.
+
+### PR #36: Artifact Streaming Fix — SSE Callback Queue
+**Commit**: `a213326`
+
+Fixed: artifact events were silently dropped during SSE streaming. Root cause: `stream()` was not wiring the `_sse_callback` into the artifact event pipeline. Fix: artifact events now flow through `asyncio.Queue` + `_sse_callback` so the SSE transport picks them up.
+
+**Key pattern**: `stream()` needs `asyncio.Queue` + `_sse_callback` for artifact events to flow through SSE.
+
+### PR #35: LMS Agents — Tutor, Content, Assessment
+**Commit**: `011154c`
+
+3 new LMS agents:
+- **LmsTutorAgent**: Adaptive tutoring with Socratic method, concept explanation, progress tracking
+- **LmsContentAgent**: Course authoring, lesson generation, resource curation
+- **LmsAssessmentAgent**: Question generation with bloom's taxonomy, adaptive difficulty, grading
+
+New artifact types: `COURSE`, `ASSESSMENT`, `LEARNING_PATH`. Enhanced training orchestrator integration.
+
+### PR #34: Mission Control Routing + Artifact Protocol + Billing
+**Commit**: `4a334fb`
+
+Major integration milestone. MC routing endpoints, artifact protocol implementation, billing hooks.
+
+**7 security fixes**:
+1. HMAC auth bypass fix
+2. API key whitespace handling
+3. Proper 401 returns
+4. CI pipeline with security scanning
+5. Rate limiting enforcement
+6. Input validation on execute endpoint
+7. Swagger auth configuration
+
+Billing: all agent endpoints report usage to `POST /api/v1/billing/usage/report` with `X-Service-Key` header.
+
+---
+
 # External LLM Provider Integration
 
 ## Release Notes v2.0
