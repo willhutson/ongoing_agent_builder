@@ -38,7 +38,7 @@ from ..agents import (
     # Studio
     PresentationAgent, CopyAgent, ImageAgent,
     # Video
-    VideoScriptAgent, VideoStoryboardAgent, VideoProductionAgent,
+    VideoScriptAgent, VideoStoryboardAgent, VideoProductionAgent, VideoEditorAgent,
     # Distribution
     ReportAgent, ApproveAgent, BriefUpdateAgent,
     # Gateways
@@ -99,6 +99,7 @@ class AgentType(str, Enum):
     VIDEO_SCRIPT = "video_script"
     VIDEO_STORYBOARD = "video_storyboard"
     VIDEO_PRODUCTION = "video_production"
+    VIDEO_EDITOR = "video_editor"
     # Distribution
     REPORT = "report"
     APPROVE = "approve"
@@ -266,6 +267,7 @@ def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None
         AgentType.VIDEO_SCRIPT: (VideoScriptAgent, {"language": language, "client_id": client_id}),
         AgentType.VIDEO_STORYBOARD: (VideoStoryboardAgent, {"client_id": client_id}),
         AgentType.VIDEO_PRODUCTION: (VideoProductionAgent, {"client_id": client_id}),
+        AgentType.VIDEO_EDITOR: (VideoEditorAgent, {}),
         # Distribution
         AgentType.REPORT: (ReportAgent, {"language": language, "client_id": client_id}),
         AgentType.APPROVE: (ApproveAgent, {"language": language, "client_id": client_id}),

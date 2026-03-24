@@ -16,6 +16,7 @@ from .image_agent import ImageAgent
 from .video_script_agent import VideoScriptAgent
 from .video_storyboard_agent import VideoStoryboardAgent
 from .video_production_agent import VideoProductionAgent
+from .video_editor_agent import VideoEditorAgent
 
 # Distribution agents
 from .report_agent import ReportAgent
@@ -105,6 +106,7 @@ __all__ = [
     "VideoScriptAgent",
     "VideoStoryboardAgent",
     "VideoProductionAgent",
+    "VideoEditorAgent",
     # Distribution
     "ReportAgent",
     "ApproveAgent",

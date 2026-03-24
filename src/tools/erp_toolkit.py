@@ -265,3 +265,116 @@ class ERPToolkit:
         )
         r.raise_for_status()
         return r.json()
+
+    # ══════════════════════════════════════════════
+    # Video Studio
+    # ══════════════════════════════════════════════
+
+    async def get_video_project(self, org_id: str, project_id: str) -> dict:
+        """Get a video project with full composition data."""
+        r = await self.client.get(
+            f"/api/v1/video-studio/{project_id}",
+            headers=self._headers(org_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def create_video_project(self, org_id: str, user_id: str, data: dict) -> dict:
+        """Create a new video project, optionally from a template."""
+        r = await self.client.post(
+            "/api/v1/video-studio",
+            json=data,
+            headers=self._headers(org_id, user_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def update_video_composition(self, org_id: str, user_id: str,
+                                       project_id: str, data: dict) -> dict:
+        """Update composition data for a video project."""
+        r = await self.client.patch(
+            f"/api/v1/video-studio/{project_id}",
+            json=data,
+            headers=self._headers(org_id, user_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def trigger_video_render(self, org_id: str, user_id: str,
+                                   project_id: str, resolution: str = "1080p") -> dict:
+        """Trigger server-side render of a video project."""
+        r = await self.client.post(
+            f"/api/v1/video-studio/{project_id}/render",
+            json={"resolution": resolution},
+            headers=self._headers(org_id, user_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def get_video_templates(self, org_id: str) -> dict:
+        """List available video templates."""
+        r = await self.client.get(
+            "/api/v1/video-studio/templates",
+            headers=self._headers(org_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    # ══════════════════════════════════════════════
+    # Moodboard
+    # ══════════════════════════════════════════════
+
+    async def get_moodboard(self, org_id: str, moodboard_id: str) -> dict:
+        """Get a moodboard with all items (images, colors, text, links)."""
+        r = await self.client.get(
+            f"/api/v1/studio/moodboards/{moodboard_id}",
+            headers=self._headers(org_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def list_moodboards(self, org_id: str, client_id: str = None,
+                              brief_id: str = None) -> dict:
+        """List moodboards, optionally filtered by client or brief."""
+        params = {}
+        if client_id:
+            params["clientId"] = client_id
+        if brief_id:
+            params["briefId"] = brief_id
+        r = await self.client.get(
+            "/api/v1/studio/moodboards",
+            params=params, headers=self._headers(org_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def add_moodboard_item(self, org_id: str, user_id: str,
+                                 moodboard_id: str, data: dict) -> dict:
+        """Add an item to a moodboard (image, color, text, link)."""
+        r = await self.client.post(
+            f"/api/v1/studio/moodboards/{moodboard_id}/items",
+            json=data,
+            headers=self._headers(org_id, user_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def create_moodboard(self, org_id: str, user_id: str, data: dict) -> dict:
+        """Create a new moodboard."""
+        r = await self.client.post(
+            "/api/v1/studio/moodboards",
+            json=data,
+            headers=self._headers(org_id, user_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def generate_from_moodboard(self, org_id: str, user_id: str,
+                                      moodboard_id: str) -> dict:
+        """Trigger content generation from a moodboard's visual direction."""
+        r = await self.client.post(
+            f"/api/v1/studio/moodboards/{moodboard_id}/generate",
+            headers=self._headers(org_id, user_id),
+        )
+        r.raise_for_status()
+        return r.json()

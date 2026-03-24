@@ -28,7 +28,7 @@ from ..agents import (
     # Studio
     PresentationAgent, CopyAgent, ImageAgent,
     # Video
-    VideoScriptAgent, VideoStoryboardAgent, VideoProductionAgent,
+    VideoScriptAgent, VideoStoryboardAgent, VideoProductionAgent, VideoEditorAgent,
     # Distribution
     ReportAgent, ApproveAgent, BriefUpdateAgent,
     # Gateways
@@ -79,6 +79,7 @@ AGENT_REGISTRY: dict[str, Type] = {
     "video_script": VideoScriptAgent,
     "video_storyboard": VideoStoryboardAgent,
     "video_production": VideoProductionAgent,
+    "video_editor": VideoEditorAgent,
     # Distribution
     "report": ReportAgent,
     "approve": ApproveAgent,

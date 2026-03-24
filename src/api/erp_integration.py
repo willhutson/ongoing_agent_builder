@@ -156,6 +156,7 @@ AGENT_TIER_MAP = {
     "video_script": ERPTier.STANDARD,
     "video_storyboard": ERPTier.STANDARD,
     "video_production": ERPTier.STANDARD,
+    "video_editor": ERPTier.STANDARD,
 
     # Distribution Layer (economy - simple routing)
     "report": ERPTier.STANDARD,

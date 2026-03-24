@@ -295,7 +295,242 @@ AGENT_WRITE_TOOL_MAP: dict[str, list[str]] = {
     "campaign": ["create_media_plan"],
     "campaign_analytics": ["create_content_posts"],
     "social_listening": ["create_content_posts"],
+    "video_editor": ["create_video_project", "update_video_composition", "trigger_video_render"],
 }
+
+
+# ══════════════════════════════════════════════════════════════
+# VIDEO STUDIO TOOLS
+# ══════════════════════════════════════════════════════════════
+
+VIDEO_STUDIO_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_video_project",
+            "description": (
+                "Get a Video Studio project with its full composition data. "
+                "Use when editing an existing video."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string", "description": "The video project ID"},
+                },
+                "required": ["project_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_video_composition",
+            "description": (
+                "Update the composition data of a Video Studio project. "
+                "Send the full updated composition JSON."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string"},
+                    "composition_data": {
+                        "type": "object",
+                        "description": "The full VideoComposition JSON",
+                    },
+                    "title": {"type": "string", "description": "Optional: update the project title"},
+                    "status": {"type": "string", "enum": ["DRAFT", "EDITING"]},
+                },
+                "required": ["project_id", "composition_data"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_video_project",
+            "description": (
+                "Create a new Video Studio project. "
+                "Optionally specify a template to start from."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "client_id": {"type": "string"},
+                    "title": {"type": "string"},
+                    "template": {
+                        "type": "string",
+                        "enum": ["news", "press_release", "product_demo", "talking_head", "reaction", "blank"],
+                    },
+                    "aspect_ratio": {
+                        "type": "string",
+                        "enum": ["9:16", "16:9", "1:1"],
+                        "default": "9:16",
+                    },
+                    "brief_id": {"type": "string", "description": "Link to a brief for context"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trigger_video_render",
+            "description": (
+                "Trigger server-side rendering of a video project. "
+                "Returns a render job ID to poll."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string"},
+                    "resolution": {
+                        "type": "string",
+                        "enum": ["720p", "1080p", "4k"],
+                        "default": "1080p",
+                    },
+                },
+                "required": ["project_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_video_templates",
+            "description": (
+                "List available video templates with their default scene structures. "
+                "Use to help users pick a template."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+]
+
+
+# Video tools available to multiple agents
+AGENT_VIDEO_TOOL_MAP: dict[str, list[str]] = {
+    "video_editor": [
+        "get_video_project", "update_video_composition", "create_video_project",
+        "trigger_video_render", "get_video_templates",
+    ],
+    "video_production": ["get_video_project", "create_video_project", "get_video_templates"],
+    "video_script": ["get_video_project", "get_video_templates"],
+    "content": ["create_video_project", "get_video_templates"],
+}
+
+
+# ══════════════════════════════════════════════════════════════
+# MOODBOARD TOOLS
+# ══════════════════════════════════════════════════════════════
+
+MOODBOARD_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_moodboard",
+            "description": (
+                "Get a moodboard with all its items (images, colors, text notes, links). "
+                "Use to understand the visual direction before generating content."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "moodboard_id": {"type": "string"},
+                },
+                "required": ["moodboard_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_moodboards",
+            "description": (
+                "List moodboards for a client or brief. "
+                "Use to find existing visual direction before creating new content."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "client_id": {"type": "string"},
+                    "brief_id": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_moodboard_item",
+            "description": (
+                "Add an item to a moodboard. Can add images (from generate_image), "
+                "colors, text notes, or reference links."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "moodboard_id": {"type": "string"},
+                    "type": {
+                        "type": "string",
+                        "enum": ["IMAGE", "COLOR", "TEXT", "LINK", "VIDEO"],
+                    },
+                    "file_url": {"type": "string", "description": "URL for IMAGE/VIDEO items"},
+                    "color": {"type": "string", "description": "Hex color for COLOR items"},
+                    "title": {"type": "string"},
+                    "description": {"type": "string", "description": "Note or annotation"},
+                    "source_url": {"type": "string", "description": "Reference URL for LINK items"},
+                },
+                "required": ["moodboard_id", "type"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_moodboard",
+            "description": (
+                "Create a new moodboard for a client or brief. "
+                "Types: GENERAL, BRAND, CAMPAIGN, VIDEO, PHOTO, DESIGN, PITCH."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "type": {
+                        "type": "string",
+                        "enum": ["GENERAL", "BRAND", "CAMPAIGN", "VIDEO", "PHOTO", "DESIGN", "PITCH"],
+                    },
+                    "client_id": {"type": "string"},
+                    "brief_id": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+]
+
+
+# Moodboard tools available to multiple agents
+AGENT_MOODBOARD_TOOL_MAP: dict[str, list[str]] = {
+    # Full access — can create moodboards and add items
+    "image": ["get_moodboard", "list_moodboards", "add_moodboard_item", "create_moodboard"],
+    "brand_visual": ["get_moodboard", "list_moodboards", "add_moodboard_item", "create_moodboard"],
+    # Read + add items — can reference moodboards and contribute to them
+    "content": ["get_moodboard", "list_moodboards", "add_moodboard_item"],
+    "video_editor": ["get_moodboard", "list_moodboards"],
+    "video_production": ["get_moodboard", "list_moodboards"],
+    "copy": ["get_moodboard", "list_moodboards"],
+    "presentation": ["get_moodboard", "list_moodboards"],
+    # Read-only — can reference moodboard for context
+    "brief": ["get_moodboard", "list_moodboards"],
+    "content_strategist": ["get_moodboard", "list_moodboards"],
+}
+
 
 # Set of all ERP read tool names for fast lookup in BaseAgent
 ERP_READ_TOOL_NAMES = {t["function"]["name"] for t in ERP_READ_TOOLS}
@@ -303,5 +538,11 @@ ERP_READ_TOOL_NAMES = {t["function"]["name"] for t in ERP_READ_TOOLS}
 # Set of all ERP write tool names for fast lookup
 ERP_WRITE_TOOL_NAMES = {t["function"]["name"] for t in ERP_WRITE_TOOLS}
 
-# Combined set
-ERP_TOOL_NAMES = ERP_READ_TOOL_NAMES | ERP_WRITE_TOOL_NAMES
+# Set of all video studio tool names
+VIDEO_TOOL_NAMES = {t["function"]["name"] for t in VIDEO_STUDIO_TOOLS}
+
+# Set of all moodboard tool names
+MOODBOARD_TOOL_NAMES = {t["function"]["name"] for t in MOODBOARD_TOOLS}
+
+# Combined set (read + write + video + moodboard)
+ERP_TOOL_NAMES = ERP_READ_TOOL_NAMES | ERP_WRITE_TOOL_NAMES | VIDEO_TOOL_NAMES | MOODBOARD_TOOL_NAMES
