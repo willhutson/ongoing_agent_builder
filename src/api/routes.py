@@ -65,6 +65,12 @@ from ..agents import (
     InfluencerAgent, PRAgent, EventsAgent, LocalizationAgent, AccessibilityAgent,
 )
 from ..agents.base import AgentContext, AgentResult
+from ..tools.erp_toolkit import ERPToolkit
+from ..providers.creative_registry import CreativeRegistry
+from ..providers.creative.fal_provider import FalProvider
+from ..providers.creative.openai_creative_provider import OpenAICreativeProvider
+from ..providers.creative.elevenlabs_provider import ElevenLabsProvider
+from ..providers.creative.beautiful_provider import BeautifulAIProvider
 from ..protocols.handoffs import HandoffRequest, HandoffResponse
 from ..orchestration import AgentOrchestrator, Workflow, WorkflowStep, WorkflowTrigger, WorkflowTemplates, StepType, TriggerType
 from ..orchestration.workflow import WorkflowExecution, WorkflowStatus
@@ -182,6 +188,45 @@ class TaskStatus(BaseModel):
     error: Optional[str] = None
 
 
+def _get_creative_registry() -> CreativeRegistry | None:
+    """Build CreativeRegistry from env vars. Graceful no-op if no keys configured."""
+    import os
+    registry = CreativeRegistry()
+    has_any = False
+
+    fal_key = os.environ.get("FAL_API_KEY")
+    if fal_key:
+        registry.register(FalProvider(api_key=fal_key))
+        has_any = True
+
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if openai_key:
+        registry.register(OpenAICreativeProvider(api_key=openai_key))
+        has_any = True
+
+    elevenlabs_key = os.environ.get("ELEVENLABS_API_KEY")
+    if elevenlabs_key:
+        registry.register(ElevenLabsProvider(api_key=elevenlabs_key))
+        has_any = True
+
+    beautiful_key = os.environ.get("BEAUTIFUL_AI_API_KEY")
+    if beautiful_key:
+        registry.register(BeautifulAIProvider(api_key=beautiful_key))
+        has_any = True
+
+    return registry if has_any else None
+
+
+def _get_erp_toolkit() -> ERPToolkit | None:
+    """Get shared ERPToolkit instance if service credentials are configured."""
+    settings = get_settings()
+    erp_url = getattr(settings, "spokestack_erp_url", None) or getattr(settings, "erp_api_base_url", "")
+    service_key = getattr(settings, "spokestack_service_key", None) or ""
+    if erp_url and service_key:
+        return ERPToolkit(erp_base_url=erp_url, service_key=service_key)
+    return None
+
+
 def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None, vertical: str = None, region: str = None, model_override: ClaudeModelTier = None):
     """Factory to create agent instances with per-agent model selection."""
     settings = get_settings()
@@ -191,11 +236,19 @@ def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None
     agent_name = f"{agent_type.value}_agent"
     model = get_model_for_agent(agent_name, instance_override=model_override)
 
+    # Initialize ERP toolkit for real data access (Phase 1+2)
+    erp_toolkit = _get_erp_toolkit()
+
+    # Initialize creative registry for asset generation
+    creative_registry = _get_creative_registry()
+
     base_kwargs = {
         "client": client,
         "model": model,
         "erp_base_url": settings.erp_api_base_url,
         "erp_api_key": settings.erp_api_key,
+        "erp_toolkit": erp_toolkit,
+        "creative_registry": creative_registry,
     }
 
     # Agent mapping with specialization support
