@@ -39,12 +39,12 @@ All agents can access:
 │                   Built on Claude Agent SDK ✅                          │
 │                     Think → Act → Create                                │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  ALL 46 AGENTS IMPLEMENTED                                              │
+│  ALL 50 AGENTS IMPLEMENTED                                              │
 │                                                                          │
 │  FOUNDATION (4) [Standard]    BRAND (3) [Standard]   STUDIO (7) [Standard]│
 │  ├── RFP                      ├── Voice              ├── Presentation    │
 │  ├── Brief                    ├── Visual             ├── Copy (multi-lang)│
-│  ├── Content                  └── Guidelines         ├── Image           │
+│  ├── Content (+publishing)    └── Guidelines         ├── Image           │
 │  └── Commercial                                      ├── Video Script    │
 │                                                      ├── Video Storyboard│
 │  DISTRIBUTION (3+4)           OPERATIONS (3)         └── Video Production│
@@ -55,18 +55,22 @@ All agents can access:
 │      WhatsApp, Email,                                  ├── Onboarding    │
 │      Slack, SMS                                        ├── Instance Onboard│
 │                                                        ├── Instance Analytics│
-│  MEDIA (2) [Standard]         SOCIAL (3) [Standard]    └── Instance Success│
-│  ├── Media Buying             ├── Listening                              │
-│  └── Campaign                 ├── Community          PERFORMANCE (3)     │
-│                               └── Social Analytics   [Standard]          │
-│                                                      ├── Brand Performance│
-│  FINANCE (3)                  QUALITY (2)            ├── Campaign Analytics│
-│  ├── Invoice [Standard]       ├── QA [Standard]      └── Competitor      │
-│  ├── Forecast [Premium]       └── Legal [Premium]                        │
-│  └── Budget [Premium]                                KNOWLEDGE (2)       │
-│                                                      ├── Knowledge [Premium]│
-│  SPECIALIZED (5) [Standard]                          └── Training [Standard]│
-│  ├── Influencer                                                          │
+│  MEDIA (2) [Standard]         SOCIAL (4) [Standard]    └── Instance Success│
+│  ├── Media Buying             ├── Listening (23 tools)                   │
+│  └── Campaign                 ├── Community (OCM inbox)                  │
+│                               ├── Social Analytics   PERFORMANCE (3)     │
+│  LMS (3) [Standard]           └── Publisher ⭐ NEW   [Standard]          │
+│  ├── Tutor                                           ├── Brand Performance│
+│  ├── LMS Content              RESEARCH (1) [Standard]├── Campaign Analytics│
+│  └── Assessment               └── Observer ⭐ NEW    └── Competitor      │
+│                                                                          │
+│  FINANCE (3)                  QUALITY (2)            KNOWLEDGE (2)       │
+│  ├── Invoice [Standard]       ├── QA [Standard]      ├── Knowledge [Premium]│
+│  ├── Forecast [Premium]       └── Legal [Premium]    └── Training [Standard]│
+│  └── Budget [Premium]                                                    │
+│                                                                          │
+│  SPECIALIZED (5) [Standard]   META (1) [Standard]                        │
+│  ├── Influencer               └── PromptHelper                           │
 │  ├── PR                                                                  │
 │  ├── Events                                                              │
 │  ├── Localization                                                        │
@@ -74,15 +78,15 @@ All agents can access:
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 
-Total: 46 agents | Tiers: Economy (6) | Standard (36) | Premium (4)
+Total: 50 agents | Tiers: Economy (6) | Standard (40) | Premium (4)
 ```
 
 ## Model Tier Mapping
 
 | Tier | Model | Cost | Agents |
 |------|-------|------|--------|
-| **Premium** | Claude Opus 4 | $15/$75 per M tokens | `legal`, `forecast`, `budget`, `knowledge` |
-| **Standard** | Claude Sonnet 4 | $3/$15 per M tokens | Most agents (36 total) |
+| **Premium** | Claude Opus 4 | $15/$75 per M tokens | `legal`, `forecast`, `budget`, `knowledge` (4 total) |
+| **Standard** | Claude Sonnet 4 | $3/$15 per M tokens | Most agents (40 total) |
 | **Economy** | Claude Haiku 3.5 | $0.25/$1.25 per M tokens | `approve`, `brief_update`, `gateway_*` (6 total) |
 
 ---
@@ -97,7 +101,7 @@ Core business operations agents.
 |-------|-------|---------|
 | **RFP Agent** | 5 | Analyze RFPs, extract requirements, find case studies, draft proposals |
 | **Brief Agent** | 6 | Parse briefs, find similar work, generate clarifying questions, estimate complexity |
-| **Content Agent** | 7 | Generate documents, proposals, reports from templates with brand guidelines |
+| **Content Agent** | 10 | Generate documents, proposals, reports from templates with brand guidelines. Social publishing tools: `schedule_post`, `get_optimal_posting_times`, `adapt_content_for_platform` |
 | **Commercial Agent** | 8 | Pricing intelligence, learn from past RFP outcomes, win/loss analysis |
 
 ---
@@ -228,13 +232,38 @@ ReportAgent().send(report_id="123", recipient="client")  # Uses client's preferr
 
 ---
 
-### Social Layer
+### Social Layer (Social Suite)
+
+The Social Suite powers listening, community management, publishing, and analytics. The **Observer Agent** (research module) provides the shared data ingestion backbone.
 
 | Agent | Tools | Purpose |
 |-------|-------|---------|
-| **Social Listening Agent** | `monitor_brand`, `analyze_sentiment`, `detect_crisis`, `track_competitors`, `identify_trends` | Monitor mentions, sentiment |
-| **Community Agent** | `draft_reply`, `prioritize_mentions`, `escalate_issue`, `track_response_time`, `moderate` | Replies, engagement |
+| **Social Listening Agent** | 23 tools (6 API + 5 Social Suite + 12 Browser) | Brand monitoring, sentiment analysis, crisis detection, listening reports. New Social Suite tools: `get_mention_summary`, `analyze_sentiment_trends`, `detect_crisis`, `generate_listening_report`, `delegate_to_observer` |
+| **Community Agent** | 7 tools (OCM unified inbox) | `get_inbox_summary`, `categorize_messages`, `draft_response`, `send_response`, `escalate_message`, `get_engagement_metrics`, `tag_message`. AI-categorizes messages, drafts brand-voice responses, escalates to account managers |
 | **Social Analytics Agent** | `generate_social_report`, `benchmark_performance`, `identify_top_content`, `recommend_posting_time` | Performance reporting |
+| **Publisher Agent** | 8 tools | Social media publishing orchestration: `create_post_draft`, `schedule_post`, `get_publishing_calendar`, `suggest_posting_times`, `adapt_for_platforms`, `get_post_performance`, `create_content_series`, `generate_captions` |
+
+#### Social Suite Artifact Types
+
+| Type | Schema | Actions |
+|------|--------|---------|
+| `social_post` | content, platforms, scheduled_for, media_urls, hashtags, caption_variants | schedule, edit, duplicate, approve |
+| `social_report` | title, period, metrics, platform_breakdown, top_posts, recommendations | share_internal, export, schedule_recurring |
+| `listening_report` | title, period, mention_count, sentiment_breakdown, top_topics, crisis_alerts | share_internal, export, share_with_client |
+
+---
+
+### Research Layer (Observer)
+
+Data ingestion backbone for the Social Suite. Collects from external platforms (Twitter, Reddit, App Store, Google Reviews, News) with mock adapters that return realistic data when no API keys are configured.
+
+| Agent | Tools | Purpose |
+|-------|-------|---------|
+| **Observer Agent** | `collect_mentions`, `analyze_sentiment`, `collect_reviews`, `collect_competitor_content`, `route_insights` | Source → Analyze → Route pipeline. Feeds social_listening, social_analytics, competitor, brand_performance agents |
+
+**Source Adapters** (`modules/research/source_adapters.py`): `collect_twitter`, `collect_reddit`, `collect_app_store`, `collect_google_reviews`, `collect_news`, `collect_website`
+
+**Per-Tenant Config** (`modules/research/source_config.py`): API credentials loaded from `context.metadata["source_config"]`
 
 ---
 
@@ -243,7 +272,7 @@ ReportAgent().send(report_id="123", recipient="client")  # Uses client's preferr
 | Agent | Tools | Purpose |
 |-------|-------|---------|
 | **Brand Performance Agent** | `track_brand_metrics`, `analyze_awareness`, `measure_sentiment_trend`, `benchmark_category` | Brand health tracking |
-| **Campaign Analytics Agent** | `aggregate_metrics`, `attribution_analysis`, `roi_calculation`, `cross_channel_report` | Cross-channel performance |
+| **Campaign Analytics Agent** | 9 tools: `get_campaign_kpis`, `analyze_by_channel`, `calculate_roi`, `get_funnel_metrics`, `identify_optimizations`, `generate_campaign_report` + Social Suite: `get_social_performance`, `generate_social_report`, `benchmark_against_competitors` | Cross-channel performance + social analytics |
 | **Competitor Agent** | `track_competitor`, `analyze_share_of_voice`, `alert_competitor_move`, `benchmark_creative` | Competitive intelligence |
 
 ---
@@ -264,6 +293,20 @@ ReportAgent().send(report_id="123", recipient="client")  # Uses client's preferr
 |-------|-------|---------|
 | **QA Agent** | `review_asset`, `check_brand_compliance`, `flag_issues`, `suggest_fixes`, `track_revisions` | Review workflows, quality |
 | **Legal Agent** | `draft_contract`, `check_terms`, `flag_risk`, `track_expiry`, `ensure_compliance` | Contracts, NDAs, compliance |
+
+---
+
+### LMS Layer
+
+Agentic learning management — tutoring, content authoring, and assessment generation.
+
+| Agent | Tools | Purpose |
+|-------|-------|---------|
+| **LMS Tutor Agent** | Adaptive tutoring, concept explanation, progress tracking | Personalized learning with Socratic method |
+| **LMS Content Agent** | Course authoring, lesson generation, resource curation | Create courses and learning materials |
+| **LMS Assessment Agent** | Question generation, grading, adaptive difficulty | Assessments with bloom's taxonomy alignment |
+
+**Artifact types**: `course`, `assessment`, `learning_path`
 
 ---
 
@@ -346,7 +389,7 @@ Meta-agents that help users work with the agent ecosystem more effectively.
 #### PromptHelper Agent Details
 
 The PromptHelper agent is a meta-agent that knows the entire ecosystem:
-- **47 agents** with their capabilities, tools, and optimal inputs
+- **50 agents** with their capabilities, tools, and optimal inputs
 - **14 external LLM providers** with cost/quality tradeoffs
 - **40+ marketing skills** that can be invoked
 
@@ -402,24 +445,22 @@ These tools are available to multiple agents:
 | Layer | Agents | Status |
 |-------|--------|--------|
 | Foundation | 4 | ✅ Built |
-| Brand | 3 | Planned |
-| Studio | 7+ | Planned |
-| Distribution | 4 | Planned |
-| Operations | 3 | Planned |
-| Client | 6 | Planned |
-| Media | 2 | Planned |
-| Social | 3 | Planned |
-| Performance | 3 | Planned |
-| Finance | 3 | Planned |
-| Quality | 2 | Planned |
-| Knowledge | 2 | Planned |
-| Influencer | 1+ (specializable) | Planned |
-| PR | 1 | Planned |
-| Events | 1 | Planned |
-| Localization | 1+ (specializable) | Planned |
-| Accessibility | 1 | Planned |
-| Meta | 1 | ✅ Built |
-| **TOTAL** | **47 base** | 5 built |
+| Brand | 3 | ✅ Built |
+| Studio | 7 | ✅ Built |
+| Distribution | 7 (3 + 4 gateways) | ✅ Built |
+| Operations | 3 | ✅ Built |
+| Client | 6 | ✅ Built |
+| Media | 2 | ✅ Built |
+| Social | 4 (+ Publisher) | ✅ Built — Social Suite (#38, #39) |
+| Research | 1 (Observer) | ✅ Built — Observer Agent (#38) |
+| Performance | 3 | ✅ Built |
+| Finance | 3 | ✅ Built |
+| Quality | 2 | ✅ Built |
+| Knowledge | 2 | ✅ Built |
+| LMS | 3 | ✅ Built — LMS Agents (#35) |
+| Specialized | 5 (Influencer, PR, Events, Localization, Accessibility) | ✅ Built |
+| Meta | 1 (PromptHelper) | ✅ Built |
+| **TOTAL** | **50** | **All built** |
 
 *Note: With vertical, regional, and language specializations, the total can expand to 100+ specialized agent configurations.*
 
@@ -515,6 +556,8 @@ class SpecializedAgent(BaseAgent):
 | `reporting` | Reporting, Analytics |
 | `workflows` | Workflow |
 | `whatsapp` | Distribution agents |
+| `social-suite` | Listening, Community, Publisher, Social Analytics, Observer |
+| `lms` | LMS Tutor, LMS Content, LMS Assessment |
 | `integrations` | Media, Social agents |
 | `settings` | Brand, Commercial |
 | `nps` | CRM, Brand Performance |
