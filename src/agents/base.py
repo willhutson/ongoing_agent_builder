@@ -27,6 +27,10 @@ from ..protocols.work import (
 )
 from ..protocols.artifacts import ArtifactEvent, ArtifactEventType, Artifact, ArtifactType, ArtifactPreview, ARTIFACT_DATA_SCHEMAS, validate_artifact_data
 from ..protocols.events import MessageWithAttachments
+from ..tools.erp_tool_definitions import (
+    ERP_READ_TOOLS, ERP_WRITE_TOOLS, AGENT_WRITE_TOOL_MAP,
+    ERP_TOOL_NAMES,
+)
 
 
 @dataclass
@@ -94,14 +98,27 @@ class BaseAgent(ABC):
     _platform_skill_names: set[str] = set(PLATFORM_SKILLS.keys())
 
     def __init__(self, client: OpenRouterClient, model: str,
-                 erp_base_url: str = "", erp_api_key: str = ""):
+                 erp_base_url: str = "", erp_api_key: str = "",
+                 erp_toolkit=None):
         self.client = client
         self.model = model
         self.erp_base_url = erp_base_url
         self.erp_api_key = erp_api_key
+        self.erp_toolkit = erp_toolkit  # ERPToolkit for real ERP data access
 
         # Merge agent-specific tools + platform skills (Layer 2) + universal emit_artifact
         self.tools = self._define_tools() + get_platform_skill_tools() + [self._emit_artifact_tool_def()]
+
+        # Inject ERP read tools (available to ALL agents when toolkit is present)
+        if self.erp_toolkit:
+            self.tools.extend(ERP_READ_TOOLS)
+            # Inject write tools selectively based on agent type
+            agent_type = self._get_agent_type_key()
+            write_tool_names = AGENT_WRITE_TOOL_MAP.get(agent_type, [])
+            if write_tool_names:
+                for tool_def in ERP_WRITE_TOOLS:
+                    if tool_def["function"]["name"] in write_tool_names:
+                        self.tools.append(tool_def)
 
         # State tracking
         self._state = AgentState.IDLE
@@ -138,6 +155,58 @@ class BaseAgent(ABC):
     async def close(self) -> None:
         """Clean up resources."""
         pass
+
+    def _get_agent_type_key(self) -> str:
+        """Derive the agent registry key from the agent name (e.g. 'brief_agent' -> 'brief')."""
+        n = self.name
+        return n.removesuffix("_agent") if n.endswith("_agent") else n
+
+    # ============================================
+    # ERP Toolkit Tool Handling
+    # ============================================
+
+    async def _handle_erp_tool(self, tool_name: str, args: dict,
+                               context: "AgentContext") -> str:
+        """Route ERP tool calls to ERPToolkit methods. Returns JSON string."""
+        org_id = context.organization_id or context.tenant_id
+        user_id = context.user_id
+        tk = self.erp_toolkit
+
+        try:
+            # ── Read tools ──
+            if tool_name == "get_client_context":
+                data = await tk.get_client(org_id, args["client_id"])
+            elif tool_name == "list_briefs":
+                data = await tk.list_briefs(org_id, **args)
+            elif tool_name == "list_content_posts":
+                data = await tk.list_content_posts(org_id, **args)
+            elif tool_name == "list_projects":
+                data = await tk.list_projects(org_id, **args)
+            elif tool_name == "get_analytics":
+                data = await tk.get_analytics(org_id, **args)
+            elif tool_name == "get_pending_reviews":
+                data = await tk.get_pending_reviews(org_id, args["user_id"])
+            elif tool_name == "get_workload":
+                data = await tk.get_workload(org_id, **args)
+            elif tool_name == "search_modules":
+                data = await tk.search(org_id, **args)
+            # ── Write tools ──
+            elif tool_name == "create_brief":
+                data = await tk.create_brief(org_id, user_id, args)
+            elif tool_name == "create_content_posts":
+                data = await tk.create_content_posts(org_id, user_id, args)
+            elif tool_name == "create_project":
+                data = await tk.create_project(org_id, user_id, args)
+            elif tool_name == "create_media_plan":
+                data = await tk.create_media_plan(org_id, user_id, args)
+            elif tool_name == "update_post":
+                post_id = args.pop("post_id")
+                data = await tk.update_post(org_id, user_id, post_id, args)
+            else:
+                data = {"error": f"Unknown ERP tool: {tool_name}"}
+            return json.dumps(data)
+        except Exception as e:
+            return json.dumps({"error": f"ERP tool '{tool_name}' failed: {str(e)}"})
 
     # ============================================
     # Platform Skills (Layer 2)
@@ -520,10 +589,12 @@ class BaseAgent(ABC):
                 if self._state != AgentState.WORKING:
                     await self._set_state(AgentState.WORKING, context)
 
-                # Route: emit_artifact, platform skill, or agent-specific tool
+                # Route: emit_artifact, ERP toolkit, platform skill, or agent-specific tool
                 if tool_name == "emit_artifact":
                     result = await self._handle_emit_artifact(tool_input, context)
                     artifact_emitted = True
+                elif self.erp_toolkit and tool_name in ERP_TOOL_NAMES:
+                    result = await self._handle_erp_tool(tool_name, tool_input, context)
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
@@ -650,6 +721,8 @@ class BaseAgent(ABC):
                 if tool_name == "emit_artifact":
                     result = await self._handle_emit_artifact(tool_input, context)
                     artifact_emitted = True
+                elif self.erp_toolkit and tool_name in ERP_TOOL_NAMES:
+                    result = await self._handle_erp_tool(tool_name, tool_input, context)
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
@@ -706,13 +779,28 @@ Expected data structure:
 
 Emit the result using the emit_artifact tool with type="{context.artifact_format}"."""
 
+        # Canvas context injection (Phase 3: multi-step workflow context from upstream nodes)
+        canvas_section = ""
+        project_context = context.metadata.get("project_context")
+        if project_context:
+            ctx_lines = []
+            for key, value in project_context.items():
+                val_str = json.dumps(value, indent=2) if isinstance(value, (dict, list)) else str(value)
+                ctx_lines.append(f"- {key}: {val_str[:2000]}")
+            canvas_section = (
+                "\n\n## Project Context (from previous steps)\n"
+                + "\n".join(ctx_lines)
+                + "\n\nUse this context to inform your work. "
+                "Do not ask for information that's already provided above.\n"
+            )
+
         return f"""{self.system_prompt}
 
 ## Context
 - Tenant ID: {context.tenant_id}
 - User ID: {context.user_id}
 - Chat ID: {context.chat_id}{module_line}
-- Additional context: {context.metadata}
+- Additional context: {context.metadata}{canvas_section}
 
 ## Approach
 Follow the Think → Act → Create paradigm:
