@@ -31,6 +31,9 @@ from ..tools.erp_tool_definitions import (
     ERP_READ_TOOLS, ERP_WRITE_TOOLS, AGENT_WRITE_TOOL_MAP,
     ERP_TOOL_NAMES,
 )
+from ..tools.creative_tool_definitions import (
+    CREATIVE_TOOLS, AGENT_CREATIVE_TOOL_MAP, CREATIVE_TOOL_NAMES,
+)
 
 
 @dataclass
@@ -99,25 +102,35 @@ class BaseAgent(ABC):
 
     def __init__(self, client: OpenRouterClient, model: str,
                  erp_base_url: str = "", erp_api_key: str = "",
-                 erp_toolkit=None):
+                 erp_toolkit=None, creative_registry=None):
         self.client = client
         self.model = model
         self.erp_base_url = erp_base_url
         self.erp_api_key = erp_api_key
         self.erp_toolkit = erp_toolkit  # ERPToolkit for real ERP data access
+        self.creative_registry = creative_registry  # CreativeRegistry for asset generation
 
         # Merge agent-specific tools + platform skills (Layer 2) + universal emit_artifact
         self.tools = self._define_tools() + get_platform_skill_tools() + [self._emit_artifact_tool_def()]
+
+        agent_type = self._get_agent_type_key()
 
         # Inject ERP read tools (available to ALL agents when toolkit is present)
         if self.erp_toolkit:
             self.tools.extend(ERP_READ_TOOLS)
             # Inject write tools selectively based on agent type
-            agent_type = self._get_agent_type_key()
             write_tool_names = AGENT_WRITE_TOOL_MAP.get(agent_type, [])
             if write_tool_names:
                 for tool_def in ERP_WRITE_TOOLS:
                     if tool_def["function"]["name"] in write_tool_names:
+                        self.tools.append(tool_def)
+
+        # Inject creative tools selectively based on agent type
+        if self.creative_registry:
+            creative_tool_names = AGENT_CREATIVE_TOOL_MAP.get(agent_type, [])
+            if creative_tool_names:
+                for tool_def in CREATIVE_TOOLS:
+                    if tool_def["function"]["name"] in creative_tool_names:
                         self.tools.append(tool_def)
 
         # State tracking
@@ -160,6 +173,23 @@ class BaseAgent(ABC):
         """Derive the agent registry key from the agent name (e.g. 'brief_agent' -> 'brief')."""
         n = self.name
         return n.removesuffix("_agent") if n.endswith("_agent") else n
+
+    def _creative_capabilities_note(self) -> str:
+        """Return system prompt note about creative capabilities if available."""
+        if not self.creative_registry:
+            return ""
+        agent_type = self._get_agent_type_key()
+        tools = AGENT_CREATIVE_TOOL_MAP.get(agent_type, [])
+        if not tools:
+            return ""
+        return (
+            "\n## Creative Asset Generation\n"
+            f"You have access to these creative tools: {', '.join(tools)}.\n"
+            "Quality tiers: draft (cheapest, fast), standard (balanced), premium (highest quality).\n"
+            "Generated assets are temporary URLs — the ERP persists them to storage.\n"
+            "For video compositions, generate individual assets first (images, voiceovers) "
+            "then assemble them into a composition spec.\n"
+        )
 
     # ============================================
     # ERP Toolkit Tool Handling
@@ -207,6 +237,75 @@ class BaseAgent(ABC):
             return json.dumps(data)
         except Exception as e:
             return json.dumps({"error": f"ERP tool '{tool_name}' failed: {str(e)}"})
+
+    # ============================================
+    # Creative Registry Tool Handling
+    # ============================================
+
+    async def _handle_creative_tool(self, tool_name: str, args: dict) -> str:
+        """Route creative tool calls to CreativeRegistry. Returns JSON string."""
+        from ..providers.creative_registry import (
+            GenerationRequest, AssetType, QualityTier,
+        )
+
+        try:
+            tier = QualityTier(args.get("quality_tier", "standard"))
+
+            if tool_name == "generate_image":
+                req = GenerationRequest(
+                    prompt=args["prompt"],
+                    asset_type=AssetType.IMAGE,
+                    quality_tier=tier,
+                    resolution=args.get("resolution"),
+                    aspect_ratio=args.get("aspect_ratio"),
+                    reference_image_url=args.get("reference_image_url"),
+                    num_variants=args.get("num_variants", 1),
+                )
+            elif tool_name == "generate_video":
+                req = GenerationRequest(
+                    prompt=args["prompt"],
+                    asset_type=AssetType.VIDEO,
+                    quality_tier=tier,
+                    duration_seconds=args.get("duration_seconds", 5),
+                    aspect_ratio=args.get("aspect_ratio", "16:9"),
+                    reference_image_url=args.get("reference_image_url"),
+                )
+            elif tool_name == "generate_voiceover":
+                req = GenerationRequest(
+                    prompt=args["text"],
+                    asset_type=AssetType.VOICE,
+                    quality_tier=tier,
+                    voice_id=args.get("voice_id"),
+                )
+            elif tool_name == "generate_presentation":
+                req = GenerationRequest(
+                    prompt=args["prompt"],
+                    asset_type=AssetType.PRESENTATION,
+                    quality_tier=tier,
+                    num_slides=args.get("num_slides", 10),
+                    style=args.get("style"),
+                )
+            elif tool_name == "generate_video_composition":
+                req = GenerationRequest(
+                    prompt="",
+                    asset_type=AssetType.VIDEO_COMPOSITION,
+                    scenes=args.get("scenes", []),
+                )
+            else:
+                return json.dumps({"error": f"Unknown creative tool: {tool_name}"})
+
+            result = await self.creative_registry.generate(req)
+            return json.dumps({
+                "asset_url": result.asset_url,
+                "provider": result.provider_id,
+                "model": result.model_id,
+                "cost_usd": result.cost_usd,
+                "duration_ms": result.duration_ms,
+                "variants": result.variants,
+                "metadata": result.metadata,
+            })
+        except Exception as e:
+            return json.dumps({"error": f"Creative tool '{tool_name}' failed: {str(e)}"})
 
     # ============================================
     # Platform Skills (Layer 2)
@@ -595,6 +694,8 @@ class BaseAgent(ABC):
                     artifact_emitted = True
                 elif self.erp_toolkit and tool_name in ERP_TOOL_NAMES:
                     result = await self._handle_erp_tool(tool_name, tool_input, context)
+                elif self.creative_registry and tool_name in CREATIVE_TOOL_NAMES:
+                    result = await self._handle_creative_tool(tool_name, tool_input)
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
@@ -723,6 +824,8 @@ class BaseAgent(ABC):
                     artifact_emitted = True
                 elif self.erp_toolkit and tool_name in ERP_TOOL_NAMES:
                     result = await self._handle_erp_tool(tool_name, tool_input, context)
+                elif self.creative_registry and tool_name in CREATIVE_TOOL_NAMES:
+                    result = await self._handle_creative_tool(tool_name, tool_input)
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
@@ -820,6 +923,7 @@ Steps:
 
 Available artifact types: calendar, brief, document, deck, moodboard, script,
 storyboard, shot_list, report, table, chart, contract, survey, course, workflow{format_section}
+{self._creative_capabilities_note()}
 """
 
     def _extract_text(self, response: dict) -> str:
