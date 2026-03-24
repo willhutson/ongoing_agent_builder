@@ -1,0 +1,120 @@
+agent_type: brief_agent
+agent_class: BriefAgent
+agent_module: src.agents.brief_agent
+constructor_kwargs:
+  erp_base_url: "http://mock-erp"
+  erp_api_key: "mock-key"
+
+cases:
+  - id: brief-001
+    name: "Parse structured email brief"
+    task: |
+      Parse this client email into a structured brief:
+
+      From: jane@acme.com
+      Subject: Q4 Holiday Campaign
+
+      Hi team,
+
+      We need a holiday campaign for Q4 2026. Target audience is millennials
+      and Gen Z (18-35). Budget is around $75K. We want 5 social videos,
+      a landing page, and email sequences. Launch by November 1st.
+
+      Key message: "Celebrate smarter, not harder"
+      Platforms: Instagram, TikTok, Email
+
+      Thanks,
+      Jane Smith, Marketing Director, Acme Corp
+    expected:
+      tool_calls: ["parse_brief_input"]
+      must_contain:
+        - "Q4"
+        - "holiday"
+        - "75"
+        - "November"
+        - "Instagram"
+        - "TikTok"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Did it extract client, budget, timeline, deliverables, audience, platforms?
+      - Structure: Is the output well-organized with clear sections?
+      - Actionability: Could a project manager act on this brief immediately?
+      - Gap identification: Did it note any missing information?
+
+  - id: brief-002
+    name: "Handle ambiguous request"
+    task: |
+      A client called and said: "We need something for Q4. Something digital.
+      Can you guys figure it out? Budget is flexible."
+    expected:
+      must_contain:
+        - "?"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Did it identify what information is missing?
+      - Structure: Are clarifying questions well-organized by category?
+      - Actionability: Are the questions specific enough to get useful answers?
+      - Professionalism: Is the tone helpful without being condescending?
+
+  - id: brief-003
+    name: "Complex multi-deliverable brief"
+    task: |
+      Parse this brief request:
+
+      Client: TechStart Inc (B2B SaaS, Series B)
+      Project: Product launch for their new AI analytics platform
+      Timeline: 8 weeks from kickoff
+      Budget: $120,000
+
+      Deliverables needed:
+      1. Brand positioning document
+      2. Launch video (60s hero + 3x 15s cutdowns)
+      3. Website landing page with demo booking
+      4. Press kit (release, fact sheet, executive bios)
+      5. LinkedIn campaign (sponsored posts + InMail sequences)
+      6. Launch event materials (deck, invites, signage)
+      7. Email drip campaign (5 emails over 3 weeks)
+
+      Target audiences: CTOs, VP Engineering, Data team leads at mid-market companies (500-5000 employees)
+      Competitors: Tableau, Looker, PowerBI
+      Key differentiator: Real-time AI insights without data engineering
+    expected:
+      tool_calls: ["parse_brief_input", "estimate_complexity"]
+      must_contain:
+        - "TechStart"
+        - "120"
+        - "deliverable"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Did it capture all 7 deliverables and their specs?
+      - Structure: Is the brief organized logically (overview, deliverables, audience, timeline)?
+      - Actionability: Does it break down the work into manageable phases?
+      - Risk flagging: Did it identify timeline/budget risks for this scope?
+
+  - id: brief-004
+    name: "Brief with conflicting requirements"
+    task: |
+      New brief from client:
+
+      "We want a premium, luxury brand campaign but our budget is $5,000.
+      We need it across all platforms - TV, digital, print, OOH, radio.
+      Timeline: need everything by next week.
+      Target audience: everyone aged 18-65."
+    expected:
+      must_contain:
+        - "budget"
+        - "timeline"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Did it identify the contradictions (luxury vs budget, scope vs timeline)?
+      - Structure: Is feedback organized constructively?
+      - Actionability: Did it suggest realistic alternatives?
+      - Diplomacy: Did it flag issues without being dismissive?
