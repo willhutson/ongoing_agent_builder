@@ -325,7 +325,12 @@ def get_agent(agent_type: AgentType, language: str = "en", client_id: str = None
     agent_class, extra_kwargs = agent_map[agent_type]
     # Filter out None values from extra_kwargs
     extra_kwargs = {k: v for k, v in extra_kwargs.items() if v is not None}
-    return agent_class(**base_kwargs, **extra_kwargs)
+    try:
+        return agent_class(**base_kwargs, **extra_kwargs)
+    except TypeError:
+        # Some agents (modules/ secondary system) don't accept erp_toolkit/creative_registry
+        fallback_kwargs = {k: v for k, v in base_kwargs.items() if k not in ("erp_toolkit", "creative_registry")}
+        return agent_class(**fallback_kwargs, **extra_kwargs)
 
 
 async def run_agent_task(task_id: str, agent_type: AgentType, context: AgentContext, **kwargs):
