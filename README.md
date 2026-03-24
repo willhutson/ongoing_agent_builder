@@ -22,7 +22,7 @@ Every agent can be specialized:
 - **By Language**: English, Arabic, French, etc.
 - **By Client**: Client-specific rules, voice, preferences
 
-## Agent Ecosystem (47 Agents)
+## Agent Ecosystem (50 Agents)
 
 > See [`docs/AGENTS.md`](docs/AGENTS.md) for the complete directory with tools and details.
 
@@ -87,6 +87,61 @@ Meta-agent that helps users craft better prompts:
 - Brainstorm mode with frameworks injected
 
 > See [`docs/ERP_STAGING_INTEGRATION.md`](docs/ERP_STAGING_INTEGRATION.md) for full integration details.
+
+## New: ERP Toolkit (Live Data Access)
+
+Real HTTP access to ERP module data, replacing mock tool calls with actual API requests.
+
+- **16 async methods** via `ERPToolkit` (10 read, 6 write) using `httpx.AsyncClient`
+- **8 read tools** injected into ALL agents via `BaseAgent`: `get_client_context`, `list_briefs`, `list_content_posts`, `list_projects`, `get_analytics`, `get_pending_reviews`, `get_workload`, `search_modules`
+- **5 write tools** selectively injected per agent type via `AGENT_WRITE_TOOL_MAP`: `create_brief`, `create_content_posts`, `create_project`, `schedule_post`, `create_media_plan`
+- Canvas context injection for multi-step workflows
+- Auth: `X-API-Key` header (service-to-service), `X-Organization-Id` / `X-User-Id` per request
+
+```
+src/tools/erp_toolkit.py          ← ERPToolkit class (16 async HTTP methods)
+src/tools/erp_tool_definitions.py ← OpenAI-format tool schemas + AGENT_WRITE_TOOL_MAP
+```
+
+| Env Var | Required | Description |
+|---------|----------|-------------|
+| `SPOKESTACK_ERP_URL` | Yes | Base URL of the ERP service API |
+| `SPOKESTACK_SERVICE_KEY` | Yes | Service-to-service API key |
+
+## New: Creative Production Pipeline
+
+AI-powered creative asset generation with provider fallback chains and quality tiers.
+
+- **CreativeRegistry** routes requests to the cheapest available provider per `(asset_type, quality_tier)`
+- **4 providers**: FalProvider (Wan/Kling/Flux/Seedream), OpenAICreativeProvider (GPT Image/TTS), ElevenLabsProvider (Flash/Multilingual v2), BeautifulAIProvider
+- **5 creative tools**: `generate_image`, `generate_video`, `generate_voiceover`, `generate_presentation`, `generate_video_composition`
+- **3 quality tiers**: DRAFT (cheapest), STANDARD, PREMIUM — agents request a tier, registry picks the provider
+- Selective injection via `AGENT_CREATIVE_TOOL_MAP` (e.g. `video_production` gets all 4 tools, `image` gets only `generate_image`)
+
+```
+src/providers/creative_registry.py           ← CreativeRegistry + provider ABC
+src/providers/creative/fal_provider.py       ← Fal (Flux, Seedream, Wan, Kling)
+src/providers/creative/openai_creative_provider.py ← GPT Image 1 + TTS
+src/providers/creative/elevenlabs_provider.py      ← ElevenLabs voice
+src/providers/creative/beautiful_provider.py       ← Beautiful.ai presentations
+src/tools/creative_tool_definitions.py       ← Tool schemas + AGENT_CREATIVE_TOOL_MAP
+```
+
+### Creative Cost Reference
+
+| Asset | Draft | Standard | Premium |
+|-------|-------|----------|---------|
+| **Image** | $0.003 (Flux Schnell) | $0.02 (Seedream) | $0.04–0.05 (GPT Image 1 / Flux Pro) |
+| **Video** | $0.30 (Wan 2.5) | $0.50 (Kling Turbo) | $1.00 (Kling Pro) |
+| **Voice** | $0.003 (OpenAI TTS) | $0.015/1k chars (ElevenLabs Flash) | $0.03/1k chars (ElevenLabs Multilingual) |
+| **Presentation** | ~$1.00 (10 slides) | ~$1.00 | ~$1.00 |
+
+| Env Var | Required | Description |
+|---------|----------|-------------|
+| `FAL_API_KEY` | Yes (for image/video) | fal.ai API key |
+| `ELEVENLABS_API_KEY` | Yes (for premium voice) | ElevenLabs API key |
+| `BEAUTIFUL_AI_API_KEY` | Optional | Beautiful.ai API key |
+| `RUNWAY_API_KEY` | Optional | Runway API key (future) |
 
 ## External LLM Providers (14 Integrated)
 
@@ -164,6 +219,22 @@ Agents use Claude for reasoning + specialized external LLMs for capabilities Cla
 │  └────────────────────────────────────────────────────────────────────┘  │
 │                                  │                                       │
 │  ┌───────────────────────────────▼───────────────────────────────────┐  │
+│  │                      ERP Toolkit (Live Data)                       │  │
+│  │  8 read tools (all agents) + 5 write tools (selective injection)   │  │
+│  │  httpx → ERP Service API (X-API-Key auth, multi-tenant headers)    │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                                  │                                       │
+│  ┌───────────────────────────────▼───────────────────────────────────┐  │
+│  │                Creative Production Pipeline                        │  │
+│  │  CreativeRegistry → fallback chains per (asset_type, quality_tier) │  │
+│  │  ┌─────────┐ ┌─────────┐ ┌───────────┐ ┌──────────────┐          │  │
+│  │  │ fal.ai  │ │ OpenAI  │ │ElevenLabs │ │Beautiful.ai  │          │  │
+│  │  │Flux/Wan/│ │GPT Img/ │ │Flash/ML v2│ │presentations │          │  │
+│  │  │Kling    │ │  TTS    │ │  voice    │ │              │          │  │
+│  │  └─────────┘ └─────────┘ └───────────┘ └──────────────┘          │  │
+│  └────────────────────────────────────────────────────────────────────┘  │
+│                                  │                                       │
+│  ┌───────────────────────────────▼───────────────────────────────────┐  │
 │  │                   External LLM Clients                             │  │
 │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐     │  │
 │  │  │Higgsfield│ │ OpenAI  │ │ Google  │ │   xAI   │ │Perplexity│    │  │
@@ -218,6 +289,10 @@ Edit `.env` with your API keys:
 # Required
 ANTHROPIC_API_KEY=sk-ant-...
 
+# ERP Toolkit (live data access)
+SPOKESTACK_ERP_URL=https://your-erp-instance.com
+SPOKESTACK_SERVICE_KEY=your-service-key
+
 # External LLMs (add as needed)
 OPENAI_API_KEY=sk-...
 GOOGLE_API_KEY=AIza...
@@ -225,12 +300,15 @@ XAI_API_KEY=xai-...
 HIGGSFIELD_API_KEY=hf-...
 REPLICATE_API_KEY=r8-...
 STABILITY_API_KEY=sk-...
-ELEVENLABS_API_KEY=...
 PERPLEXITY_API_KEY=pplx-...
-RUNWAY_API_KEY=...
-BEAUTIFUL_AI_API_KEY=...
 GAMMA_API_KEY=...
 PRESENTON_BASE_URL=http://localhost:8080/api/v1
+
+# Creative Production Pipeline
+FAL_API_KEY=...
+ELEVENLABS_API_KEY=...
+BEAUTIFUL_AI_API_KEY=...
+RUNWAY_API_KEY=...          # optional, future
 ```
 
 ### 3. Run
