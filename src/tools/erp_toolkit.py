@@ -265,3 +265,57 @@ class ERPToolkit:
         )
         r.raise_for_status()
         return r.json()
+
+    # ══════════════════════════════════════════════
+    # Video Studio
+    # ══════════════════════════════════════════════
+
+    async def get_video_project(self, org_id: str, project_id: str) -> dict:
+        """Get a video project with full composition data."""
+        r = await self.client.get(
+            f"/api/v1/video-studio/{project_id}",
+            headers=self._headers(org_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def create_video_project(self, org_id: str, user_id: str, data: dict) -> dict:
+        """Create a new video project, optionally from a template."""
+        r = await self.client.post(
+            "/api/v1/video-studio",
+            json=data,
+            headers=self._headers(org_id, user_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def update_video_composition(self, org_id: str, user_id: str,
+                                       project_id: str, data: dict) -> dict:
+        """Update composition data for a video project."""
+        r = await self.client.patch(
+            f"/api/v1/video-studio/{project_id}",
+            json=data,
+            headers=self._headers(org_id, user_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def trigger_video_render(self, org_id: str, user_id: str,
+                                   project_id: str, resolution: str = "1080p") -> dict:
+        """Trigger server-side render of a video project."""
+        r = await self.client.post(
+            f"/api/v1/video-studio/{project_id}/render",
+            json={"resolution": resolution},
+            headers=self._headers(org_id, user_id),
+        )
+        r.raise_for_status()
+        return r.json()
+
+    async def get_video_templates(self, org_id: str) -> dict:
+        """List available video templates."""
+        r = await self.client.get(
+            "/api/v1/video-studio/templates",
+            headers=self._headers(org_id),
+        )
+        r.raise_for_status()
+        return r.json()

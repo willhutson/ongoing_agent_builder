@@ -295,7 +295,133 @@ AGENT_WRITE_TOOL_MAP: dict[str, list[str]] = {
     "campaign": ["create_media_plan"],
     "campaign_analytics": ["create_content_posts"],
     "social_listening": ["create_content_posts"],
+    "video_editor": ["create_video_project", "update_video_composition", "trigger_video_render"],
 }
+
+
+# ══════════════════════════════════════════════════════════════
+# VIDEO STUDIO TOOLS
+# ══════════════════════════════════════════════════════════════
+
+VIDEO_STUDIO_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_video_project",
+            "description": (
+                "Get a Video Studio project with its full composition data. "
+                "Use when editing an existing video."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string", "description": "The video project ID"},
+                },
+                "required": ["project_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_video_composition",
+            "description": (
+                "Update the composition data of a Video Studio project. "
+                "Send the full updated composition JSON."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string"},
+                    "composition_data": {
+                        "type": "object",
+                        "description": "The full VideoComposition JSON",
+                    },
+                    "title": {"type": "string", "description": "Optional: update the project title"},
+                    "status": {"type": "string", "enum": ["DRAFT", "EDITING"]},
+                },
+                "required": ["project_id", "composition_data"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_video_project",
+            "description": (
+                "Create a new Video Studio project. "
+                "Optionally specify a template to start from."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "client_id": {"type": "string"},
+                    "title": {"type": "string"},
+                    "template": {
+                        "type": "string",
+                        "enum": ["news", "press_release", "product_demo", "talking_head", "reaction", "blank"],
+                    },
+                    "aspect_ratio": {
+                        "type": "string",
+                        "enum": ["9:16", "16:9", "1:1"],
+                        "default": "9:16",
+                    },
+                    "brief_id": {"type": "string", "description": "Link to a brief for context"},
+                },
+                "required": ["title"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trigger_video_render",
+            "description": (
+                "Trigger server-side rendering of a video project. "
+                "Returns a render job ID to poll."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {"type": "string"},
+                    "resolution": {
+                        "type": "string",
+                        "enum": ["720p", "1080p", "4k"],
+                        "default": "1080p",
+                    },
+                },
+                "required": ["project_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_video_templates",
+            "description": (
+                "List available video templates with their default scene structures. "
+                "Use to help users pick a template."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
+]
+
+
+# Video tools available to multiple agents
+AGENT_VIDEO_TOOL_MAP: dict[str, list[str]] = {
+    "video_editor": [
+        "get_video_project", "update_video_composition", "create_video_project",
+        "trigger_video_render", "get_video_templates",
+    ],
+    "video_production": ["get_video_project", "create_video_project", "get_video_templates"],
+    "video_script": ["get_video_project", "get_video_templates"],
+    "content": ["create_video_project", "get_video_templates"],
+}
+
 
 # Set of all ERP read tool names for fast lookup in BaseAgent
 ERP_READ_TOOL_NAMES = {t["function"]["name"] for t in ERP_READ_TOOLS}
@@ -303,5 +429,8 @@ ERP_READ_TOOL_NAMES = {t["function"]["name"] for t in ERP_READ_TOOLS}
 # Set of all ERP write tool names for fast lookup
 ERP_WRITE_TOOL_NAMES = {t["function"]["name"] for t in ERP_WRITE_TOOLS}
 
-# Combined set
-ERP_TOOL_NAMES = ERP_READ_TOOL_NAMES | ERP_WRITE_TOOL_NAMES
+# Set of all video studio tool names
+VIDEO_TOOL_NAMES = {t["function"]["name"] for t in VIDEO_STUDIO_TOOLS}
+
+# Combined set (read + write + video)
+ERP_TOOL_NAMES = ERP_READ_TOOL_NAMES | ERP_WRITE_TOOL_NAMES | VIDEO_TOOL_NAMES
