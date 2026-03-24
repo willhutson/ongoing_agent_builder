@@ -113,7 +113,7 @@ Health check with provider status.
 {
   "status": "healthy",
   "service": "ongoing-agent-builder",
-  "agents_available": 46,
+  "agents_available": 50,
   "providers": [
     {"provider": "anthropic", "status": "healthy", "latency_ms": 50}
   ]
@@ -122,11 +122,45 @@ Health check with provider status.
 
 #### GET `/api/v1/agents/registry`
 
-Get all 46 agents organized by layer with tier annotations.
+Get all 50 agents organized by layer with tier annotations.
 
 #### GET `/api/v1/agents/{agent_type}`
 
 Get details for a specific agent including recommended inputs.
+
+### Social Suite Endpoints (PR #39)
+
+New endpoints consumed by Social Suite agents:
+
+#### Listening
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/listening/mentions/summary` | Aggregated mention summary by client/period/platforms |
+| GET | `/api/v1/listening/sentiment/trends` | Sentiment trends over time with period comparison |
+| GET | `/api/v1/listening/crisis/detect` | Crisis signal detection (negative sentiment spikes) |
+| POST | `/api/v1/listening/reports` | Generate a LISTENING_REPORT artifact |
+
+#### Publishing
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/publishing/posts/draft` | Create a draft social media post |
+| POST | `/api/v1/publishing/posts/{post_id}/schedule` | Schedule a draft for publishing |
+| GET | `/api/v1/publishing/calendar` | View publishing calendar (draft/scheduled/published) |
+| GET | `/api/v1/publishing/optimal-times` | AI-powered optimal posting time suggestions |
+| GET | `/api/v1/publishing/posts/performance` | Post analytics and performance metrics |
+| POST | `/api/v1/publishing/series` | Create a multi-post content series |
+
+#### Social Analytics
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/analytics/social/performance` | Aggregated social metrics across platforms |
+| POST | `/api/v1/analytics/social/reports` | Generate a SOCIAL_REPORT artifact |
+| POST | `/api/v1/analytics/social/benchmark` | Benchmark against competitors |
+
+#### Agent Handoff
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/agents/handoff` | Trigger inter-agent delegation (e.g., listening → observer) |
 
 ### Callback Mechanism
 
