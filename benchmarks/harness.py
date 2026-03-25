@@ -129,11 +129,12 @@ async def run_case(
         metadata={"benchmark_case_id": case.id},
     )
 
-    # Reset token counters
+    # Reset state for this benchmark run
     agent._input_tokens = 0
     agent._output_tokens = 0
     agent._artifacts = []
     agent._created_entities = []
+    agent._tool_call_log = []
 
     start = time.monotonic()
     try:
@@ -146,7 +147,7 @@ async def run_case(
             agent_type=agent_type,
             output=result.output,
             artifacts=result.artifacts,
-            tool_calls=_extract_tool_calls(result),
+            tool_calls=result.metadata.get("tool_calls", []),
             input_tokens=result.metadata.get("input_tokens", 0),
             output_tokens=result.metadata.get("output_tokens", 0),
             latency_ms=round(elapsed_ms, 1),
@@ -165,20 +166,6 @@ async def run_case(
             success=False,
             error=str(e),
         )
-
-
-def _extract_tool_calls(result: AgentResult) -> list[str]:
-    """Extract tool call names from agent result metadata."""
-    # AgentResult tracks created entities which imply tool use
-    tool_names = []
-    for entity in result.created_entities:
-        if isinstance(entity, dict) and "type" in entity:
-            tool_names.append(f"create_{entity['type']}")
-    # Also check artifacts
-    for artifact in result.artifacts:
-        if isinstance(artifact, dict):
-            tool_names.append("emit_artifact")
-    return tool_names
 
 
 async def run_benchmark(

@@ -243,28 +243,29 @@ async def run_autoresearch(
     print(f"Agent file: {agent_file}")
     print(f"{'='*60}")
 
+    # Run baseline once at the start (avoids double-benchmarking every iteration)
+    print("\n  Running initial baseline benchmark...")
+    baseline_results = await run_benchmark(
+        agent_type=agent_type,
+        model_override=model_override,
+    )
+    baseline_scores = await score_all(
+        spec.cases, baseline_results, client,
+        skip_judge=False,
+    )
+    baseline_agg = compute_agent_score(baseline_scores)
+    baseline_score = baseline_agg["composite"]
+    print(f"  Initial baseline score: {baseline_score}/100")
+
     for i in range(iterations):
         print(f"\n--- Iteration {i+1}/{iterations} ---")
 
         # Step 1: Get current prompt body
         current_prompt_body = _extract_system_prompt(agent_file)
         print(f"  Current prompt: {len(current_prompt_body)} chars")
-
-        # Step 2: Run baseline benchmark
-        print("  Running baseline benchmark...")
-        baseline_results = await run_benchmark(
-            agent_type=agent_type,
-            model_override=model_override,
-        )
-        baseline_scores = await score_all(
-            spec.cases, baseline_results, client,
-            skip_judge=False,
-        )
-        baseline_agg = compute_agent_score(baseline_scores)
-        baseline_score = baseline_agg["composite"]
         print(f"  Baseline score: {baseline_score}/100")
 
-        # Step 3: Propose improvement
+        # Step 2: Propose improvement
         print("  Proposing improvement...")
         try:
             new_prompt_body, change_desc = await _propose_improvement(
@@ -318,7 +319,7 @@ async def run_autoresearch(
         )
 
         if delta > 0:
-            # Improvement — commit!
+            # Improvement — commit and update baseline for next iteration
             commit_msg = (
                 f"autoresearch({agent_type}): {change_desc}\n\n"
                 f"Score: {baseline_score} → {new_score} (+{delta:.1f})\n"
@@ -328,8 +329,10 @@ async def run_autoresearch(
                 print(f"  KEPT - committed ({delta:+.1f})")
             else:
                 print(f"  KEPT - commit failed, changes staged")
+            # Update baseline since the prompt actually changed
+            baseline_score = new_score
         else:
-            # Regression or no change — revert
+            # Regression or no change — revert, baseline stays the same
             _git_revert_file(agent_file)
             print(f"  REVERTED ({delta:+.1f})")
 

@@ -170,46 +170,82 @@ class MockERPToolkit:
         self._log("list_content_posts", org_id=org_id, client_id=client_id)
         return FIXTURE_CONTENT_POSTS
 
-    async def list_projects(self, org_id: str, client_id: str = None,
-                            status: str = None) -> dict:
+    async def list_projects(self, org_id: str, client_id: str = None) -> dict:
         self._log("list_projects", org_id=org_id, client_id=client_id)
         return FIXTURE_PROJECTS
 
+    async def get_project(self, org_id: str, project_id: str) -> dict:
+        self._log("get_project", org_id=org_id, project_id=project_id)
+        return FIXTURE_PROJECTS["data"][0]
+
     async def get_analytics(self, org_id: str, client_id: str = None,
-                            date_from: str = None, date_to: str = None) -> dict:
-        self._log("get_analytics", org_id=org_id, client_id=client_id)
+                            period: str = "7d") -> dict:
+        self._log("get_analytics", org_id=org_id, client_id=client_id, period=period)
         return FIXTURE_ANALYTICS
 
-    async def get_pending_reviews(self, org_id: str) -> dict:
-        self._log("get_pending_reviews", org_id=org_id)
+    async def list_scheduled_posts(self, org_id: str, client_id: str = None,
+                                   status: str = None) -> dict:
+        self._log("list_scheduled_posts", org_id=org_id, client_id=client_id)
+        return FIXTURE_CONTENT_POSTS
+
+    async def get_pending_reviews(self, org_id: str, user_id: str) -> dict:
+        self._log("get_pending_reviews", org_id=org_id, user_id=user_id)
         return FIXTURE_PENDING_REVIEWS
 
-    async def get_workload(self, org_id: str) -> dict:
-        self._log("get_workload", org_id=org_id)
+    async def get_workload(self, org_id: str, team_id: str = None) -> dict:
+        self._log("get_workload", org_id=org_id, team_id=team_id)
         return FIXTURE_WORKLOAD
 
-    async def search_modules(self, org_id: str, query: str,
-                             modules: list[str] = None) -> dict:
-        self._log("search_modules", org_id=org_id, query=query)
+    async def search(self, org_id: str, query: str,
+                     modules: str = None, client_id: str = None) -> dict:
+        self._log("search", org_id=org_id, query=query)
         return FIXTURE_SEARCH
 
-    # Write methods — return success stubs
-    async def create_brief(self, org_id: str, data: dict) -> dict:
-        self._log("create_brief", org_id=org_id, data=data)
+    # Write methods — signatures match ERPToolkit exactly
+    async def create_brief(self, org_id: str, user_id: str, data: dict) -> dict:
+        self._log("create_brief", org_id=org_id, user_id=user_id, data=data)
         return {"id": "brief-new-001", "status": "created", **data}
 
-    async def create_content_posts(self, org_id: str, data: dict) -> dict:
-        self._log("create_content_posts", org_id=org_id, data=data)
+    async def create_content_posts(self, org_id: str, user_id: str, data: dict) -> dict:
+        self._log("create_content_posts", org_id=org_id, user_id=user_id, data=data)
         return {"id": "post-new-001", "status": "created", **data}
 
-    async def create_project(self, org_id: str, data: dict) -> dict:
-        self._log("create_project", org_id=org_id, data=data)
+    async def create_project(self, org_id: str, user_id: str, data: dict) -> dict:
+        self._log("create_project", org_id=org_id, user_id=user_id, data=data)
         return {"id": "proj-new-001", "status": "created", **data}
 
-    async def update_post(self, org_id: str, post_id: str, data: dict) -> dict:
-        self._log("update_post", org_id=org_id, post_id=post_id, data=data)
+    async def update_post(self, org_id: str, user_id: str,
+                          post_id: str, data: dict) -> dict:
+        self._log("update_post", org_id=org_id, user_id=user_id, post_id=post_id, data=data)
         return {"id": post_id, "status": "updated", **data}
 
-    async def create_media_plan(self, org_id: str, data: dict) -> dict:
-        self._log("create_media_plan", org_id=org_id, data=data)
+    async def schedule_post(self, org_id: str, user_id: str, data: dict) -> dict:
+        self._log("schedule_post", org_id=org_id, user_id=user_id, data=data)
+        return {"id": "sched-new-001", "status": "scheduled", **data}
+
+    async def create_media_plan(self, org_id: str, user_id: str, data: dict) -> dict:
+        self._log("create_media_plan", org_id=org_id, user_id=user_id, data=data)
         return {"id": "plan-new-001", "status": "created", **data}
+
+    # Video Studio methods
+    async def get_video_project(self, org_id: str, project_id: str) -> dict:
+        self._log("get_video_project", org_id=org_id, project_id=project_id)
+        return {"id": project_id, "status": "draft", "composition": {}}
+
+    async def create_video_project(self, org_id: str, user_id: str, data: dict) -> dict:
+        self._log("create_video_project", org_id=org_id, user_id=user_id, data=data)
+        return {"id": "vid-new-001", "status": "created", **data}
+
+    async def update_video_composition(self, org_id: str, user_id: str,
+                                       project_id: str, data: dict) -> dict:
+        self._log("update_video_composition", org_id=org_id, user_id=user_id, data=data)
+        return {"id": project_id, "status": "updated", **data}
+
+    async def trigger_video_render(self, org_id: str, user_id: str,
+                                   project_id: str, data: dict = None) -> dict:
+        self._log("trigger_video_render", org_id=org_id, project_id=project_id)
+        return {"id": project_id, "status": "rendering"}
+
+    async def get_video_templates(self, org_id: str) -> dict:
+        self._log("get_video_templates", org_id=org_id)
+        return {"templates": []}

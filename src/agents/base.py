@@ -161,6 +161,9 @@ class BaseAgent(ABC):
         self._input_tokens = 0
         self._output_tokens = 0
 
+        # Tool call log for benchmarking (records every tool call name)
+        self._tool_call_log: list[str] = []
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -730,6 +733,9 @@ class BaseAgent(ABC):
                 if self._state != AgentState.WORKING:
                     await self._set_state(AgentState.WORKING, context)
 
+                # Log tool call for benchmarking
+                self._tool_call_log.append(tool_name)
+
                 # Route: emit_artifact, ERP toolkit, platform skill, or agent-specific tool
                 if tool_name == "emit_artifact":
                     result = await self._handle_emit_artifact(tool_input, context)
@@ -767,6 +773,7 @@ class BaseAgent(ABC):
                 "tenant_id": context.tenant_id,
                 "input_tokens": self._input_tokens,
                 "output_tokens": self._output_tokens,
+                "tool_calls": list(self._tool_call_log),
             },
             created_entities=[e.model_dump() for e in self._created_entities],
             state="complete",
