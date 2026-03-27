@@ -13,6 +13,7 @@ from src.api.multi_tenant import router as multi_tenant_router
 from src.api.erp_integration import router as erp_router
 from src.api.chat_sessions import router as chat_sessions_router
 from src.api.websocket import router as websocket_router
+from src.api.core_router import router as core_router
 from src.api.auth import APIKeyAuthMiddleware, api_key_header
 from src.api.rate_limit import RateLimitMiddleware
 from src.config import get_settings
@@ -103,6 +104,7 @@ app.include_router(multi_tenant_router)      # Multi-tenant routes
 app.include_router(erp_router)               # ERP integration routes (erp_staging_lmtd)
 app.include_router(chat_sessions_router)     # Chat session management (spec Section 8)
 app.include_router(websocket_router)         # WebSocket events (spec Section 7)
+app.include_router(core_router)              # spokestack-core agent execution
 
 
 @app.get("/")
@@ -122,6 +124,9 @@ async def root():
             "websocket": "/v1/ws",
             "models": "/api/v1/models/info",
             "health": "/api/v1/health",
+            "core_execute": "/api/v1/core/execute",
+            "core_agents": "/api/v1/core/agents",
+            "core_register": "/api/v1/core/agents/register",
         },
         "protocols": {
             "state_machine": "idle → thinking → working → complete/error",
