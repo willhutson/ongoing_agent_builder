@@ -1,0 +1,119 @@
+agent_type: copy_agent
+agent_class: CopyAgent
+agent_module: src.agents.copy_agent
+constructor_kwargs:
+  erp_base_url: "http://mock-erp"
+  erp_api_key: "mock-key"
+  language: "en"
+
+cases:
+  - id: copy-001
+    name: "Social media campaign copy"
+    task: |
+      Write social media copy for Acme Corp's new AI analytics product launch.
+
+      Brand voice: Professional but innovative. Avoid jargon.
+      Target audience: CTOs and VP Engineering at mid-market B2B companies
+      Key message: "Real-time AI insights without the data engineering overhead"
+      Platforms: LinkedIn (3 posts), Twitter/X (5 tweets), Instagram (2 carousel captions)
+
+      Include hashtag suggestions and posting cadence recommendation.
+    expected:
+      must_contain:
+        - "LinkedIn"
+        - "AI"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Does it cover all requested platforms with correct post counts?
+      - Quality: Is the copy engaging, on-brand, and platform-appropriate?
+      - Actionability: Could a social media manager publish these as-is?
+      - Strategy: Does it include hashtags, cadence, and rationale?
+
+  - id: copy-002
+    name: "Email sequence"
+    task: |
+      Write a 3-email welcome sequence for new subscribers to Acme Corp's newsletter.
+
+      Brand: Acme Corp, B2B SaaS, professional but approachable
+      Goal: Onboard subscribers and drive them to book a demo
+      Subscriber context: Signed up after reading a blog post about AI analytics
+
+      Email 1: Welcome (sent immediately)
+      Email 2: Value prop deep-dive (sent day 3)
+      Email 3: Social proof + CTA to book demo (sent day 7)
+
+      Include subject lines with A/B variants for each email.
+    expected:
+      must_contain:
+        - "subject"
+        - "demo"
+      must_not_contain:
+        - "lorem ipsum"
+        - "Dear Sir/Madam"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: All 3 emails with subject lines and A/B variants?
+      - Quality: Natural tone, clear CTAs, progressive engagement?
+      - Actionability: Could these go into an email tool as-is?
+      - Strategy: Does the sequence build logically toward the demo booking?
+
+  - id: copy-003
+    name: "Headlines and taglines"
+    task: |
+      Generate headline and tagline options for Acme Corp's homepage redesign.
+
+      Current tagline: "Business solutions for the modern enterprise"
+      Problem: Too generic, doesn't differentiate
+
+      Product: AI-powered analytics platform
+      Key differentiator: No data engineering needed - plug in and get insights
+      Audience: Technical decision makers who are tired of complex BI tools
+      Tone: Confident, clear, slightly bold
+
+      Provide:
+      - 5 headline options
+      - 3 tagline options
+      - 1 recommended pairing with rationale
+    expected:
+      must_contain:
+        - "headline"
+        - "tagline"
+      must_not_contain:
+        - "lorem ipsum"
+        - "Business solutions for the modern enterprise"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: 5 headlines, 3 taglines, 1 recommended pairing?
+      - Quality: Are they memorable, differentiated, and benefit-driven?
+      - Actionability: Is the rationale clear and defensible?
+      - Brand fit: Do they match the requested tone and audience?
+
+  - id: copy-004
+    name: "Long-form blog post"
+    task: |
+      Write a blog post titled "Why Your BI Tool is Holding You Back"
+      for Acme Corp's content marketing.
+
+      Target: 800-1000 words
+      Audience: VP Engineering and data team leads
+      Goal: Position Acme as the modern alternative to legacy BI tools
+      SEO keywords: "AI analytics", "business intelligence alternative", "real-time insights"
+      Tone: Thought leadership, backed by industry trends
+      CTA: Book a demo
+
+      Include a meta description and suggested featured image description.
+    expected:
+      must_contain:
+        - "BI"
+        - "analytics"
+        - "demo"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Full post with meta description and image suggestion?
+      - Quality: Engaging, well-structured, flows logically?
+      - Actionability: Ready to publish with minimal editing?
+      - SEO: Keywords naturally integrated, proper heading structure?

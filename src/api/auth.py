@@ -51,13 +51,20 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
         if not path.startswith("/api/"):
             return await call_next(request)
 
-        # Check X-API-Key header
+        # Check X-API-Key header (LMTD ERP auth)
         api_key = (request.headers.get("X-API-Key") or "").strip()
         expected_key = (os.environ.get("ERP_API_KEY") or "").strip()
 
         logger.debug(f"Auth check: key_provided={bool(api_key)}, key_configured={bool(expected_key)}, key_len={len(api_key)}/{len(expected_key)}")
 
         if api_key and expected_key and hmac.compare_digest(api_key, expected_key):
+            return await call_next(request)
+
+        # Check X-Agent-Secret header (spokestack-core auth)
+        # Core endpoints validate the secret themselves, but we let them through the middleware
+        agent_secret = (request.headers.get("X-Agent-Secret") or "").strip()
+        expected_agent_secret = (os.environ.get("AGENT_RUNTIME_SECRET") or "").strip()
+        if agent_secret and expected_agent_secret and hmac.compare_digest(agent_secret, expected_agent_secret):
             return await call_next(request)
 
         # Check ERP webhook HMAC signature

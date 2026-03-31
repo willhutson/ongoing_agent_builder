@@ -1,0 +1,86 @@
+agent_type: competitor_agent
+agent_class: CompetitorAgent
+agent_module: src.agents.competitor_agent
+constructor_kwargs:
+  erp_base_url: "http://mock-erp"
+  erp_api_key: "mock-key"
+
+cases:
+  - id: competitor-001
+    name: "Competitive landscape analysis"
+    task: |
+      Analyze the competitive landscape for Acme Corp's AI analytics platform.
+
+      Direct competitors: Tableau, Looker, PowerBI
+      Emerging competitors: Hex, Mode Analytics, Sigma Computing
+
+      Provide:
+      1. Feature comparison matrix
+      2. Pricing comparison (where available)
+      3. Market positioning map
+      4. Key differentiators for each
+      5. Strategic recommendations for Acme
+    expected:
+      must_contain:
+        - "Tableau"
+        - "Looker"
+        - "PowerBI"
+        - "recommendation"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Does it cover all named competitors with features, pricing, positioning?
+      - Structure: Is it organized as a usable competitive analysis document?
+      - Actionability: Are recommendations specific and prioritized?
+      - Accuracy: Are competitor descriptions plausible and well-reasoned?
+
+  - id: competitor-002
+    name: "Ad intelligence report"
+    task: |
+      Analyze competitor advertising strategies for the B2B analytics space.
+
+      Focus on:
+      - What messaging competitors are using in their ads
+      - Which platforms they're advertising on
+      - What their landing pages look like
+      - Any patterns in their ad spend timing
+
+      Competitors to analyze: Tableau, Looker, Hex
+    expected:
+      must_contain:
+        - "Tableau"
+        - "messaging"
+        - "platform"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Does it cover messaging, platforms, landing pages, and timing?
+      - Structure: Is it organized as an actionable intelligence report?
+      - Actionability: Can the marketing team use these insights immediately?
+      - Depth: Does it go beyond surface-level observations?
+
+  - id: competitor-003
+    name: "Threat assessment"
+    task: |
+      A new competitor just launched: "InsightAI" - they claim to offer
+      the same real-time analytics as Acme Corp but at 50% lower cost.
+      They just raised a $30M Series A and are hiring aggressively.
+
+      Assess the threat level and recommend a response strategy for Acme Corp.
+      Consider: product differentiation, pricing response, marketing counter-strategy,
+      and timeline for action.
+    expected:
+      must_contain:
+        - "InsightAI"
+        - "threat"
+        - "recommend"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Does it assess threat across product, pricing, marketing, and talent?
+      - Structure: Is the threat assessment framework clear?
+      - Actionability: Are response strategies specific with timelines?
+      - Strategic depth: Does it consider both short-term and long-term implications?

@@ -1,0 +1,94 @@
+agent_type: content_agent
+agent_class: ContentAgent
+agent_module: src.agents.content_agent
+constructor_kwargs:
+  erp_base_url: "http://mock-erp"
+  erp_api_key: "mock-key"
+
+cases:
+  - id: content-001
+    name: "Generate project proposal"
+    task: |
+      Create a project proposal for Acme Corp's Q1 2027 digital transformation initiative.
+
+      Context:
+      - Client: Acme Corp, mid-size manufacturing company
+      - Goal: Modernize their digital presence and internal workflows
+      - Budget range: $150K - $200K
+      - Timeline: 6 months
+      - Key stakeholders: CEO, CTO, Marketing Director
+
+      The proposal should cover scope, timeline, team, and budget breakdown.
+    expected:
+      must_contain:
+        - "Acme"
+        - "scope"
+        - "timeline"
+        - "budget"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Does it cover scope, timeline, team, budget, and next steps?
+      - Structure: Is it formatted as a professional proposal?
+      - Actionability: Could this be sent to the client as-is?
+      - Persuasiveness: Does it sell the value of the engagement?
+
+  - id: content-002
+    name: "Executive summary from data"
+    task: |
+      Write an executive summary for the monthly performance report.
+
+      Data:
+      - Impressions: 2.4M (up 15% MoM)
+      - Clicks: 120K (up 8% MoM)
+      - CTR: 5.0% (down 0.3pp MoM)
+      - Conversions: 8,900 (up 22% MoM)
+      - ROAS: 4.2x (up from 3.8x)
+      - Top channel: Instagram (45% of conversions)
+      - Underperforming: Twitter (0.8% CTR, down 40%)
+      - New initiative: TikTok pilot launched mid-month, early results promising (6.2% CTR)
+
+      Client: Acme Corp
+      Period: February 2026
+    expected:
+      must_contain:
+        - "2.4"
+        - "conversion"
+        - "Instagram"
+        - "TikTok"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Does it cover all key metrics and call out trends?
+      - Structure: Is it scannable with clear highlights?
+      - Actionability: Does it include recommendations based on the data?
+      - Clarity: Are complex metrics explained in business terms?
+
+  - id: content-003
+    name: "Meeting notes to action items"
+    task: |
+      Convert these rough meeting notes into structured action items:
+
+      "Met with Acme team today. Jane wants to push the launch date up 2 weeks.
+      Bob said the brand colors need updating - he'll send new palette by Friday.
+      We discussed the video - Sarah thinks we should add subtitles for accessibility.
+      Budget approved for the extra social spend ($10K). Mike needs to update the media plan.
+      Next review is March 30. Need to have the landing page wireframes ready.
+      Jane mentioned they're also thinking about a podcast series - separate brief needed."
+    expected:
+      must_contain:
+        - "Jane"
+        - "Bob"
+        - "Sarah"
+        - "Mike"
+        - "March 30"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Are all action items captured with owners and deadlines?
+      - Structure: Are items organized by priority or category?
+      - Actionability: Is each item specific enough to be tracked?
+      - Context: Does it preserve important context from the discussion?

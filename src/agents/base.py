@@ -36,6 +36,7 @@ from ..tools.erp_tool_definitions import (
 from ..tools.creative_tool_definitions import (
     CREATIVE_TOOLS, AGENT_CREATIVE_TOOL_MAP, CREATIVE_TOOL_NAMES,
 )
+from ..tools.core_tool_definitions import CORE_TOOL_NAMES
 
 
 @dataclass
@@ -104,13 +105,15 @@ class BaseAgent(ABC):
 
     def __init__(self, client: OpenRouterClient, model: str,
                  erp_base_url: str = "", erp_api_key: str = "",
-                 erp_toolkit=None, creative_registry=None):
+                 erp_toolkit=None, creative_registry=None,
+                 core_toolkit=None):
         self.client = client
         self.model = model
         self.erp_base_url = erp_base_url
         self.erp_api_key = erp_api_key
         self.erp_toolkit = erp_toolkit  # ERPToolkit for real ERP data access
         self.creative_registry = creative_registry  # CreativeRegistry for asset generation
+        self.core_toolkit = core_toolkit  # CoreToolkit for spokestack-core Prisma access
 
         # Merge agent-specific tools + platform skills (Layer 2) + universal emit_artifact
         self.tools = self._define_tools() + get_platform_skill_tools() + [self._emit_artifact_tool_def()]
@@ -160,6 +163,9 @@ class BaseAgent(ABC):
         # Token usage tracking (accumulated across tool loops)
         self._input_tokens = 0
         self._output_tokens = 0
+
+        # Tool call log for benchmarking (records every tool call name)
+        self._tool_call_log: list[str] = []
 
     @property
     @abstractmethod
@@ -279,6 +285,91 @@ class BaseAgent(ABC):
             return json.dumps(data)
         except Exception as e:
             return json.dumps({"error": f"ERP tool '{tool_name}' failed: {str(e)}"})
+
+    # ============================================
+    # Core Toolkit Tool Handling (spokestack-core)
+    # ============================================
+
+    async def _handle_core_tool(self, tool_name: str, args: dict,
+                                context: "AgentContext") -> str:
+        """Route core tool calls to CoreToolkit methods. Returns JSON string."""
+        tk = self.core_toolkit
+
+        try:
+            # ── Context Graph ──
+            if tool_name == "read_context":
+                data = await tk.read_context(
+                    categories=args.get("categories"),
+                    types=args.get("types"),
+                    limit=args.get("limit", 50),
+                )
+            elif tool_name == "write_context":
+                data = await tk.write_context(
+                    entry_type=args["entry_type"],
+                    category=args["category"],
+                    key=args["key"],
+                    value=args["value"],
+                    confidence=args.get("confidence", 1.0),
+                    source_agent_type=self.name,
+                )
+            # ── Tasks ──
+            elif tool_name == "create_task":
+                data = await tk.create_task(args)
+            elif tool_name == "update_task":
+                task_id = args.pop("task_id")
+                data = await tk.update_task(task_id, args)
+            elif tool_name == "complete_task":
+                data = await tk.complete_task(args["task_id"])
+            elif tool_name == "list_tasks":
+                data = await tk.list_tasks(args if args else None)
+            elif tool_name == "assign_task":
+                data = await tk.assign_task(args["task_id"], args["assignee_id"])
+            elif tool_name == "search_tasks":
+                data = await tk.search_tasks(args["query"], args.get("limit", 20))
+            # ── Projects ──
+            elif tool_name == "create_project":
+                data = await tk.create_project(args)
+            elif tool_name == "add_phase":
+                project_id = args.pop("project_id")
+                data = await tk.add_phase(project_id, args)
+            elif tool_name == "add_milestone":
+                project_id = args.pop("project_id")
+                data = await tk.add_milestone(project_id, args)
+            elif tool_name == "create_canvas":
+                data = await tk.create_canvas(args["project_id"], args["nodes"])
+            elif tool_name == "get_project_status":
+                data = await tk.get_project_status(args["project_id"])
+            # ── Briefs ──
+            elif tool_name == "create_brief":
+                data = await tk.create_brief(args)
+            elif tool_name == "add_brief_phase":
+                brief_id = args.pop("brief_id")
+                data = await tk.add_brief_phase(brief_id, args)
+            elif tool_name == "generate_artifact":
+                brief_id = args.pop("brief_id")
+                data = await tk.generate_artifact(brief_id, args)
+            elif tool_name == "submit_for_review":
+                data = await tk.submit_for_review(args["artifact_id"])
+            elif tool_name == "record_review":
+                artifact_id = args.pop("artifact_id")
+                data = await tk.record_review(artifact_id, args)
+            # ── Orders ──
+            elif tool_name == "create_customer":
+                data = await tk.create_customer(args)
+            elif tool_name == "create_order":
+                data = await tk.create_order(args)
+            elif tool_name == "update_order":
+                order_id = args.pop("order_id")
+                data = await tk.update_order(order_id, args)
+            elif tool_name == "generate_invoice":
+                data = await tk.generate_invoice(args["order_id"])
+            elif tool_name == "record_payment":
+                data = await tk.record_payment(args["invoice_id"], args)
+            else:
+                data = {"error": f"Unknown core tool: {tool_name}"}
+            return json.dumps(data, default=str)
+        except Exception as e:
+            return json.dumps({"error": f"Core tool '{tool_name}' failed: {str(e)}"})
 
     # ============================================
     # Creative Registry Tool Handling
@@ -730,6 +821,9 @@ class BaseAgent(ABC):
                 if self._state != AgentState.WORKING:
                     await self._set_state(AgentState.WORKING, context)
 
+                # Log tool call for benchmarking
+                self._tool_call_log.append(tool_name)
+
                 # Route: emit_artifact, ERP toolkit, platform skill, or agent-specific tool
                 if tool_name == "emit_artifact":
                     result = await self._handle_emit_artifact(tool_input, context)
@@ -738,6 +832,8 @@ class BaseAgent(ABC):
                     result = await self._handle_erp_tool(tool_name, tool_input, context)
                 elif self.creative_registry and tool_name in CREATIVE_TOOL_NAMES:
                     result = await self._handle_creative_tool(tool_name, tool_input)
+                elif self.core_toolkit and tool_name in CORE_TOOL_NAMES:
+                    result = await self._handle_core_tool(tool_name, tool_input, context)
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
@@ -767,6 +863,7 @@ class BaseAgent(ABC):
                 "tenant_id": context.tenant_id,
                 "input_tokens": self._input_tokens,
                 "output_tokens": self._output_tokens,
+                "tool_calls": list(self._tool_call_log),
             },
             created_entities=[e.model_dump() for e in self._created_entities],
             state="complete",
@@ -868,6 +965,8 @@ class BaseAgent(ABC):
                     result = await self._handle_erp_tool(tool_name, tool_input, context)
                 elif self.creative_registry and tool_name in CREATIVE_TOOL_NAMES:
                     result = await self._handle_creative_tool(tool_name, tool_input)
+                elif self.core_toolkit and tool_name in CORE_TOOL_NAMES:
+                    result = await self._handle_core_tool(tool_name, tool_input, context)
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:

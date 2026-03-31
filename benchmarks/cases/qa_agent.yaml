@@ -1,0 +1,93 @@
+agent_type: qa_agent
+agent_class: QAAgent
+agent_module: src.agents.qa_agent
+constructor_kwargs:
+  erp_base_url: "http://mock-erp"
+  erp_api_key: "mock-key"
+
+cases:
+  - id: qa-001
+    name: "Content review checklist"
+    task: |
+      Create a QA checklist for reviewing the following deliverables
+      before client presentation:
+
+      1. Instagram carousel (10 slides) for product launch
+      2. Landing page (desktop + mobile)
+      3. Email campaign (3-email sequence)
+      4. LinkedIn sponsored post series (5 posts)
+
+      Client: Acme Corp (B2B SaaS)
+      Brand guidelines: Professional tone, blue/amber palette, Inter font
+      Launch date: April 15, 2026
+    expected:
+      must_contain:
+        - "checklist"
+        - "brand"
+        - "mobile"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Does it cover all 4 deliverables with specific checks?
+      - Structure: Is each checklist organized by deliverable and check type?
+      - Actionability: Can a QA reviewer follow this step-by-step?
+      - Thoroughness: Does it check brand compliance, copy, links, responsive, accessibility?
+
+  - id: qa-002
+    name: "Issue report from review"
+    task: |
+      You've reviewed the Acme Corp landing page and found these issues.
+      Create a structured issue report:
+
+      Issues found:
+      - The hero CTA button says "Learn More" instead of "Book a Demo" (per brief)
+      - Mobile: The pricing table overflows on iPhone SE viewport
+      - The footer has last year's copyright (2025 instead of 2026)
+      - Page load time is 4.8 seconds (target is under 3 seconds)
+      - The testimonial section has a typo: "We increased effeciency by 40%"
+      - Alt text is missing on 3 product screenshots
+      - The favicon is still the default/placeholder
+    expected:
+      must_contain:
+        - "CTA"
+        - "mobile"
+        - "performance"
+        - "accessibility"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Are all 7 issues captured with severity?
+      - Structure: Are issues categorized (content, responsive, performance, accessibility)?
+      - Actionability: Does each issue have clear fix instructions?
+      - Priority: Are issues ranked by severity and client impact?
+
+  - id: qa-003
+    name: "Pre-launch verification plan"
+    task: |
+      Create a pre-launch verification plan for Acme Corp's campaign
+      going live on April 15, 2026.
+
+      Assets to verify:
+      - Landing page (acme.com/ai-analytics)
+      - 3 Google Ads (search + display)
+      - Facebook/Instagram ad set (4 creatives)
+      - Email blast to 50K subscribers
+      - LinkedIn sponsored content (3 posts)
+
+      The campaign has a $50K media spend on day 1.
+      What needs to be checked before we go live?
+    expected:
+      must_contain:
+        - "landing page"
+        - "tracking"
+        - "April 15"
+      must_not_contain:
+        - "lorem ipsum"
+    rubric: |
+      Score 1-5 on each dimension:
+      - Completeness: Does it cover all assets plus tracking, analytics, and fallback plans?
+      - Structure: Is there a clear timeline (T-48h, T-24h, T-1h, launch)?
+      - Actionability: Are verification steps specific and assignable?
+      - Risk awareness: Does it account for the $50K spend risk with appropriate safeguards?
