@@ -381,6 +381,25 @@ class BaseAgent(ABC):
                     method=args.get("method", "GET"),
                     body=args.get("body"),
                 )
+            # ── Events ──
+            elif tool_name == "list_recent_events":
+                data = await tk.list_recent_events(
+                    entity_type=args.get("entity_type"),
+                    action=args.get("action"),
+                    limit=args.get("limit", 20),
+                    since=args.get("since"),
+                )
+            elif tool_name == "subscribe_to_event":
+                data = await tk.subscribe_to_event(
+                    entity_type=args["entity_type"],
+                    action=args["action"],
+                    conditions=args.get("conditions"),
+                    description=args.get("description", ""),
+                )
+            # ── Digital Assets ──
+            elif tool_name == "manage_assets":
+                action_name = args.pop("action")
+                data = await tk.manage_assets(action_name, **args)
             else:
                 data = {"error": f"Unknown core tool: {tool_name}"}
             return json.dumps(data, default=str)
