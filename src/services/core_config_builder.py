@@ -17,6 +17,7 @@ from src.tools.core_tool_definitions import (
     CONTEXT_TOOLS, TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, ORDERS_TOOLS,
     TIER_TOOL_MAP, AGENT_CORE_TOOL_MAP, CORE_TOOL_NAMES,
 )
+from src.tools.spokestack_onboarding_modules import ONBOARDING_MODULE_TOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +104,10 @@ def build_tools_for_tier(org_tier: str, agent_type: str) -> list[dict]:
         tool for tool in all_tier_tools
         if tool["function"]["name"] in agent_tool_names
     ]
+
+    # Onboarding agent gets module recommendation tools
+    if agent_type == "core_onboarding":
+        filtered.extend(ONBOARDING_MODULE_TOOLS)
 
     return filtered
 
