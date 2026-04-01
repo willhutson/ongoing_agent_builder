@@ -167,6 +167,9 @@ class BaseAgent(ABC):
         # Tool call log for benchmarking (records every tool call name)
         self._tool_call_log: list[str] = []
 
+        # Full tool call records with inputs (for handoff detection)
+        self._tool_call_records: list[dict] = []
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -821,8 +824,9 @@ class BaseAgent(ABC):
                 if self._state != AgentState.WORKING:
                     await self._set_state(AgentState.WORKING, context)
 
-                # Log tool call for benchmarking
+                # Log tool call for benchmarking and handoff detection
                 self._tool_call_log.append(tool_name)
+                self._tool_call_records.append({"name": tool_name, "input": tool_input})
 
                 # Route: emit_artifact, ERP toolkit, platform skill, or agent-specific tool
                 if tool_name == "emit_artifact":

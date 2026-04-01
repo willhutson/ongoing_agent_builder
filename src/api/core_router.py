@@ -241,20 +241,25 @@ async def classify_intent(
 # ══════════════════════════════════════════════════════════════
 
 
-def extract_handoff_from_result(result) -> Optional[dict]:
+def extract_handoff_from_result(result, agent=None) -> Optional[dict]:
     """
     Check if the agent's response contains a delegate_to_agent tool call.
+    Uses _tool_call_records (which stores both name and input) for reliable extraction.
     Returns the handoff payload dict, or None.
     """
-    # Check tool_calls in metadata (populated by BaseAgent._tool_call_log)
+    # Primary: check _tool_call_records on the agent (has full input data)
+    if agent and hasattr(agent, "_tool_call_records"):
+        for record in reversed(agent._tool_call_records):
+            if is_handoff_tool_call(record.get("name", "")):
+                return build_handoff_response(record.get("input", {}))
+
+    # Fallback: check metadata tool_calls list (names only)
     tool_calls = getattr(result, "metadata", {}).get("tool_calls", [])
     for tc_name in reversed(tool_calls):
         if is_handoff_tool_call(tc_name):
-            # The tool call input is in the output text as JSON (agent returns it)
-            # Try to parse handoff data from the output
+            # Try to parse from output text
             try:
                 output_text = getattr(result, "output", "") or ""
-                # Look for JSON block with handoff data
                 for line in output_text.split("\n"):
                     line = line.strip()
                     if line.startswith("{") and "target_agent" in line:
@@ -262,7 +267,6 @@ def extract_handoff_from_result(result) -> Optional[dict]:
                         return build_handoff_response(data)
             except (json.JSONDecodeError, AttributeError):
                 pass
-            # Fallback — we know a handoff was requested but can't parse details
             return {
                 "type": "handoff",
                 "target_agent": "",
@@ -415,17 +419,12 @@ async def execute_core_agent(
             try:
                 async for event in agent.stream(context):
                     yield f"data: {event}\n\n"
-                # Check for handoff in the agent's tool call log
-                if hasattr(agent, '_tool_call_log'):
-                    for tc_name in agent._tool_call_log:
-                        if is_handoff_tool_call(tc_name):
-                            handoff_event = json.dumps({
-                                "type": "handoff",
-                                "target_agent": "",
-                                "context_summary": "",
-                                "reason": "Agent requested a handoff",
-                            })
-                            yield f"data: {handoff_event}\n\n"
+                # Check for handoff in the agent's tool call records
+                if hasattr(agent, '_tool_call_records'):
+                    for record in reversed(agent._tool_call_records):
+                        if is_handoff_tool_call(record.get("name", "")):
+                            handoff_data = build_handoff_response(record.get("input", {}))
+                            yield f"data: {json.dumps(handoff_data)}\n\n"
                             break
                 yield "data: [DONE]\n\n"
             except Exception as e:
@@ -449,7 +448,7 @@ async def execute_core_agent(
         result = await agent.run(context)
 
         # ── Phase 3: Handoff Detection ──
-        handoff_data = extract_handoff_from_result(result)
+        handoff_data = extract_handoff_from_result(result, agent=agent)
         if handoff_data:
             target = handoff_data.get("target_agent", "")
             reason = handoff_data.get("reason", "")
