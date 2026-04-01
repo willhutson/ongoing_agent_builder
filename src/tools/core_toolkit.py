@@ -72,7 +72,7 @@ class CoreToolkit:
         # Extract entity_id from flat or nested response shapes
         entity_id = result.get("id") or ""
         if not entity_id:
-            for nested_key in ("task", "project", "brief", "order"):
+            for nested_key in ("task", "project", "brief", "order", "client"):
                 nested = result.get(nested_key)
                 if isinstance(nested, dict) and nested.get("id"):
                     entity_id = nested["id"]
@@ -81,7 +81,7 @@ class CoreToolkit:
         # Extract entity_title from flat or nested response shapes
         entity_title = result.get("title") or result.get("name") or ""
         if not entity_title:
-            for nested_key, field in [("task", "title"), ("project", "name"), ("brief", "title"), ("order", "name")]:
+            for nested_key, field in [("task", "title"), ("project", "name"), ("brief", "title"), ("order", "name"), ("client", "name")]:
                 nested = result.get(nested_key)
                 if isinstance(nested, dict) and nested.get(field):
                     entity_title = nested[field]
@@ -233,19 +233,27 @@ class CoreToolkit:
     # ORDERS
     # ══════════════════════════════════════════════════════
 
-    async def create_customer(self, data: dict) -> dict:
-        result = await self._request("POST", "/api/v1/customers", json={
+    # ══════════════════════════════════════════════════════
+    # CLIENTS (formerly Customers)
+    # ══════════════════════════════════════════════════════
+
+    async def create_client(self, data: dict) -> dict:
+        result = await self._request("POST", "/api/v1/clients", json={
             "name": data["name"],
             "email": data.get("email", ""),
             "phone": data.get("phone", ""),
             "company": data.get("company", ""),
         })
-        await self._report("customer.created", "CUSTOMER", result, "core_crm")
+        await self._report("client.created", "CLIENT", result, "core_crm")
         return result
+
+    # Backwards compat alias
+    async def create_customer(self, data: dict) -> dict:
+        return await self.create_client(data)
 
     async def create_order(self, data: dict) -> dict:
         result = await self._request("POST", "/api/v1/orders", json={
-            "customerId": data.get("customer_id"),
+            "clientId": data.get("client_id") or data.get("customer_id"),
             "status": data.get("status", "PENDING"),
             "totalCents": data.get("total", 0),
             "currency": data.get("currency", "USD"),
@@ -271,6 +279,26 @@ class CoreToolkit:
             "status": "PAID",
             "paidAt": data.get("paid_at"),
         })
+
+    # ══════════════════════════════════════════════════════
+    # INTEGRATIONS
+    # ══════════════════════════════════════════════════════
+
+    async def list_integrations(self) -> dict:
+        """List all connected integrations for this org."""
+        return await self._request("GET", "/api/v1/integrations")
+
+    async def proxy_integration(self, provider: str, endpoint: str,
+                                method: str = "GET", body: dict = None) -> dict:
+        """Proxy a request to an external service through Nango."""
+        payload = {
+            "provider": provider,
+            "endpoint": endpoint,
+            "method": method,
+        }
+        if body:
+            payload["body"] = body
+        return await self._request("POST", "/api/v1/integrations/proxy", json=payload)
 
     # ══════════════════════════════════════════════════════
     # CONTEXT GRAPH

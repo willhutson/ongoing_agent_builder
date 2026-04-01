@@ -122,16 +122,59 @@ def format_context_entries(entries: list[dict]) -> str:
     )
 
 
-def inject_context_into_prompt(system_prompt: str, context_entries: list[dict]) -> str:
+def format_integrations(integrations: list[dict]) -> str:
     """
-    Appends the formatted context block to the system prompt.
+    Format connected integrations into a system prompt section.
+    Only includes ACTIVE connections. Returns empty string if none.
+    """
+    active = [i for i in (integrations or []) if i.get("status") == "ACTIVE"]
+    if not active:
+        return ""
+
+    lines = ["\n## Connected Integrations",
+             "This organization has the following external tools connected:"]
+    for conn in active:
+        provider_label = conn.get("providerLabel") or conn.get("provider", "").replace("-", " ").title()
+        provider_id = conn.get("provider", "")
+        module = conn.get("moduleType", "")
+        line = f"- {provider_label} ({provider_id})"
+        if module:
+            line += f" — connected to {module} module"
+        lines.append(line)
+
+    lines.append("")
+    lines.append(
+        "You can use the `list_integrations` tool to check connection details, "
+        "and `proxy_integration` tool to read or write data from these services. "
+        "When the user asks about data that might exist in a connected service "
+        "(e.g., \"show me my Asana tasks\"), use proxy_integration to fetch it."
+    )
+    return "\n".join(lines) + "\n"
+
+
+def inject_context_into_prompt(
+    system_prompt: str,
+    context_entries: list[dict],
+    integrations: list[dict] = None,
+) -> str:
+    """
+    Appends the formatted context block and integrations to the system prompt.
     Idempotent — if the context block is already present, returns unchanged.
     """
     if "--- ORGANIZATIONAL CONTEXT ---" in system_prompt:
         return system_prompt
 
+    additions = []
+
     context_block = format_context_entries(context_entries)
-    if not context_block:
+    if context_block:
+        additions.append(context_block)
+
+    integrations_block = format_integrations(integrations)
+    if integrations_block:
+        additions.append(integrations_block)
+
+    if not additions:
         return system_prompt
 
-    return system_prompt.rstrip() + "\n\n" + context_block
+    return system_prompt.rstrip() + "\n\n" + "\n".join(additions)

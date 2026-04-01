@@ -24,7 +24,7 @@ from src.services.core_config_builder import (
     AGENT_MODEL_MAP, tier_has_access, AGENT_TIER_REQUIREMENTS,
 )
 from src.services.context_injector import inject_context_into_prompt
-from src.tools.core_tool_definitions import CORE_INTENT_PATTERNS
+from src.tools.core_tool_definitions import CORE_INTENT_PATTERNS, ENTERPRISE_INTENT_PATTERNS
 from src.tools.core_toolkit import CoreToolkit
 from src.tools.spokestack_handoff import is_handoff_tool_call, build_handoff_response
 from src.modules import registry_store
@@ -60,6 +60,21 @@ MODULE_AGENT_TYPES: dict[str, str] = {
     "boards": "BOARDS",
     "finance": "FINANCE",
     "workflows": "WORKFLOWS",
+    # Enterprise modules
+    "spokechat": "SPOKECHAT",
+    "delegation": "DELEGATION",
+    "access_control": "ACCESS_CONTROL",
+    "api_management": "API_MANAGEMENT",
+    "builder": "BUILDER",
+}
+
+# Enterprise module → primary agent routing (no new agent types — use existing)
+ENTERPRISE_MODULE_AGENT_MAP: dict[str, str] = {
+    "SPOKECHAT": "gateway_slack",
+    "DELEGATION": "resource",
+    "ACCESS_CONTROL": "instance_onboarding",
+    "API_MANAGEMENT": "instance_onboarding",
+    "BUILDER": "prompt_helper",
 }
 
 
@@ -145,6 +160,36 @@ def _load_agent_class(agent_type: str):
 
 
 # ══════════════════════════════════════════════════════════════
+# Cached Integrations Fetcher (5-minute TTL)
+# ══════════════════════════════════════════════════════════════
+
+import time as _time
+
+_integrations_cache: dict[str, tuple[list[dict], float]] = {}
+_INTEGRATIONS_TTL = 300  # 5 minutes
+
+
+async def _get_cached_integrations(org_id: str, toolkit) -> list[dict]:
+    """Fetch integrations with 5-minute TTL cache."""
+    now = _time.monotonic()
+    cached = _integrations_cache.get(org_id)
+    if cached and now < cached[1]:
+        return cached[0]
+
+    try:
+        result = await toolkit.list_integrations()
+        connections = result.get("connections", result.get("data", []))
+        if isinstance(connections, list):
+            _integrations_cache[org_id] = (connections, now + _INTEGRATIONS_TTL)
+            return connections
+    except Exception as e:
+        logger.debug(f"Failed to fetch integrations for {org_id}: {e}")
+        if cached:
+            return cached[0]
+    return []
+
+
+# ══════════════════════════════════════════════════════════════
 # Context-Aware Intent Classification
 # ══════════════════════════════════════════════════════════════
 
@@ -211,12 +256,20 @@ async def classify_intent(
     """
     task_lower = task.lower()
 
-    # Keyword scoring
+    # Keyword scoring — core agents
     scores: dict[str, float] = {}
     for agent_type, patterns in CORE_INTENT_PATTERNS.items():
         score = sum(1 for p in patterns if p in task_lower)
         if score > 0:
             scores[agent_type] = float(score)
+
+    # Enterprise module keyword scoring
+    for module_type, patterns in ENTERPRISE_INTENT_PATTERNS.items():
+        score = sum(1 for p in patterns if p in task_lower)
+        if score > 0:
+            # Map enterprise module to its agent name in MODULE_AGENT_TYPES
+            agent_name = module_type.lower()
+            scores[agent_name] = float(score)
 
     # Context-aware adjustment
     if context_entries:
@@ -378,27 +431,30 @@ async def execute_core_agent(
     # Inject tier-scoped tools
     agent.tools.extend(config["tools"])
 
-    # ── Phase 3: Context Injection ──
-    if request.context_entries:
-        # Special handling for [SYNTHESIS] prefix
+    # ── Phase 3/6C: Context + Integration Injection ──
+    if request.context_entries or True:  # Always try integration injection
         if request.task.startswith("[SYNTHESIS]"):
-            # Override system prompt for synthesis calls
             agent._synthesis_prompt = (
                 "You are a data analyst. When asked, return ONLY a valid JSON array. "
                 "Do not include markdown fences, preamble, or explanation — just the raw JSON array."
             )
         else:
-            # Inject context entries into the agent's system prompt
+            # Fetch connected integrations (cached per-org)
+            integrations = await _get_cached_integrations(request.org_id, agent.core_toolkit)
             original_prompt = agent.system_prompt
-            injected_prompt = inject_context_into_prompt(original_prompt, request.context_entries)
-            # Store the injected prompt for the agent to use
+            injected_prompt = inject_context_into_prompt(
+                original_prompt,
+                request.context_entries or [],
+                integrations=integrations,
+            )
             agent._injected_system_prompt = injected_prompt
 
-        logger.info(
-            f"[context-injection] org={request.org_id} "
-            f"entries={len(request.context_entries)} "
-            f"injected={len([e for e in request.context_entries if e.get('entryType') in ('PREFERENCE', 'INSIGHT', 'ENTITY')])}"
-        )
+        if request.context_entries:
+            logger.info(
+                f"[context-injection] org={request.org_id} "
+                f"entries={len(request.context_entries)} "
+                f"injected={len([e for e in request.context_entries if e.get('entryType') in ('PREFERENCE', 'INSIGHT', 'ENTITY')])}"
+            )
 
     # Build context
     context = AgentContext(

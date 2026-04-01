@@ -445,8 +445,8 @@ ORDERS_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "create_customer",
-            "description": "Create a new customer record.",
+            "name": "create_client",
+            "description": "Create a new client record.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -465,11 +465,11 @@ ORDERS_TOOLS = [
         "type": "function",
         "function": {
             "name": "create_order",
-            "description": "Create a new order for a customer.",
+            "description": "Create a new order for a client.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "customer_id": {"type": "string"},
+                    "client_id": {"type": "string"},
                     "items": {
                         "type": "array",
                         "items": {
@@ -487,7 +487,7 @@ ORDERS_TOOLS = [
                     "currency": {"type": "string", "description": "ISO 4217 (default: USD)"},
                     "notes": {"type": "string"},
                 },
-                "required": ["customer_id"],
+                "required": ["client_id"],
             },
         },
     },
@@ -553,6 +553,65 @@ ORDERS_TOOLS = [
 
 
 # ══════════════════════════════════════════════════════════════
+# INTEGRATION TOOLS — Available at STARTER tier and above
+# ══════════════════════════════════════════════════════════════
+
+INTEGRATION_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "list_integrations",
+            "description": (
+                "List all connected external tool integrations for this organization. "
+                "Returns provider names and connection status. Use this to check what "
+                "external services are available before calling proxy_integration."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "proxy_integration",
+            "description": (
+                "Call an external service API (Asana, HubSpot, Slack, Google Drive, etc.) "
+                "through the organization's connected integration. The organization must have "
+                "the provider connected first — check with list_integrations. Use this to read "
+                "tasks from Asana, fetch contacts from HubSpot, list files from Google Drive, etc."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "provider": {
+                        "type": "string",
+                        "description": "Nango provider ID (e.g., 'asana', 'hubspot', 'slack', 'google-drive', 'google-calendar')",
+                    },
+                    "endpoint": {
+                        "type": "string",
+                        "description": "The API endpoint path on the external service (e.g., '/api/1.0/tasks' for Asana)",
+                    },
+                    "method": {
+                        "type": "string",
+                        "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+                        "description": "HTTP method (default: GET)",
+                    },
+                    "body": {
+                        "type": "object",
+                        "description": "Request body for POST/PUT/PATCH requests",
+                    },
+                },
+                "required": ["provider", "endpoint"],
+            },
+        },
+    },
+]
+
+
+# ══════════════════════════════════════════════════════════════
 # TOOL NAME SETS — For dispatch routing in BaseAgent
 # ══════════════════════════════════════════════════════════════
 
@@ -561,6 +620,7 @@ TASKS_TOOL_NAMES = {t["function"]["name"] for t in TASKS_TOOLS}
 PROJECTS_TOOL_NAMES = {t["function"]["name"] for t in PROJECTS_TOOLS}
 BRIEFS_TOOL_NAMES = {t["function"]["name"] for t in BRIEFS_TOOLS}
 ORDERS_TOOL_NAMES = {t["function"]["name"] for t in ORDERS_TOOLS}
+INTEGRATION_TOOL_NAMES = {t["function"]["name"] for t in INTEGRATION_TOOLS}
 
 # Import handoff tools (always available)
 from src.tools.spokestack_handoff import HANDOFF_TOOLS, HANDOFF_TOOL_NAMES
@@ -568,7 +628,7 @@ from src.tools.spokestack_handoff import HANDOFF_TOOLS, HANDOFF_TOOL_NAMES
 # Union of all core tool names (for dispatch routing)
 CORE_TOOL_NAMES = (
     CONTEXT_TOOL_NAMES | TASKS_TOOL_NAMES | PROJECTS_TOOL_NAMES |
-    BRIEFS_TOOL_NAMES | ORDERS_TOOL_NAMES
+    BRIEFS_TOOL_NAMES | ORDERS_TOOL_NAMES | INTEGRATION_TOOL_NAMES
 )
 # Note: HANDOFF_TOOL_NAMES are NOT in CORE_TOOL_NAMES — they're handled
 # separately in core_router.py's handoff detection, not dispatched via CoreToolkit.
@@ -580,9 +640,9 @@ CORE_TOOL_NAMES = (
 
 TIER_TOOL_MAP: dict[str, list[list[dict]]] = {
     "FREE":     [TASKS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS],
-    "STARTER":  [TASKS_TOOLS, PROJECTS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS],
-    "PRO":      [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS],
-    "BUSINESS": [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, ORDERS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS],
+    "STARTER":  [TASKS_TOOLS, PROJECTS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, INTEGRATION_TOOLS],
+    "PRO":      [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, INTEGRATION_TOOLS],
+    "BUSINESS": [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, ORDERS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, INTEGRATION_TOOLS],
 }
 
 
@@ -591,11 +651,11 @@ TIER_TOOL_MAP: dict[str, list[list[dict]]] = {
 # ══════════════════════════════════════════════════════════════
 
 AGENT_CORE_TOOL_MAP: dict[str, set[str]] = {
-    "core_onboarding": TASKS_TOOL_NAMES | PROJECTS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
-    "core_tasks":      TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
-    "core_projects":   PROJECTS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
-    "core_briefs":     BRIEFS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
-    "core_orders":     ORDERS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
+    "core_onboarding": TASKS_TOOL_NAMES | PROJECTS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
+    "core_tasks":      TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
+    "core_projects":   PROJECTS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
+    "core_briefs":     BRIEFS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
+    "core_orders":     ORDERS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
 }
 
 
@@ -620,8 +680,36 @@ CORE_INTENT_PATTERNS: dict[str, list[str]] = {
         "artifact", "document", "copy",
     ],
     "core_orders": [
-        "order", "invoice", "payment", "customer",
+        "order", "invoice", "payment", "client",
         "purchase", "bill", "receipt", "pricing",
         "quote", "estimate",
+    ],
+}
+
+
+# ══════════════════════════════════════════════════════════════
+# ENTERPRISE MODULE INTENT PATTERNS
+# ══════════════════════════════════════════════════════════════
+
+ENTERPRISE_INTENT_PATTERNS: dict[str, list[str]] = {
+    "SPOKECHAT": [
+        "internal chat", "team chat", "channels", "send a message to the team",
+        "create a channel", "chat room", "direct message",
+    ],
+    "DELEGATION": [
+        "delegate", "delegation", "out of office", "handoff",
+        "cover for me", "assign authority", "proxy approval",
+    ],
+    "ACCESS_CONTROL": [
+        "access policy", "permissions", "rbac", "who can access",
+        "restrict access", "policy", "role-based",
+    ],
+    "API_MANAGEMENT": [
+        "api key", "webhook", "api access", "create a key",
+        "webhook subscription", "api management",
+    ],
+    "BUILDER": [
+        "builder template", "create a template", "template builder",
+        "builder permissions", "custom builder",
     ],
 }
