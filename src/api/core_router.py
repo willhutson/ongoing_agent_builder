@@ -1,18 +1,17 @@
 """
 Core Router — API endpoints for spokestack-core organizations.
 
-Handles:
-- Agent execution with tier-scoped tool injection + module guard
-- Intent classification to route between TASKS/PROJECTS/BRIEFS/ORDERS
-- Gated agent upgrade prompts (tier + module)
-- Legacy /agents/register endpoint (use /modules/register for Phase 2)
+Phase 3 additions:
+- Auto-inject ContextEntry records into agent system prompts
+- Context-aware intent classification (usage patterns + entity name matching)
+- Agent handoff detection (delegate_to_agent tool call → structured response)
 """
 
 import json
 import logging
 import os
 import uuid
-from typing import Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -24,8 +23,10 @@ from src.services.core_config_builder import (
     build_agent_config, get_available_agents, CORE_AGENT_TYPES,
     AGENT_MODEL_MAP, tier_has_access, AGENT_TIER_REQUIREMENTS,
 )
+from src.services.context_injector import inject_context_into_prompt
 from src.tools.core_tool_definitions import CORE_INTENT_PATTERNS
 from src.tools.core_toolkit import CoreToolkit
+from src.tools.spokestack_handoff import is_handoff_tool_call, build_handoff_response
 from src.modules import registry_store
 from src.modules.module_checker import get_installed_modules
 from src.modules.upsell_messages import get_upsell_message
@@ -40,15 +41,11 @@ router = APIRouter(prefix="/api/v1/core", tags=["spokestack-core"])
 # Module Agent Type Mapping
 # ══════════════════════════════════════════════════════════════
 
-# Core agent types that bypass the module check entirely.
-# Only marketplace module agents get the installed-module guard.
 CORE_AGENT_BYPASS = {
     "core_onboarding", "core_tasks", "core_projects",
     "core_briefs", "core_orders",
 }
 
-# Maps module agent names → ModuleType strings used in module_registrations.
-# Agent types not in this map AND not in CORE_AGENT_BYPASS get a generic check.
 MODULE_AGENT_TYPES: dict[str, str] = {
     "crm": "CRM",
     "social_publishing": "SOCIAL_PUBLISHING",
@@ -74,24 +71,34 @@ MODULE_AGENT_TYPES: dict[str, str] = {
 class CoreExecuteRequest(BaseModel):
     """Request to execute a core agent."""
     task: str
-    agent_type: Optional[str] = None  # If omitted, intent classification is used
+    agent_type: Optional[str] = None
     org_id: str
     org_name: str = ""
-    org_tier: str = "FREE"  # FREE, STARTER, PRO, BUSINESS
+    org_tier: str = "FREE"
     user_id: str
     session_id: Optional[str] = None
     metadata: dict = Field(default_factory=dict)
     stream: bool = False
+    context_entries: Optional[list[dict[str, Any]]] = None  # Phase 3: org context
+
+
+class HandoffMetadata(BaseModel):
+    """Structured handoff data when an agent delegates to another."""
+    type: Literal["handoff"] = "handoff"
+    target_agent: str
+    context_summary: str
+    reason: str
 
 
 class CoreExecuteResponse(BaseModel):
     """Response from core agent execution."""
     execution_id: str
-    status: str  # "completed", "streaming", "gated", "module_required"
+    status: str  # "completed", "streaming", "gated", "module_required", "handoff"
     output: Optional[str] = None
     agent_type: Optional[str] = None
     upgrade_message: Optional[str] = None
     upsell: bool = False
+    handoff: Optional[HandoffMetadata] = None
     token_usage: Optional[dict] = None
 
 
@@ -138,39 +145,131 @@ def _load_agent_class(agent_type: str):
 
 
 # ══════════════════════════════════════════════════════════════
-# Intent Classification
+# Context-Aware Intent Classification
 # ══════════════════════════════════════════════════════════════
 
 
-async def classify_intent(task: str, org_tier: str) -> str:
+def score_intent_from_context(
+    message: str,
+    context_entries: list[dict],
+    keyword_scores: dict[str, float],
+) -> dict[str, float]:
+    """
+    Adjust intent scores based on:
+    1. Recent agent usage patterns (PATTERN entries with category="agent.usage")
+    2. Active entity name matches in the message
+    """
+    adjusted = dict(keyword_scores)
+    message_lower = message.lower()
+
+    for entry in (context_entries or []):
+        entry_type = entry.get("entryType", "")
+        category = entry.get("category", "")
+        value = entry.get("value") or {}
+
+        # Boost for recent usage pattern
+        if entry_type == "PATTERN" and category == "agent.usage":
+            if isinstance(value, dict):
+                agent_type = value.get("agent_type", "")
+                usage_count = value.get("count_7d", 0)
+                if agent_type and usage_count >= 10:
+                    adjusted[agent_type] = adjusted.get(agent_type, 0.0) + 0.3
+
+        # Boost for entity name match
+        if entry_type == "ENTITY":
+            entity_value = value if isinstance(value, dict) else {}
+            entity_name = (
+                entity_value.get("name", "")
+                or entity_value.get("title", "")
+                or entry.get("key", "")
+            ).lower()
+            if entity_name and len(entity_name) > 3 and entity_name in message_lower:
+                category_prefix = category.split(".")[0] if "." in category else category
+                CATEGORY_AGENT_MAP = {
+                    "crm": "core_orders",
+                    "project": "core_projects",
+                    "brief": "core_briefs",
+                    "task": "core_tasks",
+                    "order": "core_orders",
+                }
+                for prefix, agent in CATEGORY_AGENT_MAP.items():
+                    if prefix in category_prefix:
+                        adjusted[agent] = adjusted.get(agent, 0.0) + 0.5
+                        break
+
+    return adjusted
+
+
+async def classify_intent(
+    task: str,
+    org_tier: str,
+    context_entries: list[dict] = None,
+) -> str:
     """
     Classify user message intent to route to the appropriate core agent.
-    Uses a lightweight keyword match first, falls back to LLM if ambiguous.
+    Uses keyword match + context-aware scoring.
     """
     task_lower = task.lower()
 
-    # Score each agent type by keyword matches
-    scores: dict[str, int] = {}
+    # Keyword scoring
+    scores: dict[str, float] = {}
     for agent_type, patterns in CORE_INTENT_PATTERNS.items():
         score = sum(1 for p in patterns if p in task_lower)
         if score > 0:
-            scores[agent_type] = score
+            scores[agent_type] = float(score)
+
+    # Context-aware adjustment
+    if context_entries:
+        scores = score_intent_from_context(task, context_entries, scores)
 
     if scores:
-        # Pick the highest-scoring agent
         best = max(scores, key=scores.get)
-        # Check if the user has access
         if tier_has_access(org_tier, AGENT_TIER_REQUIREMENTS.get(best, "FREE")):
             return best
-        # If gated, still return it — the config builder will return upgrade message
+        return best  # still return — config builder handles upgrade message
 
-    # If no keyword match, check for onboarding cues
+    # Onboarding cues
     onboarding_cues = ["get started", "set up", "new here", "onboard", "first time", "hello", "hi"]
     if any(cue in task_lower for cue in onboarding_cues):
         return "core_onboarding"
 
-    # Default to tasks (the universal catch-all)
     return "core_tasks"
+
+
+# ══════════════════════════════════════════════════════════════
+# Handoff Detection
+# ══════════════════════════════════════════════════════════════
+
+
+def extract_handoff_from_result(result) -> Optional[dict]:
+    """
+    Check if the agent's response contains a delegate_to_agent tool call.
+    Returns the handoff payload dict, or None.
+    """
+    # Check tool_calls in metadata (populated by BaseAgent._tool_call_log)
+    tool_calls = getattr(result, "metadata", {}).get("tool_calls", [])
+    for tc_name in reversed(tool_calls):
+        if is_handoff_tool_call(tc_name):
+            # The tool call input is in the output text as JSON (agent returns it)
+            # Try to parse handoff data from the output
+            try:
+                output_text = getattr(result, "output", "") or ""
+                # Look for JSON block with handoff data
+                for line in output_text.split("\n"):
+                    line = line.strip()
+                    if line.startswith("{") and "target_agent" in line:
+                        data = json.loads(line)
+                        return build_handoff_response(data)
+            except (json.JSONDecodeError, AttributeError):
+                pass
+            # Fallback — we know a handoff was requested but can't parse details
+            return {
+                "type": "handoff",
+                "target_agent": "",
+                "context_summary": "",
+                "reason": "Agent requested a handoff",
+            }
+    return None
 
 
 # ══════════════════════════════════════════════════════════════
@@ -202,23 +301,24 @@ async def execute_core_agent(
     """
     Execute a spokestack-core agent.
 
-    If agent_type is omitted, intent classification routes the request.
-    If the requested agent is gated (tier too low), returns an upgrade prompt.
-    If the resolved agent maps to a marketplace module that isn't installed,
-    returns an upsell message instead of a 403.
+    Phase 3 enhancements:
+    - context_entries in request body → auto-injected into system prompt
+    - Context-aware intent classification (usage patterns + entity names)
+    - Handoff detection: delegate_to_agent → status="handoff" response
+    - [SYNTHESIS] prefix → minimal JSON-focused system prompt
     """
     _validate_agent_secret(x_agent_secret)
 
     # Intent classification if agent_type not specified
     agent_type = request.agent_type
     if not agent_type:
-        agent_type = await classify_intent(request.task, request.org_tier)
+        agent_type = await classify_intent(
+            request.task, request.org_tier, request.context_entries,
+        )
 
     execution_id = str(uuid.uuid4())
 
     # ── Module Guard ──
-    # Core agents (TASKS, PROJECTS, etc.) bypass this check.
-    # Only marketplace module agents need to be installed.
     if agent_type not in CORE_AGENT_BYPASS:
         module_type = MODULE_AGENT_TYPES.get(agent_type)
         if module_type:
@@ -233,7 +333,6 @@ async def execute_core_agent(
                 )
 
     # ── Build tier-scoped config ──
-    # Get module tools from persistent registry
     org_registrations = await registry_store.get_org_modules(request.org_id)
     module_tools = []
     for reg in org_registrations:
@@ -275,6 +374,28 @@ async def execute_core_agent(
     # Inject tier-scoped tools
     agent.tools.extend(config["tools"])
 
+    # ── Phase 3: Context Injection ──
+    if request.context_entries:
+        # Special handling for [SYNTHESIS] prefix
+        if request.task.startswith("[SYNTHESIS]"):
+            # Override system prompt for synthesis calls
+            agent._synthesis_prompt = (
+                "You are a data analyst. When asked, return ONLY a valid JSON array. "
+                "Do not include markdown fences, preamble, or explanation — just the raw JSON array."
+            )
+        else:
+            # Inject context entries into the agent's system prompt
+            original_prompt = agent.system_prompt
+            injected_prompt = inject_context_into_prompt(original_prompt, request.context_entries)
+            # Store the injected prompt for the agent to use
+            agent._injected_system_prompt = injected_prompt
+
+        logger.info(
+            f"[context-injection] org={request.org_id} "
+            f"entries={len(request.context_entries)} "
+            f"injected={len([e for e in request.context_entries if e.get('entryType') in ('PREFERENCE', 'INSIGHT', 'ENTITY')])}"
+        )
+
     # Build context
     context = AgentContext(
         tenant_id=request.org_id,
@@ -294,6 +415,18 @@ async def execute_core_agent(
             try:
                 async for event in agent.stream(context):
                     yield f"data: {event}\n\n"
+                # Check for handoff in the agent's tool call log
+                if hasattr(agent, '_tool_call_log'):
+                    for tc_name in agent._tool_call_log:
+                        if is_handoff_tool_call(tc_name):
+                            handoff_event = json.dumps({
+                                "type": "handoff",
+                                "target_agent": "",
+                                "context_summary": "",
+                                "reason": "Agent requested a handoff",
+                            })
+                            yield f"data: {handoff_event}\n\n"
+                            break
                 yield "data: [DONE]\n\n"
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -314,6 +447,25 @@ async def execute_core_agent(
     # Non-streaming: run and return
     try:
         result = await agent.run(context)
+
+        # ── Phase 3: Handoff Detection ──
+        handoff_data = extract_handoff_from_result(result)
+        if handoff_data:
+            target = handoff_data.get("target_agent", "")
+            reason = handoff_data.get("reason", "")
+            target_label = target.replace("core_", "").title() if target else "another"
+            return CoreExecuteResponse(
+                execution_id=execution_id,
+                status="handoff",
+                output=f"I'm suggesting you switch to the {target_label} agent — {reason}",
+                agent_type=agent_type,
+                handoff=HandoffMetadata(**handoff_data),
+                token_usage={
+                    "input_tokens": result.metadata.get("input_tokens", 0),
+                    "output_tokens": result.metadata.get("output_tokens", 0),
+                },
+            )
+
         return CoreExecuteResponse(
             execution_id=execution_id,
             status="completed",
@@ -362,14 +514,10 @@ async def register_module_agent(
     """
     Legacy endpoint: Register a marketplace module agent for an organization.
     Persists to module_registrations table via registry_store.
-
-    Prefer POST /api/v1/core/modules/register for Phase 2 integration.
     """
     _validate_agent_secret(x_agent_secret)
 
     agent_def = request.agent
-
-    # Persist via registry_store
     registration = await registry_store.register_module(
         org_id=request.org_id,
         module_type=agent_def.slug.upper(),

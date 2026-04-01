@@ -1048,7 +1048,12 @@ Emit the result using the emit_artifact tool with type="{context.artifact_format
                 "Do not ask for information that's already provided above.\n"
             )
 
-        return f"""{self.system_prompt}
+        # Phase 3: Use synthesis prompt, injected prompt, or base prompt
+        base_prompt = getattr(self, '_synthesis_prompt', None) \
+            or getattr(self, '_injected_system_prompt', None) \
+            or self.system_prompt
+
+        return f"""{base_prompt}
 
 ## Context
 - Tenant ID: {context.tenant_id}
