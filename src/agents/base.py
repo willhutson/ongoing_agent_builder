@@ -356,9 +356,12 @@ class BaseAgent(ABC):
             elif tool_name == "record_review":
                 artifact_id = args.pop("artifact_id")
                 data = await tk.record_review(artifact_id, args)
-            # ── Orders ──
+            # ── Clients & Orders ──
+            elif tool_name == "create_client":
+                data = await tk.create_client(args)
             elif tool_name == "create_customer":
-                data = await tk.create_customer(args)
+                # Backwards compat — routes to create_client
+                data = await tk.create_client(args)
             elif tool_name == "create_order":
                 data = await tk.create_order(args)
             elif tool_name == "update_order":
@@ -368,6 +371,16 @@ class BaseAgent(ABC):
                 data = await tk.generate_invoice(args["order_id"])
             elif tool_name == "record_payment":
                 data = await tk.record_payment(args["invoice_id"], args)
+            # ── Integrations ──
+            elif tool_name == "list_integrations":
+                data = await tk.list_integrations()
+            elif tool_name == "proxy_integration":
+                data = await tk.proxy_integration(
+                    provider=args["provider"],
+                    endpoint=args["endpoint"],
+                    method=args.get("method", "GET"),
+                    body=args.get("body"),
+                )
             else:
                 data = {"error": f"Unknown core tool: {tool_name}"}
             return json.dumps(data, default=str)

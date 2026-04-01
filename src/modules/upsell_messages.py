@@ -78,6 +78,32 @@ _UPSELL_TEMPLATES: dict[str, str] = {
         "Install the Workflows module from the SpokeStack Marketplace "
         "to automate repetitive processes and connect actions across modules."
     ),
+    # Enterprise modules
+    "SPOKECHAT": (
+        "Internal chat features aren't available yet. "
+        "Add SpokeChat from the Enterprise plan to enable team channels, "
+        "direct messaging, and threaded conversations within your workspace."
+    ),
+    "DELEGATION": (
+        "Delegation features aren't set up yet. "
+        "Add the Delegation module from the Enterprise plan to manage "
+        "out-of-office handoffs, proxy approvals, and authority assignment."
+    ),
+    "ACCESS_CONTROL": (
+        "Access control features aren't available yet. "
+        "Add Access Control from the Enterprise plan to manage role-based "
+        "permissions, access policies, and data visibility rules."
+    ),
+    "API_MANAGEMENT": (
+        "API management features aren't set up yet. "
+        "Add API Management from the Enterprise plan to create API keys, "
+        "manage webhooks, and control external API access."
+    ),
+    "BUILDER": (
+        "Builder features aren't available yet. "
+        "Add the Builder module from the Enterprise plan to create custom "
+        "templates, configure builder permissions, and extend your workspace."
+    ),
 }
 
 # Tier-aware upgrade hints (appended when the module requires a higher tier)
@@ -85,6 +111,7 @@ _TIER_HINTS: dict[str, str] = {
     "STARTER": "This module is available on the Starter plan and above.",
     "PRO": "This module is available on the Pro plan and above.",
     "BUSINESS": "This module is available on the Business plan.",
+    "ENTERPRISE": "This module is available on the Enterprise plan.",
 }
 
 # Module → minimum tier required
@@ -102,6 +129,12 @@ _MODULE_TIER_REQUIREMENTS: dict[str, str] = {
     "BOARDS": "STARTER",
     "FINANCE": "BUSINESS",
     "WORKFLOWS": "PRO",
+    # Enterprise modules
+    "SPOKECHAT": "ENTERPRISE",
+    "DELEGATION": "ENTERPRISE",
+    "ACCESS_CONTROL": "ENTERPRISE",
+    "API_MANAGEMENT": "ENTERPRISE",
+    "BUILDER": "ENTERPRISE",
 }
 
 _TIER_LEVELS = {"FREE": 0, "STARTER": 1, "PRO": 2, "BUSINESS": 3, "ENTERPRISE": 4}
