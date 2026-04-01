@@ -18,6 +18,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+from src.services.action_reporter import report_action
+
 CORE_API_URL = os.environ.get("SPOKESTACK_CORE_URL", "https://spokestack-core.vercel.app")
 AGENT_SECRET = os.environ.get("AGENT_RUNTIME_SECRET", "")
 
@@ -65,12 +67,44 @@ class CoreToolkit:
             logger.error(f"CoreToolkit {method} {path} network error: {e}")
             return {"error": f"Network error: {str(e)}"}
 
+    async def _report(self, action: str, entity_type: str, result: dict, agent_type: str = "core_tasks") -> None:
+        """Report a successful mutation to Mission Control. Non-blocking."""
+        # Extract entity_id from flat or nested response shapes
+        entity_id = result.get("id") or ""
+        if not entity_id:
+            for nested_key in ("task", "project", "brief", "order"):
+                nested = result.get(nested_key)
+                if isinstance(nested, dict) and nested.get("id"):
+                    entity_id = nested["id"]
+                    break
+
+        # Extract entity_title from flat or nested response shapes
+        entity_title = result.get("title") or result.get("name") or ""
+        if not entity_title:
+            for nested_key, field in [("task", "title"), ("project", "name"), ("brief", "title"), ("order", "name")]:
+                nested = result.get(nested_key)
+                if isinstance(nested, dict) and nested.get(field):
+                    entity_title = nested[field]
+                    break
+        if entity_id and "error" not in result:
+            try:
+                await report_action(
+                    org_id=self.org_id,
+                    action=action,
+                    entity_type=entity_type,
+                    entity_id=entity_id,
+                    entity_title=entity_title,
+                    agent_type=agent_type,
+                )
+            except Exception:
+                pass  # Never block
+
     # ══════════════════════════════════════════════════════
     # TASKS
     # ══════════════════════════════════════════════════════
 
     async def create_task(self, data: dict) -> dict:
-        return await self._request("POST", "/api/v1/tasks", json={
+        result = await self._request("POST", "/api/v1/tasks", json={
             "title": data["title"],
             "description": data.get("description", ""),
             "status": data.get("status", "TODO"),
@@ -78,6 +112,8 @@ class CoreToolkit:
             "assigneeId": data.get("assignee_id"),
             "dueDate": data.get("due_date"),
         })
+        await self._report("task.created", "TASK", result, "core_tasks")
+        return result
 
     async def update_task(self, task_id: str, data: dict) -> dict:
         body: dict[str, Any] = {}
@@ -86,10 +122,15 @@ class CoreToolkit:
                               ("assignee_id", "assigneeId"), ("due_date", "dueDate")]:
             if snake in data:
                 body[camel] = data[snake]
-        return await self._request("PATCH", f"/api/v1/tasks/{task_id}", json=body)
+        result = await self._request("PATCH", f"/api/v1/tasks/{task_id}", json=body)
+        await self._report("task.updated", "TASK", result, "core_tasks")
+        return result
 
     async def complete_task(self, task_id: str) -> dict:
-        return await self.update_task(task_id, {"status": "DONE"})
+        result = await self.update_task(task_id, {"status": "DONE"})
+        # update_task already reports "task.updated" — override with "task.completed"
+        await self._report("task.completed", "TASK", result, "core_tasks")
+        return result
 
     async def list_tasks(self, filters: dict = None) -> dict:
         params: dict[str, str] = {}
@@ -105,7 +146,10 @@ class CoreToolkit:
         return await self._request("GET", "/api/v1/tasks", params=params)
 
     async def assign_task(self, task_id: str, assignee_id: str) -> dict:
-        return await self.update_task(task_id, {"assignee_id": assignee_id})
+        result = await self.update_task(task_id, {"assignee_id": assignee_id})
+        # update_task already reports "task.updated" — override with "task.assigned"
+        await self._report("task.assigned", "TASK", result, "core_tasks")
+        return result
 
     async def search_tasks(self, query: str, limit: int = 20) -> dict:
         return await self._request("GET", "/api/v1/tasks", params={
@@ -117,13 +161,15 @@ class CoreToolkit:
     # ══════════════════════════════════════════════════════
 
     async def create_project(self, data: dict) -> dict:
-        return await self._request("POST", "/api/v1/projects", json={
+        result = await self._request("POST", "/api/v1/projects", json={
             "name": data["name"],
             "description": data.get("description", ""),
             "status": data.get("status", "PLANNING"),
             "startDate": data.get("start_date"),
             "endDate": data.get("end_date"),
         })
+        await self._report("project.created", "PROJECT", result, "core_projects")
+        return result
 
     async def add_phase(self, project_id: str, data: dict) -> dict:
         return await self._request("POST", f"/api/v1/projects/{project_id}/phases", json={
@@ -152,12 +198,14 @@ class CoreToolkit:
     # ══════════════════════════════════════════════════════
 
     async def create_brief(self, data: dict) -> dict:
-        return await self._request("POST", "/api/v1/briefs", json={
+        result = await self._request("POST", "/api/v1/briefs", json={
             "title": data["title"],
             "description": data.get("description", ""),
             "status": data.get("status", "DRAFT"),
             "clientName": data.get("client_name", ""),
         })
+        await self._report("brief.created", "BRIEF", result, "core_briefs")
+        return result
 
     async def add_brief_phase(self, brief_id: str, data: dict) -> dict:
         return await self._request("POST", f"/api/v1/briefs/{brief_id}/phases", json={
@@ -186,28 +234,34 @@ class CoreToolkit:
     # ══════════════════════════════════════════════════════
 
     async def create_customer(self, data: dict) -> dict:
-        return await self._request("POST", "/api/v1/customers", json={
+        result = await self._request("POST", "/api/v1/customers", json={
             "name": data["name"],
             "email": data.get("email", ""),
             "phone": data.get("phone", ""),
             "company": data.get("company", ""),
         })
+        await self._report("customer.created", "CUSTOMER", result, "core_crm")
+        return result
 
     async def create_order(self, data: dict) -> dict:
-        return await self._request("POST", "/api/v1/orders", json={
+        result = await self._request("POST", "/api/v1/orders", json={
             "customerId": data.get("customer_id"),
             "status": data.get("status", "PENDING"),
             "totalCents": data.get("total", 0),
             "currency": data.get("currency", "USD"),
             "notes": data.get("notes", ""),
         })
+        await self._report("order.created", "ORDER", result, "core_orders")
+        return result
 
     async def update_order(self, order_id: str, data: dict) -> dict:
         body: dict[str, Any] = {}
         for key in ["status", "totalCents", "currency", "notes"]:
             if key in data:
                 body[key] = data[key]
-        return await self._request("PATCH", f"/api/v1/orders/{order_id}", json=body)
+        result = await self._request("PATCH", f"/api/v1/orders/{order_id}", json=body)
+        await self._report("order.updated", "ORDER", result, "core_orders")
+        return result
 
     async def generate_invoice(self, order_id: str) -> dict:
         return await self._request("POST", f"/api/v1/orders/{order_id}/invoice")
@@ -244,7 +298,7 @@ class CoreToolkit:
         confidence: float = 1.0,
         source_agent_type: str = None,
     ) -> dict:
-        return await self._request("POST", "/api/v1/context", json={
+        result = await self._request("POST", "/api/v1/context", json={
             "entryType": entry_type,
             "category": category,
             "key": key,
@@ -252,3 +306,5 @@ class CoreToolkit:
             "confidence": confidence,
             "sourceAgentType": source_agent_type,
         })
+        await self._report("context.written", "CONTEXT", result, source_agent_type or "core_context")
+        return result
