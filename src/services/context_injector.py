@@ -152,10 +152,43 @@ def format_integrations(integrations: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def format_events(events: list[dict]) -> str:
+    """
+    Format recent org events into a system prompt section.
+    Returns empty string if no events.
+    """
+    if not events:
+        return ""
+
+    lines = ["\n## Recent Activity",
+             "The following events happened recently in this organization:"]
+    for e in events[:10]:  # Cap at 10 events
+        entity_type = e.get("entityType", "")
+        action = e.get("action", "")
+        entity_id = e.get("entityId", "")
+        line = f"- {entity_type}.{action}: {entity_id}"
+
+        metadata = e.get("metadata") or {}
+        if "fromStatus" in metadata and "toStatus" in metadata:
+            line += f" ({metadata['fromStatus']} → {metadata['toStatus']})"
+        elif "title" in metadata:
+            line += f" ({metadata['title']})"
+
+        lines.append(line)
+
+    lines.append("")
+    lines.append(
+        "You can use `list_recent_events` for more detail, or "
+        "`subscribe_to_event` to set up automatic notifications for specific event types."
+    )
+    return "\n".join(lines) + "\n"
+
+
 def inject_context_into_prompt(
     system_prompt: str,
     context_entries: list[dict],
     integrations: list[dict] = None,
+    events: list[dict] = None,
 ) -> str:
     """
     Appends the formatted context block and integrations to the system prompt.
@@ -173,6 +206,10 @@ def inject_context_into_prompt(
     integrations_block = format_integrations(integrations)
     if integrations_block:
         additions.append(integrations_block)
+
+    events_block = format_events(events)
+    if events_block:
+        additions.append(events_block)
 
     if not additions:
         return system_prompt

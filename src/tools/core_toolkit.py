@@ -281,6 +281,67 @@ class CoreToolkit:
         })
 
     # ══════════════════════════════════════════════════════
+    # EVENTS
+    # ══════════════════════════════════════════════════════
+
+    async def list_recent_events(self, entity_type: str = None, action: str = None,
+                                  limit: int = 20, since: str = None) -> dict:
+        """List recent events for this org."""
+        params: dict[str, str] = {"limit": str(limit)}
+        if entity_type:
+            params["entityType"] = entity_type
+        if action:
+            params["action"] = action
+        if since:
+            params["since"] = since
+        return await self._request("GET", "/api/v1/events", params=params)
+
+    async def subscribe_to_event(self, entity_type: str, action: str,
+                                  agent_id: str = "", conditions: dict = None,
+                                  description: str = "") -> dict:
+        """Create an event subscription."""
+        return await self._request("POST", "/api/v1/events/subscriptions", json={
+            "entityType": entity_type,
+            "action": action,
+            "handler": f"agent:{agent_id}" if agent_id else "agent:system",
+            "config": {
+                "conditions": conditions,
+                "description": description or "Agent-created subscription",
+            },
+            "enabled": True,
+        })
+
+    # ══════════════════════════════════════════════════════
+    # DIGITAL ASSET MANAGEMENT
+    # ══════════════════════════════════════════════════════
+
+    async def manage_assets(self, action: str, **kwargs) -> dict:
+        """Interact with DAM — search, list libraries, get asset, browse folders."""
+        if action == "listLibraries":
+            return await self._request("GET", "/api/v1/assets/libraries")
+        elif action == "searchAssets":
+            params: dict[str, str] = {"limit": str(kwargs.get("limit", 20))}
+            if kwargs.get("query"):
+                params["q"] = kwargs["query"]
+            if kwargs.get("asset_type"):
+                params["assetType"] = kwargs["asset_type"]
+            if kwargs.get("library_id"):
+                params["libraryId"] = kwargs["library_id"]
+            return await self._request("GET", "/api/v1/assets", params=params)
+        elif action == "getAsset":
+            return await self._request("GET", f"/api/v1/assets/{kwargs['asset_id']}")
+        elif action == "listFolder":
+            folder_id = kwargs.get("folder_id")
+            if folder_id:
+                return await self._request("GET", f"/api/v1/assets/folders/{folder_id}")
+            library_id = kwargs.get("library_id")
+            if library_id:
+                return await self._request("GET", f"/api/v1/assets/libraries/{library_id}")
+            return {"error": "Either folder_id or library_id is required for listFolder"}
+        else:
+            return {"error": f"Unknown asset action: {action}"}
+
+    # ══════════════════════════════════════════════════════
     # INTEGRATIONS
     # ══════════════════════════════════════════════════════
 

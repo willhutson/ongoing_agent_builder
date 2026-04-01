@@ -622,13 +622,17 @@ BRIEFS_TOOL_NAMES = {t["function"]["name"] for t in BRIEFS_TOOLS}
 ORDERS_TOOL_NAMES = {t["function"]["name"] for t in ORDERS_TOOLS}
 INTEGRATION_TOOL_NAMES = {t["function"]["name"] for t in INTEGRATION_TOOLS}
 
+# Import event/asset tools
+from src.tools.spokestack_events import EVENT_TOOLS, ASSET_TOOLS, EVENT_AND_ASSET_TOOLS, EVENT_TOOL_NAMES
+
 # Import handoff tools (always available)
 from src.tools.spokestack_handoff import HANDOFF_TOOLS, HANDOFF_TOOL_NAMES
 
 # Union of all core tool names (for dispatch routing)
 CORE_TOOL_NAMES = (
     CONTEXT_TOOL_NAMES | TASKS_TOOL_NAMES | PROJECTS_TOOL_NAMES |
-    BRIEFS_TOOL_NAMES | ORDERS_TOOL_NAMES | INTEGRATION_TOOL_NAMES
+    BRIEFS_TOOL_NAMES | ORDERS_TOOL_NAMES | INTEGRATION_TOOL_NAMES |
+    EVENT_TOOL_NAMES
 )
 # Note: HANDOFF_TOOL_NAMES are NOT in CORE_TOOL_NAMES — they're handled
 # separately in core_router.py's handoff detection, not dispatched via CoreToolkit.
@@ -639,10 +643,10 @@ CORE_TOOL_NAMES = (
 # ══════════════════════════════════════════════════════════════
 
 TIER_TOOL_MAP: dict[str, list[list[dict]]] = {
-    "FREE":     [TASKS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS],
-    "STARTER":  [TASKS_TOOLS, PROJECTS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, INTEGRATION_TOOLS],
-    "PRO":      [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, INTEGRATION_TOOLS],
-    "BUSINESS": [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, ORDERS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, INTEGRATION_TOOLS],
+    "FREE":     [TASKS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, EVENT_TOOLS],
+    "STARTER":  [TASKS_TOOLS, PROJECTS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, INTEGRATION_TOOLS, EVENT_AND_ASSET_TOOLS],
+    "PRO":      [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, INTEGRATION_TOOLS, EVENT_AND_ASSET_TOOLS],
+    "BUSINESS": [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, ORDERS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS, INTEGRATION_TOOLS, EVENT_AND_ASSET_TOOLS],
 }
 
 
@@ -651,11 +655,11 @@ TIER_TOOL_MAP: dict[str, list[list[dict]]] = {
 # ══════════════════════════════════════════════════════════════
 
 AGENT_CORE_TOOL_MAP: dict[str, set[str]] = {
-    "core_onboarding": TASKS_TOOL_NAMES | PROJECTS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
-    "core_tasks":      TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
-    "core_projects":   PROJECTS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
-    "core_briefs":     BRIEFS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
-    "core_orders":     ORDERS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES,
+    "core_onboarding": TASKS_TOOL_NAMES | PROJECTS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES | EVENT_TOOL_NAMES,
+    "core_tasks":      TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES | EVENT_TOOL_NAMES,
+    "core_projects":   PROJECTS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES | EVENT_TOOL_NAMES,
+    "core_briefs":     BRIEFS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES | EVENT_TOOL_NAMES,
+    "core_orders":     ORDERS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES | INTEGRATION_TOOL_NAMES | EVENT_TOOL_NAMES,
 }
 
 
@@ -685,6 +689,26 @@ CORE_INTENT_PATTERNS: dict[str, list[str]] = {
         "quote", "estimate",
     ],
 }
+
+
+# ══════════════════════════════════════════════════════════════
+# ENTERPRISE MODULE INTENT PATTERNS
+# ══════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════
+# DAM & EVENT INTENT PATTERNS — Route to existing modules/agents
+# ══════════════════════════════════════════════════════════════
+
+DAM_INTENT_PATTERNS: list[str] = [
+    "asset", "assets", "library", "brand files", "logo", "find the logo",
+    "upload", "brand kit", "version history", "asset versions", "which version",
+    "brand assets", "creative assets", "media library",
+]
+
+EVENT_INTENT_PATTERNS: list[str] = [
+    "recent activity", "what happened", "what changed", "event log",
+    "status updates", "what's new", "activity feed", "notifications",
+]
 
 
 # ══════════════════════════════════════════════════════════════

@@ -24,7 +24,10 @@ from src.services.core_config_builder import (
     AGENT_MODEL_MAP, tier_has_access, AGENT_TIER_REQUIREMENTS,
 )
 from src.services.context_injector import inject_context_into_prompt
-from src.tools.core_tool_definitions import CORE_INTENT_PATTERNS, ENTERPRISE_INTENT_PATTERNS
+from src.tools.core_tool_definitions import (
+    CORE_INTENT_PATTERNS, ENTERPRISE_INTENT_PATTERNS,
+    DAM_INTENT_PATTERNS, EVENT_INTENT_PATTERNS,
+)
 from src.tools.core_toolkit import CoreToolkit
 from src.tools.spokestack_handoff import is_handoff_tool_call, build_handoff_response
 from src.modules import registry_store
@@ -168,6 +171,9 @@ import time as _time
 _integrations_cache: dict[str, tuple[list[dict], float]] = {}
 _INTEGRATIONS_TTL = 300  # 5 minutes
 
+_events_cache: dict[str, tuple[list[dict], float]] = {}
+_EVENTS_TTL = 120  # 2 minutes
+
 
 async def _get_cached_integrations(org_id: str, toolkit) -> list[dict]:
     """Fetch integrations with 5-minute TTL cache."""
@@ -184,6 +190,28 @@ async def _get_cached_integrations(org_id: str, toolkit) -> list[dict]:
             return connections
     except Exception as e:
         logger.debug(f"Failed to fetch integrations for {org_id}: {e}")
+        if cached:
+            return cached[0]
+    return []
+
+
+async def _get_cached_events(org_id: str, toolkit) -> list[dict]:
+    """Fetch recent events (last 15 min) with 2-minute TTL cache."""
+    now = _time.monotonic()
+    cached = _events_cache.get(org_id)
+    if cached and now < cached[1]:
+        return cached[0]
+
+    try:
+        from datetime import datetime, timedelta, timezone as tz
+        since = (datetime.now(tz.utc) - timedelta(minutes=15)).isoformat()
+        result = await toolkit.list_recent_events(limit=10, since=since)
+        events = result.get("data", result) if isinstance(result, dict) else result
+        if isinstance(events, list):
+            _events_cache[org_id] = (events, now + _EVENTS_TTL)
+            return events
+    except Exception as e:
+        logger.debug(f"Failed to fetch events for {org_id}: {e}")
         if cached:
             return cached[0]
     return []
@@ -267,9 +295,20 @@ async def classify_intent(
     for module_type, patterns in ENTERPRISE_INTENT_PATTERNS.items():
         score = sum(1 for p in patterns if p in task_lower)
         if score > 0:
-            # Map enterprise module to its agent name in MODULE_AGENT_TYPES
             agent_name = module_type.lower()
             scores[agent_name] = float(score)
+
+    # DAM queries → route to content_studio module
+    dam_score = sum(1 for p in DAM_INTENT_PATTERNS if p in task_lower)
+    if dam_score > 0:
+        scores["content_studio"] = scores.get("content_studio", 0.0) + float(dam_score)
+
+    # Event/activity queries — don't reroute, just let the current agent use
+    # list_recent_events tool. But if it's purely an activity query with no
+    # other match, route to core_tasks (the universal catch-all with event tools).
+    event_score = sum(1 for p in EVENT_INTENT_PATTERNS if p in task_lower)
+    if event_score > 0 and not scores:
+        scores["core_tasks"] = float(event_score)
 
     # Context-aware adjustment
     if context_entries:
@@ -439,13 +478,15 @@ async def execute_core_agent(
                 "Do not include markdown fences, preamble, or explanation — just the raw JSON array."
             )
         else:
-            # Fetch connected integrations (cached per-org)
+            # Fetch connected integrations + recent events (cached per-org)
             integrations = await _get_cached_integrations(request.org_id, agent.core_toolkit)
+            events = await _get_cached_events(request.org_id, agent.core_toolkit)
             original_prompt = agent.system_prompt
             injected_prompt = inject_context_into_prompt(
                 original_prompt,
                 request.context_entries or [],
                 integrations=integrations,
+                events=events,
             )
             agent._injected_system_prompt = injected_prompt
 

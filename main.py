@@ -15,6 +15,7 @@ from src.api.chat_sessions import router as chat_sessions_router
 from src.api.websocket import router as websocket_router
 from src.api.core_router import router as core_router
 from src.modules.module_router import router as module_router
+from src.api.agent_events import router as agent_events_router
 from src.api.auth import APIKeyAuthMiddleware, api_key_header
 from src.api.rate_limit import RateLimitMiddleware
 from src.config import get_settings
@@ -107,6 +108,7 @@ app.include_router(chat_sessions_router)     # Chat session management (spec Sec
 app.include_router(websocket_router)         # WebSocket events (spec Section 7)
 app.include_router(core_router)              # spokestack-core agent execution
 app.include_router(module_router)            # spokestack-core module registration
+app.include_router(agent_events_router)      # agent event handler (event subscriptions)
 
 
 @app.get("/")
