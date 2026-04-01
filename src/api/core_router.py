@@ -52,10 +52,17 @@ CORE_AGENT_BYPASS = {
 MODULE_AGENT_TYPES: dict[str, str] = {
     "crm": "CRM",
     "social_publishing": "SOCIAL_PUBLISHING",
+    "content_studio": "CONTENT_STUDIO",
     "analytics": "ANALYTICS",
-    "email_marketing": "EMAIL_MARKETING",
-    "invoicing": "INVOICING",
-    "hr": "HR",
+    "surveys": "SURVEYS",
+    "listening": "LISTENING",
+    "media_buying": "MEDIA_BUYING",
+    "lms": "LMS",
+    "nps": "NPS",
+    "time_leave": "TIME_LEAVE",
+    "boards": "BOARDS",
+    "finance": "FINANCE",
+    "workflows": "WORKFLOWS",
 }
 
 

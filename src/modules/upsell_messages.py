@@ -21,26 +21,62 @@ _UPSELL_TEMPLATES: dict[str, str] = {
         "to schedule posts, manage content calendars, and track engagement "
         "across all your platforms."
     ),
+    "CONTENT_STUDIO": (
+        "Content studio features aren't available yet. "
+        "Add the Content Studio module from the SpokeStack Marketplace "
+        "to create, collaborate on, and manage content assets "
+        "across your team."
+    ),
     "ANALYTICS": (
         "Analytics features aren't available yet. "
         "Add the Analytics module from the SpokeStack Marketplace "
         "to get performance dashboards, campaign tracking, and "
         "automated reporting for your team."
     ),
-    "EMAIL_MARKETING": (
-        "Email marketing features aren't set up yet. "
-        "Install the Email Marketing module from the SpokeStack Marketplace "
-        "to create campaigns, manage lists, and track engagement."
+    "SURVEYS": (
+        "Survey features aren't set up yet. "
+        "Install the Surveys module from the SpokeStack Marketplace "
+        "to create surveys, collect responses, and analyze feedback."
     ),
-    "INVOICING": (
-        "Invoicing features aren't available yet. "
-        "Add the Invoicing module from the SpokeStack Marketplace "
-        "to generate invoices, track payments, and manage your billing."
+    "LISTENING": (
+        "Social listening features aren't available yet. "
+        "Add the Listening module from the SpokeStack Marketplace "
+        "to monitor brand mentions, track sentiment, and stay ahead of trends."
     ),
-    "HR": (
-        "HR features aren't available yet. "
-        "Install the HR module from the SpokeStack Marketplace "
-        "to manage team members, track time off, and handle onboarding."
+    "MEDIA_BUYING": (
+        "Media buying features aren't set up yet. "
+        "Install the Media Buying module from the SpokeStack Marketplace "
+        "to plan, purchase, and optimize ad placements across channels."
+    ),
+    "LMS": (
+        "Learning management features aren't available yet. "
+        "Add the LMS module from the SpokeStack Marketplace "
+        "to create courses, track progress, and manage team training."
+    ),
+    "NPS": (
+        "NPS features aren't set up yet. "
+        "Install the NPS module from the SpokeStack Marketplace "
+        "to measure customer loyalty, track scores, and act on feedback."
+    ),
+    "TIME_LEAVE": (
+        "Time and leave features aren't available yet. "
+        "Add the Time & Leave module from the SpokeStack Marketplace "
+        "to track attendance, manage leave requests, and view team schedules."
+    ),
+    "BOARDS": (
+        "Board features aren't set up yet. "
+        "Install the Boards module from the SpokeStack Marketplace "
+        "to organize work visually with kanban boards and custom workflows."
+    ),
+    "FINANCE": (
+        "Finance features aren't available yet. "
+        "Add the Finance module from the SpokeStack Marketplace "
+        "to manage budgets, track expenses, and generate financial reports."
+    ),
+    "WORKFLOWS": (
+        "Workflow automation features aren't set up yet. "
+        "Install the Workflows module from the SpokeStack Marketplace "
+        "to automate repetitive processes and connect actions across modules."
     ),
 }
 
@@ -50,6 +86,25 @@ _TIER_HINTS: dict[str, str] = {
     "PRO": "This module is available on the Pro plan and above.",
     "BUSINESS": "This module is available on the Business plan.",
 }
+
+# Module → minimum tier required
+_MODULE_TIER_REQUIREMENTS: dict[str, str] = {
+    "CRM": "PRO",
+    "SOCIAL_PUBLISHING": "PRO",
+    "ANALYTICS": "PRO",
+    "CONTENT_STUDIO": "PRO",
+    "SURVEYS": "STARTER",
+    "LISTENING": "PRO",
+    "MEDIA_BUYING": "BUSINESS",
+    "LMS": "BUSINESS",
+    "NPS": "STARTER",
+    "TIME_LEAVE": "STARTER",
+    "BOARDS": "STARTER",
+    "FINANCE": "BUSINESS",
+    "WORKFLOWS": "PRO",
+}
+
+_TIER_LEVELS = {"FREE": 0, "STARTER": 1, "PRO": 2, "BUSINESS": 3, "ENTERPRISE": 4}
 
 
 def get_upsell_message(module_type: str, org_tier: str = "FREE") -> str:
@@ -69,5 +124,15 @@ def get_upsell_message(module_type: str, org_tier: str = "FREE") -> str:
         f"The {module_type.replace('_', ' ').title()} module isn't installed on your workspace yet. "
         f"Head to the SpokeStack Marketplace to add it."
     )
+
+    # Append tier hint if org is below the required tier
+    required_tier = _MODULE_TIER_REQUIREMENTS.get(module_type)
+    if required_tier:
+        org_level = _TIER_LEVELS.get(org_tier, 0)
+        req_level = _TIER_LEVELS.get(required_tier, 0)
+        if org_level < req_level:
+            hint = _TIER_HINTS.get(required_tier, "")
+            if hint:
+                message = f"{message} {hint}"
 
     return message
