@@ -562,11 +562,16 @@ PROJECTS_TOOL_NAMES = {t["function"]["name"] for t in PROJECTS_TOOLS}
 BRIEFS_TOOL_NAMES = {t["function"]["name"] for t in BRIEFS_TOOLS}
 ORDERS_TOOL_NAMES = {t["function"]["name"] for t in ORDERS_TOOLS}
 
+# Import handoff tools (always available)
+from src.tools.spokestack_handoff import HANDOFF_TOOLS, HANDOFF_TOOL_NAMES
+
 # Union of all core tool names (for dispatch routing)
 CORE_TOOL_NAMES = (
     CONTEXT_TOOL_NAMES | TASKS_TOOL_NAMES | PROJECTS_TOOL_NAMES |
     BRIEFS_TOOL_NAMES | ORDERS_TOOL_NAMES
 )
+# Note: HANDOFF_TOOL_NAMES are NOT in CORE_TOOL_NAMES — they're handled
+# separately in core_router.py's handoff detection, not dispatched via CoreToolkit.
 
 
 # ══════════════════════════════════════════════════════════════
@@ -574,10 +579,10 @@ CORE_TOOL_NAMES = (
 # ══════════════════════════════════════════════════════════════
 
 TIER_TOOL_MAP: dict[str, list[list[dict]]] = {
-    "FREE":     [TASKS_TOOLS, CONTEXT_TOOLS],
-    "STARTER":  [TASKS_TOOLS, PROJECTS_TOOLS, CONTEXT_TOOLS],
-    "PRO":      [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, CONTEXT_TOOLS],
-    "BUSINESS": [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, ORDERS_TOOLS, CONTEXT_TOOLS],
+    "FREE":     [TASKS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS],
+    "STARTER":  [TASKS_TOOLS, PROJECTS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS],
+    "PRO":      [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS],
+    "BUSINESS": [TASKS_TOOLS, PROJECTS_TOOLS, BRIEFS_TOOLS, ORDERS_TOOLS, CONTEXT_TOOLS, HANDOFF_TOOLS],
 }
 
 
@@ -586,11 +591,11 @@ TIER_TOOL_MAP: dict[str, list[list[dict]]] = {
 # ══════════════════════════════════════════════════════════════
 
 AGENT_CORE_TOOL_MAP: dict[str, set[str]] = {
-    "core_onboarding": TASKS_TOOL_NAMES | PROJECTS_TOOL_NAMES | CONTEXT_TOOL_NAMES,
-    "core_tasks":      TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES,
-    "core_projects":   PROJECTS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES,
-    "core_briefs":     BRIEFS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES,
-    "core_orders":     ORDERS_TOOL_NAMES | CONTEXT_TOOL_NAMES,
+    "core_onboarding": TASKS_TOOL_NAMES | PROJECTS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
+    "core_tasks":      TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
+    "core_projects":   PROJECTS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
+    "core_briefs":     BRIEFS_TOOL_NAMES | TASKS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
+    "core_orders":     ORDERS_TOOL_NAMES | CONTEXT_TOOL_NAMES | HANDOFF_TOOL_NAMES,
 }
 
 
