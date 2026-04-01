@@ -2,10 +2,10 @@
 Core Router — API endpoints for spokestack-core organizations.
 
 Handles:
-- Agent execution with tier-scoped tool injection
+- Agent execution with tier-scoped tool injection + module guard
 - Intent classification to route between TASKS/PROJECTS/BRIEFS/ORDERS
-- Gated agent upgrade prompts
-- Module agent registration (marketplace)
+- Gated agent upgrade prompts (tier + module)
+- Legacy /agents/register endpoint (use /modules/register for Phase 2)
 """
 
 import json
@@ -26,11 +26,38 @@ from src.services.core_config_builder import (
 )
 from src.tools.core_tool_definitions import CORE_INTENT_PATTERNS
 from src.tools.core_toolkit import CoreToolkit
+from src.modules import registry_store
+from src.modules.module_checker import get_installed_modules
+from src.modules.upsell_messages import get_upsell_message
 from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/core", tags=["spokestack-core"])
+
+
+# ══════════════════════════════════════════════════════════════
+# Module Agent Type Mapping
+# ══════════════════════════════════════════════════════════════
+
+# Core agent types that bypass the module check entirely.
+# Only marketplace module agents get the installed-module guard.
+CORE_AGENT_BYPASS = {
+    "core_onboarding", "core_tasks", "core_projects",
+    "core_briefs", "core_orders",
+}
+
+# Maps module agent names → ModuleType strings used in module_registrations.
+# Agent types not in this map AND not in CORE_AGENT_BYPASS get a generic check.
+MODULE_AGENT_TYPES: dict[str, str] = {
+    "crm": "CRM",
+    "social_publishing": "SOCIAL_PUBLISHING",
+    "analytics": "ANALYTICS",
+    "email_marketing": "EMAIL_MARKETING",
+    "invoicing": "INVOICING",
+    "hr": "HR",
+}
+
 
 # ══════════════════════════════════════════════════════════════
 # Request / Response Models
@@ -53,10 +80,11 @@ class CoreExecuteRequest(BaseModel):
 class CoreExecuteResponse(BaseModel):
     """Response from core agent execution."""
     execution_id: str
-    status: str  # "completed", "streaming", "gated"
+    status: str  # "completed", "streaming", "gated", "module_required"
     output: Optional[str] = None
     agent_type: Optional[str] = None
     upgrade_message: Optional[str] = None
+    upsell: bool = False
     token_usage: Optional[dict] = None
 
 
@@ -64,22 +92,17 @@ class ModuleAgentDefinition(BaseModel):
     """Serialized module agent definition from marketplace installer."""
     name: str
     slug: str
-    system_prompt: str
-    tools: list[dict]
+    system_prompt: str = ""
+    tools: list[dict] = Field(default_factory=list)
     intent_patterns: list[str] = Field(default_factory=list)
     context_read_categories: list[str] = Field(default_factory=list)
     context_write_categories: list[str] = Field(default_factory=list)
 
 
 class RegisterAgentRequest(BaseModel):
-    """Request to register a marketplace module agent."""
+    """Request to register a marketplace module agent (legacy endpoint)."""
     org_id: str
     agent: ModuleAgentDefinition
-
-
-# In-memory registry for marketplace module agents (per-org)
-# In production this would be backed by database
-_module_agent_registry: dict[str, list[ModuleAgentDefinition]] = {}
 
 
 # ══════════════════════════════════════════════════════════════
@@ -174,12 +197,8 @@ async def execute_core_agent(
 
     If agent_type is omitted, intent classification routes the request.
     If the requested agent is gated (tier too low), returns an upgrade prompt.
-
-    ## Auth
-    Requires X-Agent-Secret header matching AGENT_RUNTIME_SECRET env var.
-
-    ## Streaming
-    Set stream=true for SSE response (for real-time chat).
+    If the resolved agent maps to a marketplace module that isn't installed,
+    returns an upsell message instead of a 403.
     """
     _validate_agent_secret(x_agent_secret)
 
@@ -188,12 +207,32 @@ async def execute_core_agent(
     if not agent_type:
         agent_type = await classify_intent(request.task, request.org_tier)
 
-    # Build tier-scoped config
-    # Get marketplace module tools for this org
-    org_module_agents = _module_agent_registry.get(request.org_id, [])
+    execution_id = str(uuid.uuid4())
+
+    # ── Module Guard ──
+    # Core agents (TASKS, PROJECTS, etc.) bypass this check.
+    # Only marketplace module agents need to be installed.
+    if agent_type not in CORE_AGENT_BYPASS:
+        module_type = MODULE_AGENT_TYPES.get(agent_type)
+        if module_type:
+            installed = await get_installed_modules(request.org_id)
+            if module_type not in installed:
+                return CoreExecuteResponse(
+                    execution_id=execution_id,
+                    status="module_required",
+                    agent_type=agent_type,
+                    output=get_upsell_message(module_type, request.org_tier),
+                    upsell=True,
+                )
+
+    # ── Build tier-scoped config ──
+    # Get module tools from persistent registry
+    org_registrations = await registry_store.get_org_modules(request.org_id)
     module_tools = []
-    for ma in org_module_agents:
-        module_tools.extend(ma.tools)
+    for reg in org_registrations:
+        if reg.agent_definition and isinstance(reg.agent_definition, dict):
+            tools = reg.agent_definition.get("tools", [])
+            module_tools.extend(tools)
 
     config = await build_agent_config(
         org_id=request.org_id,
@@ -204,9 +243,7 @@ async def execute_core_agent(
         module_tools=module_tools if module_tools else None,
     )
 
-    execution_id = str(uuid.uuid4())
-
-    # Check if agent is gated
+    # Check if agent is tier-gated
     if not config["available"]:
         return CoreExecuteResponse(
             execution_id=execution_id,
@@ -316,37 +353,32 @@ async def register_module_agent(
     x_agent_secret: Optional[str] = Header(default=None, alias="X-Agent-Secret"),
 ):
     """
-    Register a marketplace module agent for an organization.
+    Legacy endpoint: Register a marketplace module agent for an organization.
+    Persists to module_registrations table via registry_store.
 
-    Called by spokestack-core's marketplace installer when a module is installed.
-    The agent definition is stored and made available to MC Router for that org.
+    Prefer POST /api/v1/core/modules/register for Phase 2 integration.
     """
     _validate_agent_secret(x_agent_secret)
 
-    org_id = request.org_id
     agent_def = request.agent
 
-    # Initialize org's module agent list if needed
-    if org_id not in _module_agent_registry:
-        _module_agent_registry[org_id] = []
+    # Persist via registry_store
+    registration = await registry_store.register_module(
+        org_id=request.org_id,
+        module_type=agent_def.slug.upper(),
+        agent_definition=agent_def.model_dump(),
+    )
 
-    # Check for duplicate slug
-    existing_slugs = {a.slug for a in _module_agent_registry[org_id]}
-    if agent_def.slug in existing_slugs:
-        # Update existing
-        _module_agent_registry[org_id] = [
-            a for a in _module_agent_registry[org_id] if a.slug != agent_def.slug
-        ]
+    from src.modules.module_checker import invalidate_cache
+    invalidate_cache(request.org_id)
 
-    _module_agent_registry[org_id].append(agent_def)
-
-    logger.info(f"Registered module agent '{agent_def.slug}' for org {org_id}")
+    logger.info(f"Registered module agent '{agent_def.slug}' for org {request.org_id}")
 
     return {
         "status": "registered",
         "slug": agent_def.slug,
-        "org_id": org_id,
-        "total_module_agents": len(_module_agent_registry[org_id]),
+        "org_id": request.org_id,
+        "module_type": agent_def.slug.upper(),
     }
 
 
@@ -356,12 +388,12 @@ async def unregister_module_agent(
     org_id: str,
     x_agent_secret: Optional[str] = Header(default=None, alias="X-Agent-Secret"),
 ):
-    """Unregister a marketplace module agent."""
+    """Legacy endpoint: Unregister a marketplace module agent."""
     _validate_agent_secret(x_agent_secret)
 
-    if org_id in _module_agent_registry:
-        _module_agent_registry[org_id] = [
-            a for a in _module_agent_registry[org_id] if a.slug != slug
-        ]
+    await registry_store.deregister_module(org_id, slug.upper())
+
+    from src.modules.module_checker import invalidate_cache
+    invalidate_cache(org_id)
 
     return {"status": "unregistered", "slug": slug, "org_id": org_id}

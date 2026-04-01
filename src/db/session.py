@@ -103,6 +103,8 @@ async def init_db():
     Called on application startup.
     """
     from .models import Base
+    # Import ModuleRegistration so its table is included in Base.metadata
+    from src.modules.registry_store import ModuleRegistration  # noqa: F401
 
     eng = get_engine()
     async with eng.begin() as conn:
