@@ -561,9 +561,15 @@ async def execute_agent(
     # Resolve module subdomain from header or context
     module_subdomain = _resolve_module_subdomain(request, x_module_subdomain)
 
+    # Translate MC-style agent types to canonical types
+    from src.services.agent_registry import resolve_agent_type as translate_agent_type
+    raw_agent_type = request.agent_type
+    if raw_agent_type:
+        raw_agent_type = translate_agent_type(raw_agent_type)
+
     # Resolve agent type using module context
     try:
-        resolved_agent = resolve_agent_for_module(request.agent_type, module_subdomain)
+        resolved_agent = resolve_agent_for_module(raw_agent_type, module_subdomain)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
