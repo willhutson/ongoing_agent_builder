@@ -155,7 +155,7 @@ class AgentType(str, Enum):
 
 class ExecuteRequest(BaseModel):
     """Request to execute an agent task."""
-    agent_type: AgentType
+    agent_type: str = Field(..., description="Agent type — canonical (e.g. 'brief') or MC name (e.g. 'mc-planner')")
     task: str = Field(..., description="The task for the agent to perform")
     tenant_id: str = Field(..., description="Tenant/organization ID")
     user_id: str = Field(..., description="User initiating the request")
@@ -376,14 +376,45 @@ async def run_agent_task(task_id: str, agent_type: AgentType, context: AgentCont
         await update_task(task_id, {"status": "failed", "error": str(e)})
 
 
+@router.get("/agents/registry")
+async def get_agents_registry():
+    """
+    Return the canonical agent type registry with metadata and MC translation map.
+
+    spokestack-core fetches this at startup to:
+    1. Know every agent type this runtime supports
+    2. Translate mc-* and module-*-assistant names to canonical types
+    """
+    from src.services.agent_registry import build_registry_response
+    return build_registry_response()
+
+
 @router.post("/agent/execute", response_model=ExecuteResponse)
 async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTasks):
     """
     Execute an agent task.
 
+    Accepts both canonical agent types (e.g. 'brief') and MC-style types
+    (e.g. 'mc-planner', 'module-crm-assistant'). MC types are translated
+    to canonical types automatically.
+
     For non-streaming requests, returns a task_id to poll for results.
     For streaming requests, returns an SSE stream.
     """
+    # Translate MC agent types to canonical types
+    from src.services.agent_registry import resolve_agent_type
+    canonical_type = resolve_agent_type(request.agent_type)
+
+    # Validate the canonical type exists
+    try:
+        agent_type_enum = AgentType(canonical_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown agent type: '{request.agent_type}' (resolved to '{canonical_type}'). "
+                   f"Available: {[t.value for t in AgentType]}"
+        )
+
     task_id = str(uuid.uuid4())
 
     context = AgentContext(
@@ -414,7 +445,7 @@ async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTas
         # Return streaming response with structured SSE events
         # (Integration Spec Section 7 & 11.3)
         async def generate():
-            agent = get_agent(request.agent_type, **agent_kwargs)
+            agent = get_agent(agent_type_enum, **agent_kwargs)
             try:
                 async for chunk in agent.stream(context):
                     # Chunks are already formatted as SSE events from BaseAgent.stream()
@@ -435,7 +466,7 @@ async def execute_agent(request: ExecuteRequest, background_tasks: BackgroundTas
 
     # Non-streaming: queue background task (Redis-backed)
     await save_task(task_id, {"status": "pending", "result": None, "error": None})
-    background_tasks.add_task(run_agent_task, task_id, request.agent_type, context, **agent_kwargs)
+    background_tasks.add_task(run_agent_task, task_id, agent_type_enum, context, **agent_kwargs)
 
     return ExecuteResponse(
         task_id=task_id,
