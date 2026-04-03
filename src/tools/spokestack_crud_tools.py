@@ -633,6 +633,448 @@ TOOLS: dict[str, dict] = {
         "path": "/api/v1/projects",
         "parameters": {},
     },
+
+    # ══════════════════════════════════════════════════════
+    # MARKETPLACE MODULE TOOLS
+    # ══════════════════════════════════════════════════════
+
+    # ── Board Manager ──────────────────────────────
+    "create_board": {
+        "description": "Create a new project board (kanban, sprint, or release board)",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "board"},
+        "parameters": {
+            "key": {"type": "string", "required": True, "description": "Unique board key"},
+            "value": {"type": "object", "required": True, "description": "{ name, board_type, columns[], wip_limit, project_id }"},
+        },
+    },
+    "add_card": {
+        "description": "Add a card (task) to a board",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string"},
+            "assigneeId": {"type": "string"},
+            "dueDate": {"type": "string"},
+            "priority": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "URGENT"]},
+        },
+    },
+    "move_card": {
+        "description": "Move a card to a different column on a board",
+        "method": "PATCH",
+        "path": "/api/v1/tasks/{taskId}",
+        "parameters": {
+            "taskId": {"type": "string", "required": True, "in": "path"},
+            "status": {"type": "string", "description": "New column/status"},
+        },
+    },
+    "list_boards": {
+        "description": "List all boards for the organization",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "board", "in": "query"}},
+    },
+    "list_board_cards": {
+        "description": "List all cards on a specific board",
+        "method": "GET",
+        "path": "/api/v1/tasks",
+        "parameters": {"status": {"type": "string", "in": "query"}},
+    },
+    "create_column": {
+        "description": "Add a new column to an existing board",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "board_column"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ boardId, column_name, position, wip_limit }"},
+        },
+    },
+
+    # ── Workflow Designer ──────────────────────────
+    "create_workflow_def": {
+        "description": "Create a new workflow definition (trigger → condition → action chain)",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "workflow"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ name, trigger_event, condition, action_type, action_config, enabled }"},
+        },
+    },
+    "list_workflows": {
+        "description": "List all workflows for the organization",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "workflow", "in": "query"}},
+    },
+    "create_trigger": {
+        "description": "Create a standalone trigger definition",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "workflow_trigger"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ name, event, condition }"},
+        },
+    },
+    "create_action": {
+        "description": "Create an action step that executes as part of a workflow",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string"},
+            "priority": {"type": "string", "default": "MEDIUM"},
+        },
+    },
+    "activate_workflow": {
+        "description": "Activate or deactivate a workflow",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "workflow"},
+        "parameters": {
+            "key": {"type": "string", "required": True, "description": "Workflow context entry key"},
+            "value": {"type": "object", "required": True, "description": "{ enabled: true/false }"},
+        },
+    },
+
+    # ── Social Listener ────────────────────────────
+    "log_mention": {
+        "description": "Log a brand or keyword mention from social media",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "social_mention"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ platform, author, content, sentiment, url, keywords[], client_id }"},
+        },
+    },
+    "search_mentions": {
+        "description": "Search logged social mentions",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "social_mention", "in": "query"}},
+    },
+    "create_alert": {
+        "description": "Create a listening alert for keywords or sentiment thresholds",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "listening_alert"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ name, alert_type, keyword, sentiment, threshold_percent, notify_via }"},
+        },
+    },
+    "generate_listening_report": {
+        "description": "Generate a listening report summarizing mentions and sentiment",
+        "method": "POST",
+        "path": "/api/v1/briefs",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string", "required": True, "description": "Report content"},
+        },
+    },
+    "get_sentiment_summary": {
+        "description": "Get sentiment breakdown across logged mentions",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "social_mention", "in": "query"}},
+    },
+
+    # ── NPS Analyst ────────────────────────────────
+    "create_survey": {
+        "description": "Create a new NPS survey",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "nps_survey"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ name, question, follow_up_question, target_client_ids[], closes_at }"},
+        },
+    },
+    "log_response": {
+        "description": "Log an NPS survey response",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "nps_response"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ survey_id, score (0-10), comment, client_id, respondent_name }"},
+        },
+    },
+    "calculate_nps": {
+        "description": "Get all responses for a survey to calculate NPS",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "nps_response", "in": "query"}},
+    },
+    "list_surveys": {
+        "description": "List all NPS surveys",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "nps_survey", "in": "query"}},
+    },
+    "create_followup": {
+        "description": "Create a follow-up task to close the loop with a detractor",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string"},
+            "priority": {"type": "string", "default": "HIGH"},
+        },
+    },
+    "generate_nps_report": {
+        "description": "Generate an NPS report with score, trend, and recommended actions",
+        "method": "POST",
+        "path": "/api/v1/briefs",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string", "required": True, "description": "Report content"},
+        },
+    },
+
+    # ── Chat Operator ──────────────────────────────
+    "create_canned_response": {
+        "description": "Create a canned response template for common chat questions",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "canned_response"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ trigger, title, body, topic, language }"},
+        },
+    },
+    "list_canned_responses": {
+        "description": "List all canned responses",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "canned_response", "in": "query"}},
+    },
+    "create_routing_rule": {
+        "description": "Create a routing rule for chat conversations",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "chat_routing"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ name, condition_type, condition_value, route_to, priority }"},
+        },
+    },
+    "list_conversations": {
+        "description": "List chat conversations",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "chat_conversation", "in": "query"}},
+    },
+    "create_escalation": {
+        "description": "Create an URGENT escalation task for a chat conversation",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string"},
+            "priority": {"type": "string", "default": "URGENT"},
+        },
+    },
+    "log_conversation": {
+        "description": "Log a conversation summary for audit and training",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "chat_conversation"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ client_name, channel, summary, resolution, csat_score, duration_minutes }"},
+        },
+    },
+
+    # ── Portal Manager ─────────────────────────────
+    "create_deliverable_entry": {
+        "description": "Create a deliverable entry in the client portal",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "portal_deliverable"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ title, client_id, project_id, deliverable_type, file_url, status }"},
+        },
+    },
+    "list_deliverables": {
+        "description": "List deliverables in the client portal",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "portal_deliverable", "in": "query"}},
+    },
+    "submit_deliverable_for_review": {
+        "description": "Submit a deliverable for client review (creates a brief with IN_REVIEW)",
+        "method": "POST",
+        "path": "/api/v1/briefs",
+        "parameters": {
+            "title": {"type": "string", "required": True, "description": "Review request title"},
+            "description": {"type": "string"},
+            "clientId": {"type": "string"},
+        },
+    },
+    "update_approval_status": {
+        "description": "Update the approval status of a brief/review request",
+        "method": "PATCH",
+        "path": "/api/v1/briefs/{briefId}",
+        "parameters": {
+            "briefId": {"type": "string", "required": True, "in": "path"},
+            "status": {"type": "string", "required": True, "enum": ["COMPLETED", "DRAFT", "IN_REVIEW"]},
+        },
+    },
+    "create_client_update": {
+        "description": "Create a client update notification in the portal",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "client_update"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ client_id, subject, body, update_type, related_deliverable_id }"},
+        },
+    },
+
+    # ── Delegation Coordinator ─────────────────────
+    "delegate_task": {
+        "description": "Delegate a new task to a specific team member",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string"},
+            "assigneeId": {"type": "string", "required": True},
+            "dueDate": {"type": "string"},
+            "priority": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "URGENT"]},
+        },
+    },
+    "reassign_task": {
+        "description": "Reassign an existing task to a different team member",
+        "method": "PATCH",
+        "path": "/api/v1/tasks/{taskId}",
+        "parameters": {
+            "taskId": {"type": "string", "required": True, "in": "path"},
+            "assigneeId": {"type": "string", "required": True},
+        },
+    },
+    "check_workload": {
+        "description": "Check task workload for a team member or all members",
+        "method": "GET",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "assigneeId": {"type": "string", "in": "query"},
+            "status": {"type": "string", "in": "query"},
+        },
+    },
+    "create_escalation_rule": {
+        "description": "Create an escalation rule for overdue tasks",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "escalation_rule"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ name, trigger_after_hours, level_1_notify, level_2_notify, applies_to_priority }"},
+        },
+    },
+    "list_escalation_rules": {
+        "description": "List all active escalation rules",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "escalation_rule", "in": "query"}},
+    },
+    "flag_overdue": {
+        "description": "Get all overdue tasks",
+        "method": "GET",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "status": {"type": "string", "default": "TODO", "in": "query"},
+        },
+    },
+
+    # ── Access Admin ───────────────────────────────
+    "create_role": {
+        "description": "Create a custom access role with specific permissions",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "access_role"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ name, base_role, module_access[], permissions[] }"},
+        },
+    },
+    "list_roles": {
+        "description": "List all roles (built-in and custom)",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "access_role", "in": "query"}},
+    },
+    "assign_permission": {
+        "description": "Assign a specific permission to a role or user",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "permission"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ permission, target_type, target_id, reason, expires_at }"},
+        },
+    },
+    "audit_access": {
+        "description": "Retrieve access log entries for audit",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "access_log", "in": "query"}},
+    },
+    "log_access_event": {
+        "description": "Log an access event for compliance",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "access_log"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ event_type, user_id, target_user_id, resource, details }"},
+        },
+    },
+
+    # ── Module Builder ─────────────────────────────
+    "create_module_manifest": {
+        "description": "Create a module manifest definition",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "module_manifest"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ module_type, name, description, category, agent_type, tier, tools[], icon, color }"},
+        },
+    },
+    "list_modules": {
+        "description": "List all modules installed for the organization",
+        "method": "GET",
+        "path": "/api/v1/modules/installed",
+        "parameters": {},
+    },
+    "scaffold_agent_config": {
+        "description": "Generate and store an agent configuration scaffold",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "agent_config"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ module_type, canonical_type, mc_type, system_prompt_summary, tools[] }"},
+        },
+    },
+    "create_module_page_template": {
+        "description": "Generate and store a Next.js page template for a new module",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "module_template"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ module_type, module_name, tabs[], agent_type, description }"},
+        },
+    },
 }
 
 

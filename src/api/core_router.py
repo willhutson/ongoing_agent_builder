@@ -165,6 +165,16 @@ CORE_AGENT_CLASSES = {
     "client_reporter":         "src.agents.comms_pr_agents.ClientReporterAgent",
     "influencer_manager":      "src.agents.comms_pr_agents.InfluencerManagerAgent",
     "event_planner":           "src.agents.comms_pr_agents.EventPlannerAgent",
+    # Marketplace module agents
+    "board_manager":           "src.agents.marketplace_agents.BoardManagerAgent",
+    "workflow_designer":       "src.agents.marketplace_agents.WorkflowDesignerAgent",
+    "social_listener":         "src.agents.marketplace_agents.SocialListenerAgent",
+    "nps_analyst":             "src.agents.marketplace_agents.NpsAnalystAgent",
+    "chat_operator":           "src.agents.marketplace_agents.ChatOperatorAgent",
+    "portal_manager":          "src.agents.marketplace_agents.PortalManagerAgent",
+    "delegation_coordinator":  "src.agents.marketplace_agents.DelegationCoordinatorAgent",
+    "access_admin":            "src.agents.marketplace_agents.AccessAdminAgent",
+    "module_builder":          "src.agents.marketplace_agents.ModuleBuilderAgent",
 }
 
 
