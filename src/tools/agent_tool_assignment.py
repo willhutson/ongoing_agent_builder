@@ -93,6 +93,44 @@ AGENT_TOOLS: dict[str, list[str]] = {
         "create_run_of_show_item", "add_vendor", "update_event_status",
         "list_events", "list_clients", "read_context",
     ],
+    # ── Marketplace module agents ──
+    "board_manager": [
+        "create_board", "add_card", "move_card", "list_boards",
+        "list_board_cards", "create_column", "read_context", "list_clients",
+    ],
+    "workflow_designer": [
+        "create_workflow_def", "list_workflows", "create_trigger",
+        "create_action", "activate_workflow", "read_context", "write_context",
+    ],
+    "social_listener": [
+        "log_mention", "search_mentions", "create_alert",
+        "generate_listening_report", "get_sentiment_summary",
+        "create_followup_task", "read_context", "list_clients",
+    ],
+    "nps_analyst": [
+        "create_survey", "log_response", "calculate_nps",
+        "list_surveys", "create_followup", "generate_nps_report", "read_context",
+    ],
+    "chat_operator": [
+        "create_canned_response", "list_canned_responses", "create_routing_rule",
+        "list_conversations", "create_escalation", "log_conversation", "read_context",
+    ],
+    "portal_manager": [
+        "create_deliverable_entry", "list_deliverables", "submit_deliverable_for_review",
+        "update_approval_status", "create_client_update", "list_clients", "read_context",
+    ],
+    "delegation_coordinator": [
+        "delegate_task", "reassign_task", "check_workload",
+        "create_escalation_rule", "list_escalation_rules", "flag_overdue", "read_context",
+    ],
+    "access_admin": [
+        "create_role", "list_roles", "assign_permission",
+        "audit_access", "log_access_event", "list_team_members", "read_context",
+    ],
+    "module_builder": [
+        "create_module_manifest", "list_modules", "scaffold_agent_config",
+        "create_module_page_template", "read_context", "write_context",
+    ],
 }
 
 # Default fallback — if agent type not in AGENT_TOOLS, use assistant's tools

@@ -100,6 +100,16 @@ AGENT_METADATA: dict[str, dict] = {
     "client_reporter": {"name": "Client Reporter", "description": "Monthly retainer reports with coverage metrics and AVE", "category": "pr_comms"},
     "influencer_manager": {"name": "Influencer Manager", "description": "Influencer relationships, campaigns, and ROI tracking", "category": "pr_comms"},
     "event_planner": {"name": "Event Planner", "description": "Event planning, guest lists, run of show, vendor management", "category": "pr_comms"},
+    # Marketplace modules
+    "board_manager": {"name": "Board Manager", "description": "Kanban/sprint board management", "category": "marketplace"},
+    "workflow_designer": {"name": "Workflow Designer", "description": "Automated trigger → condition → action workflows", "category": "marketplace"},
+    "social_listener": {"name": "Social Listener", "description": "Brand mention monitoring and sentiment analysis", "category": "marketplace"},
+    "nps_analyst": {"name": "NPS Analyst", "description": "NPS surveys, scoring, and detractor follow-up", "category": "marketplace"},
+    "chat_operator": {"name": "Chat Operator", "description": "Live chat management, routing, canned responses", "category": "marketplace"},
+    "portal_manager": {"name": "Portal Manager", "description": "Client portal deliverables and approvals", "category": "marketplace"},
+    "delegation_coordinator": {"name": "Delegation Coordinator", "description": "Task delegation, workload balancing, escalation", "category": "marketplace"},
+    "access_admin": {"name": "Access Admin", "description": "Role/permission management, audit, compliance", "category": "marketplace"},
+    "module_builder": {"name": "Module Builder", "description": "Custom module scaffolding and plugin development", "category": "marketplace"},
 }
 
 
@@ -167,16 +177,16 @@ MC_TO_CANONICAL_MAP: dict[str, str] = {
     "module-client-reporting-assistant": "client_reporter",
     "module-influencer-mgmt-assistant": "influencer_manager",
     "module-events-assistant": "event_planner",
-    # Marketplace modules without dedicated agents — route to generic assistant
-    "module-access-control-assistant": "assistant",
-    "module-boards-assistant": "assistant",
-    "module-builder-assistant": "assistant",
-    "module-client-portal-assistant": "assistant",
-    "module-delegation-assistant": "assistant",
-    "module-listening-assistant": "assistant",
-    "module-nps-assistant": "assistant",
-    "module-spokechat-assistant": "assistant",
-    "module-workflows-assistant": "assistant",
+    # Marketplace module agents (dedicated types — replaces PR #55 stubs)
+    "module-boards-assistant": "board_manager",
+    "module-workflows-assistant": "workflow_designer",
+    "module-listening-assistant": "social_listener",
+    "module-nps-assistant": "nps_analyst",
+    "module-spokechat-assistant": "chat_operator",
+    "module-client-portal-assistant": "portal_manager",
+    "module-delegation-assistant": "delegation_coordinator",
+    "module-access-control-assistant": "access_admin",
+    "module-builder-assistant": "module_builder",
 
     # Pass-through canonical types (already in AGENT_TOOLS)
     "project_manager": "project_manager",
@@ -194,6 +204,15 @@ MC_TO_CANONICAL_MAP: dict[str, str] = {
     "client_reporter": "client_reporter",
     "influencer_manager": "influencer_manager",
     "event_planner": "event_planner",
+    "board_manager": "board_manager",
+    "workflow_designer": "workflow_designer",
+    "social_listener": "social_listener",
+    "nps_analyst": "nps_analyst",
+    "chat_operator": "chat_operator",
+    "portal_manager": "portal_manager",
+    "delegation_coordinator": "delegation_coordinator",
+    "access_admin": "access_admin",
+    "module_builder": "module_builder",
 }
 
 
