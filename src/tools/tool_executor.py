@@ -61,9 +61,14 @@ async def execute_tool(tool_name: str, parameters: dict, tenant_id: str) -> dict
     for key, value in path_params.items():
         path = path.replace(f"{{{key}}}", str(value))
 
-    # Apply fixed_body if present (overrides body params)
+    # Apply fixed_body if present (overrides everything)
     if "fixed_body" in tool:
         body_params = dict(tool["fixed_body"])
+    # Apply fixed_body_merge if present (merges fixed fields into body)
+    elif "fixed_body_merge" in tool:
+        merged = dict(tool["fixed_body_merge"])
+        merged.update(body_params)
+        body_params = merged
 
     url = f"{SPOKESTACK_CORE_URL}{path}"
     headers = {

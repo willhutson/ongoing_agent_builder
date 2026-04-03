@@ -158,6 +158,13 @@ CORE_AGENT_CLASSES = {
     "core_projects":   "src.agents.core_projects_agent.CoreProjectsAgent",
     "core_briefs":     "src.agents.core_briefs_agent.CoreBriefsAgent",
     "core_orders":     "src.agents.core_orders_agent.CoreOrdersAgent",
+    # PR / Communications agents
+    "media_relations_manager": "src.agents.comms_pr_agents.MediaRelationsAgent",
+    "press_release_writer":    "src.agents.comms_pr_agents.PressReleaseAgent",
+    "crisis_manager":          "src.agents.comms_pr_agents.CrisisManagerAgent",
+    "client_reporter":         "src.agents.comms_pr_agents.ClientReporterAgent",
+    "influencer_manager":      "src.agents.comms_pr_agents.InfluencerManagerAgent",
+    "event_planner":           "src.agents.comms_pr_agents.EventPlannerAgent",
 }
 
 

@@ -289,6 +289,350 @@ TOOLS: dict[str, dict] = {
         "method": "GET",
         "path": "/api/v1/search",
     },
+
+    # ══════════════════════════════════════════════════════
+    # PR / COMMUNICATIONS TOOLS
+    # ══════════════════════════════════════════════════════
+
+    # ── Media Relations ────────────────────────────
+    "add_journalist": {
+        "description": "Add a journalist to the media database",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "journalist"},
+        "parameters": {
+            "key": {"type": "string", "required": True, "description": "Unique key like journalist_sarah_ahmed"},
+            "value": {"type": "object", "required": True, "description": "{ name, outlet, beat, email, phone, twitter, linkedin, relationship_score (1-10), notes }"},
+        },
+    },
+    "search_journalists": {
+        "description": "Search the journalist database by beat, outlet, or name",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {
+            "category": {"type": "string", "default": "journalist", "in": "query"},
+            "entryType": {"type": "string", "default": "ENTITY", "in": "query"},
+        },
+    },
+    "create_media_list": {
+        "description": "Create a named media list (grouped journalists for outreach)",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "media_list"},
+        "parameters": {
+            "key": {"type": "string", "required": True, "description": "Unique key like list_tech_journalists_uae"},
+            "value": {"type": "object", "required": True, "description": "{ name, description, journalistKeys: string[], purpose }"},
+        },
+    },
+    "create_pitch": {
+        "description": "Create a media pitch (stored as a Brief)",
+        "method": "POST",
+        "path": "/api/v1/briefs",
+        "parameters": {
+            "title": {"type": "string", "required": True, "description": "Pitch headline"},
+            "description": {"type": "string", "description": "Pitch body/angle"},
+            "clientId": {"type": "string", "description": "Client the pitch is for"},
+        },
+    },
+    "log_coverage": {
+        "description": "Log a media coverage hit",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "coverage"},
+        "parameters": {
+            "key": {"type": "string", "required": True, "description": "Unique key like coverage_20260403_thenational"},
+            "value": {"type": "object", "required": True, "description": "{ headline, outlet, journalist, url, date, sentiment, reach_estimate, ave_aed }"},
+        },
+    },
+    "get_coverage_report": {
+        "description": "Get all coverage entries for analysis",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "coverage", "in": "query"}},
+    },
+    "list_pitches": {
+        "description": "List all active pitches",
+        "method": "GET",
+        "path": "/api/v1/briefs",
+        "parameters": {"status": {"type": "string", "in": "query"}},
+    },
+    "create_followup_task": {
+        "description": "Create a follow-up task for a pitch or action item",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string"},
+            "dueDate": {"type": "string", "description": "ISO date"},
+            "priority": {"type": "string", "default": "MEDIUM"},
+        },
+    },
+
+    # ── Press Releases ─────────────────────────────
+    "draft_press_release": {
+        "description": "Create a new press release draft",
+        "method": "POST",
+        "path": "/api/v1/briefs",
+        "parameters": {
+            "title": {"type": "string", "required": True, "description": "PR headline"},
+            "description": {"type": "string", "required": True, "description": "Full press release text"},
+            "clientId": {"type": "string"},
+        },
+    },
+    "update_press_release": {
+        "description": "Update/edit a press release draft",
+        "method": "PATCH",
+        "path": "/api/v1/briefs/{briefId}",
+        "parameters": {
+            "briefId": {"type": "string", "required": True, "in": "path"},
+            "title": {"type": "string"},
+            "description": {"type": "string"},
+            "status": {"type": "string", "enum": ["DRAFT", "ACTIVE", "IN_REVIEW", "COMPLETED"]},
+        },
+    },
+    "submit_for_approval": {
+        "description": "Submit a press release for client approval",
+        "method": "PATCH",
+        "path": "/api/v1/briefs/{briefId}",
+        "parameters": {"briefId": {"type": "string", "required": True, "in": "path"}},
+        "fixed_body": {"status": "IN_REVIEW"},
+    },
+    "approve_release": {
+        "description": "Approve a press release for distribution",
+        "method": "PATCH",
+        "path": "/api/v1/briefs/{briefId}",
+        "parameters": {"briefId": {"type": "string", "required": True, "in": "path"}},
+        "fixed_body": {"status": "COMPLETED"},
+    },
+    "list_press_releases": {
+        "description": "List all press releases",
+        "method": "GET",
+        "path": "/api/v1/briefs",
+        "parameters": {"status": {"type": "string", "in": "query"}},
+    },
+    "schedule_distribution": {
+        "description": "Schedule a press release for distribution to a media list",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "pr_distribution"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ briefId, mediaListKey, scheduledDate, embargoDate }"},
+        },
+    },
+
+    # ── Crisis Management ──────────────────────────
+    "activate_crisis": {
+        "description": "Create a crisis situation (as a Project)",
+        "method": "POST",
+        "path": "/api/v1/projects",
+        "parameters": {
+            "name": {"type": "string", "required": True, "description": "Crisis name/identifier"},
+            "description": {"type": "string", "required": True, "description": "Situation summary"},
+        },
+    },
+    "draft_holding_statement": {
+        "description": "Draft an immediate holding statement",
+        "method": "POST",
+        "path": "/api/v1/briefs",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string", "required": True, "description": "Holding statement text"},
+            "clientId": {"type": "string"},
+        },
+    },
+    "map_stakeholder": {
+        "description": "Add a stakeholder to the crisis map",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "crisis_stakeholder"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ name, role, contact, priority (1-5), status, notes }"},
+        },
+    },
+    "create_crisis_task": {
+        "description": "Create an urgent task in the crisis response",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string"},
+            "priority": {"type": "string", "default": "URGENT"},
+            "dueDate": {"type": "string"},
+        },
+    },
+    "update_crisis_status": {
+        "description": "Update the crisis situation status",
+        "method": "PATCH",
+        "path": "/api/v1/projects/{projectId}",
+        "parameters": {
+            "projectId": {"type": "string", "required": True, "in": "path"},
+            "status": {"type": "string", "required": True, "enum": ["PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED"]},
+        },
+    },
+    "get_stakeholders": {
+        "description": "Get all stakeholders for the current crisis",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "crisis_stakeholder", "in": "query"}},
+    },
+
+    # ── Client Reporting ───────────────────────────
+    "generate_report": {
+        "description": "Create a monthly client report brief",
+        "method": "POST",
+        "path": "/api/v1/briefs",
+        "parameters": {
+            "title": {"type": "string", "required": True, "description": "e.g. 'March 2026 Monthly Report - Client'"},
+            "description": {"type": "string", "required": True, "description": "Full report content"},
+            "clientId": {"type": "string", "required": True},
+        },
+    },
+    "get_coverage_data": {
+        "description": "Get all coverage entries for a period",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "coverage", "in": "query"}},
+    },
+    "get_activity_data": {
+        "description": "Get recent workspace activity for the report",
+        "method": "GET",
+        "path": "/api/v1/activity",
+        "parameters": {"limit": {"type": "integer", "default": 50, "in": "query"}},
+    },
+    "get_client_briefs": {
+        "description": "Get all briefs for a specific client",
+        "method": "GET",
+        "path": "/api/v1/briefs",
+        "parameters": {},
+    },
+    "save_report_metrics": {
+        "description": "Save calculated report metrics to context",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "INSIGHT", "category": "report_metric"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ clientId, period, coverageCount, aveTotal, sovPercentage, sentimentScore }"},
+        },
+    },
+
+    # ── Influencer Management ──────────────────────
+    "add_influencer": {
+        "description": "Add an influencer to the database",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "influencer"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ name, handle, platform, followers, engagementRate, niche, location, rateCard, pastCampaigns[] }"},
+        },
+    },
+    "search_influencers": {
+        "description": "Search the influencer database",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "influencer", "in": "query"}},
+    },
+    "create_influencer_campaign": {
+        "description": "Create an influencer campaign (as a Project)",
+        "method": "POST",
+        "path": "/api/v1/projects",
+        "parameters": {
+            "name": {"type": "string", "required": True},
+            "description": {"type": "string"},
+        },
+    },
+    "create_deliverable": {
+        "description": "Create a deliverable task for an influencer",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "title": {"type": "string", "required": True},
+            "description": {"type": "string"},
+            "dueDate": {"type": "string"},
+            "priority": {"type": "string", "default": "HIGH"},
+        },
+    },
+    "create_influencer_contract": {
+        "description": "Create a contract/payment order for an influencer",
+        "method": "POST",
+        "path": "/api/v1/orders",
+        "parameters": {
+            "clientId": {"type": "string", "required": True, "description": "The brand client paying for this"},
+            "items": {"type": "array", "required": True, "description": "[{description, quantity, unitPriceCents}]"},
+            "notes": {"type": "string"},
+        },
+    },
+    "list_campaigns": {
+        "description": "List influencer campaigns",
+        "method": "GET",
+        "path": "/api/v1/projects",
+        "parameters": {"status": {"type": "string", "in": "query"}},
+    },
+
+    # ── Event Planning ─────────────────────────────
+    "create_event": {
+        "description": "Create a new event (as a Project)",
+        "method": "POST",
+        "path": "/api/v1/projects",
+        "parameters": {
+            "name": {"type": "string", "required": True, "description": "Event name"},
+            "description": {"type": "string", "description": "Event details, venue, format"},
+        },
+    },
+    "add_guest": {
+        "description": "Add a guest to the event guest list",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "event_guest"},
+        "parameters": {
+            "key": {"type": "string", "required": True},
+            "value": {"type": "object", "required": True, "description": "{ eventProjectId, name, email, company, tier, rsvpStatus, dietary, tableAssignment }"},
+        },
+    },
+    "get_guest_list": {
+        "description": "Get the guest list for an event",
+        "method": "GET",
+        "path": "/api/v1/context",
+        "parameters": {"category": {"type": "string", "default": "event_guest", "in": "query"}},
+    },
+    "create_run_of_show_item": {
+        "description": "Add an item to the event run of show",
+        "method": "POST",
+        "path": "/api/v1/tasks",
+        "parameters": {
+            "title": {"type": "string", "required": True, "description": "e.g. '7:00 PM - Doors open'"},
+            "description": {"type": "string", "description": "Details, responsible person"},
+            "priority": {"type": "string", "default": "HIGH"},
+        },
+    },
+    "add_vendor": {
+        "description": "Add a vendor/supplier for the event (as an Order)",
+        "method": "POST",
+        "path": "/api/v1/orders",
+        "parameters": {
+            "clientId": {"type": "string", "description": "The brand client funding this event"},
+            "items": {"type": "array", "required": True, "description": "[{description, quantity, unitPriceCents}]"},
+            "notes": {"type": "string"},
+        },
+    },
+    "update_event_status": {
+        "description": "Update the event status",
+        "method": "PATCH",
+        "path": "/api/v1/projects/{projectId}",
+        "parameters": {
+            "projectId": {"type": "string", "required": True, "in": "path"},
+            "status": {"type": "string", "required": True},
+        },
+    },
+    "list_events": {
+        "description": "List all events",
+        "method": "GET",
+        "path": "/api/v1/projects",
+        "parameters": {},
+    },
 }
 
 
