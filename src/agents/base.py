@@ -39,6 +39,15 @@ from ..tools.creative_tool_definitions import (
 from ..tools.core_tool_definitions import CORE_TOOL_NAMES
 
 
+def _get_crud_tool_names() -> set[str]:
+    """Lazy-load CRUD tool names to avoid circular import."""
+    try:
+        from src.tools.spokestack_crud_tools import TOOLS
+        return set(TOOLS.keys())
+    except ImportError:
+        return set()
+
+
 @dataclass
 class AgentContext:
     """Context passed to agent during execution."""
@@ -401,7 +410,14 @@ class BaseAgent(ABC):
                 action_name = args.pop("action")
                 data = await tk.manage_assets(action_name, **args)
             else:
-                data = {"error": f"Unknown core tool: {tool_name}"}
+                # ── Phase 10B: CRUD tool execution via tool_executor ──
+                from src.tools.spokestack_crud_tools import TOOLS as CRUD_TOOLS
+                if tool_name in CRUD_TOOLS:
+                    from src.tools.tool_executor import execute_tool
+                    tenant_id = context.organization_id or context.tenant_id
+                    data = await execute_tool(tool_name, args, tenant_id)
+                else:
+                    data = {"error": f"Unknown core tool: {tool_name}"}
             return json.dumps(data, default=str)
         except Exception as e:
             return json.dumps({"error": f"Core tool '{tool_name}' failed: {str(e)}"})
@@ -870,6 +886,9 @@ class BaseAgent(ABC):
                     result = await self._handle_creative_tool(tool_name, tool_input)
                 elif self.core_toolkit and tool_name in CORE_TOOL_NAMES:
                     result = await self._handle_core_tool(tool_name, tool_input, context)
+                elif self.core_toolkit and tool_name in _get_crud_tool_names():
+                    # Phase 10B: CRUD tools executed via tool_executor
+                    result = await self._handle_core_tool(tool_name, tool_input, context)
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)
                 else:
@@ -1002,6 +1021,8 @@ class BaseAgent(ABC):
                 elif self.creative_registry and tool_name in CREATIVE_TOOL_NAMES:
                     result = await self._handle_creative_tool(tool_name, tool_input)
                 elif self.core_toolkit and tool_name in CORE_TOOL_NAMES:
+                    result = await self._handle_core_tool(tool_name, tool_input, context)
+                elif self.core_toolkit and tool_name in _get_crud_tool_names():
                     result = await self._handle_core_tool(tool_name, tool_input, context)
                 elif tool_name in self._platform_skill_names:
                     result = await self._execute_platform_skill(tool_name, tool_input, context)

@@ -87,17 +87,28 @@ ENTERPRISE_MODULE_AGENT_MAP: dict[str, str] = {
 
 
 class CoreExecuteRequest(BaseModel):
-    """Request to execute a core agent."""
+    """Request to execute a core agent.
+
+    Accepts both org_id and tenant_id for compatibility —
+    spokestack-core sends tenant_id, some clients send org_id.
+    """
     task: str
     agent_type: Optional[str] = None
-    org_id: str
+    org_id: Optional[str] = None
+    tenant_id: Optional[str] = None  # Alias for org_id (spokestack-core compat)
     org_name: str = ""
     org_tier: str = "FREE"
-    user_id: str
+    user_id: str = "system"  # Default to system if not provided
     session_id: Optional[str] = None
     metadata: dict = Field(default_factory=dict)
     stream: bool = False
-    context_entries: Optional[list[dict[str, Any]]] = None  # Phase 3: org context
+    context_entries: Optional[list[dict[str, Any]]] = None
+    conversation_history: Optional[list[dict]] = None  # Accepted, not used in core path
+
+    @property
+    def resolved_org_id(self) -> str:
+        """Return org_id, falling back to tenant_id."""
+        return self.org_id or self.tenant_id or ""
 
 
 class HandoffMetadata(BaseModel):
@@ -405,9 +416,14 @@ async def execute_core_agent(
     """
     _validate_agent_secret(x_agent_secret)
 
-    # Intent classification if agent_type not specified
+    org_id = request.resolved_org_id
+
+    # ── MC Type Translation ──
+    from src.services.agent_registry import resolve_agent_type as translate_mc_type
     agent_type = request.agent_type
-    if not agent_type:
+    if agent_type:
+        agent_type = translate_mc_type(agent_type)
+    else:
         agent_type = await classify_intent(
             request.task, request.org_tier, request.context_entries,
         )
@@ -418,7 +434,7 @@ async def execute_core_agent(
     if agent_type not in CORE_AGENT_BYPASS:
         module_type = MODULE_AGENT_TYPES.get(agent_type)
         if module_type:
-            installed = await get_installed_modules(request.org_id)
+            installed = await get_installed_modules(org_id)
             if module_type not in installed:
                 return CoreExecuteResponse(
                     execution_id=execution_id,
@@ -429,7 +445,7 @@ async def execute_core_agent(
                 )
 
     # ── Build tier-scoped config ──
-    org_registrations = await registry_store.get_org_modules(request.org_id)
+    org_registrations = await registry_store.get_org_modules(org_id)
     module_tools = []
     for reg in org_registrations:
         if reg.agent_definition and isinstance(reg.agent_definition, dict):
@@ -437,7 +453,7 @@ async def execute_core_agent(
             module_tools.extend(tools)
 
     config = await build_agent_config(
-        org_id=request.org_id,
+        org_id=org_id,
         org_name=request.org_name,
         org_tier=request.org_tier,
         agent_type=agent_type,
@@ -470,6 +486,12 @@ async def execute_core_agent(
     # Inject tier-scoped tools
     agent.tools.extend(config["tools"])
 
+    # ── Phase 10B: Inject CRUD tools based on agent type ──
+    from src.tools.agent_tool_assignment import get_openai_tools_for_agent
+    crud_tools = get_openai_tools_for_agent(agent_type)
+    if crud_tools:
+        agent.tools.extend(crud_tools)
+
     # ── Phase 3/6C: Context + Integration Injection ──
     if request.context_entries or True:  # Always try integration injection
         if request.task.startswith("[SYNTHESIS]"):
@@ -479,8 +501,8 @@ async def execute_core_agent(
             )
         else:
             # Fetch connected integrations + recent events (cached per-org)
-            integrations = await _get_cached_integrations(request.org_id, agent.core_toolkit)
-            events = await _get_cached_events(request.org_id, agent.core_toolkit)
+            integrations = await _get_cached_integrations(org_id, agent.core_toolkit)
+            events = await _get_cached_events(org_id, agent.core_toolkit)
             original_prompt = agent.system_prompt
             injected_prompt = inject_context_into_prompt(
                 original_prompt,
@@ -492,14 +514,14 @@ async def execute_core_agent(
 
         if request.context_entries:
             logger.info(
-                f"[context-injection] org={request.org_id} "
+                f"[context-injection] org={org_id} "
                 f"entries={len(request.context_entries)} "
                 f"injected={len([e for e in request.context_entries if e.get('entryType') in ('PREFERENCE', 'INSIGHT', 'ENTITY')])}"
             )
 
     # Build context
     context = AgentContext(
-        tenant_id=request.org_id,
+        tenant_id=org_id,
         user_id=request.user_id,
         task=request.task,
         session_id=request.session_id or str(uuid.uuid4()),
@@ -615,20 +637,20 @@ async def register_module_agent(
 
     agent_def = request.agent
     registration = await registry_store.register_module(
-        org_id=request.org_id,
+        org_id=request.resolved_org_id,
         module_type=agent_def.slug.upper(),
         agent_definition=agent_def.model_dump(),
     )
 
     from src.modules.module_checker import invalidate_cache
-    invalidate_cache(request.org_id)
+    invalidate_cache(request.resolved_org_id)
 
-    logger.info(f"Registered module agent '{agent_def.slug}' for org {request.org_id}")
+    logger.info(f"Registered module agent '{agent_def.slug}' for org {request.resolved_org_id}")
 
     return {
         "status": "registered",
         "slug": agent_def.slug,
-        "org_id": request.org_id,
+        "org_id": request.resolved_org_id,
         "module_type": agent_def.slug.upper(),
     }
 
