@@ -102,55 +102,67 @@ AGENT_METADATA: dict[str, dict] = {
 # ══════════════════════════════════════════════════════════════
 
 MC_TO_CANONICAL_MAP: dict[str, str] = {
-    # MC specialist types (from erp_staging_lmtd)
-    "mc-general": "workflow",
-    "mc-expert": "knowledge",
-    "mc-planner": "brief",
-    "mc-advisor": "content",
-    "mc-reviewer": "qa",
-    "mc-scheduler": "resource",
-    "mc-analyst": "campaign_analytics",
-    "mc-strategist": "content",
-    "mc-executor": "workflow",
-    "mc-optimizer": "campaign_analytics",
-    "mc-educator": "training",
-    "mc-communicator": "copy",
+    # MC specialist types → tool-assignment canonical types
+    "mc-general": "assistant",
+    "mc-expert": "assistant",
+    "mc-planner": "project_manager",
+    "mc-advisor": "assistant",
+    "mc-reviewer": "brief_writer",
+    "mc-scheduler": "assistant",
+    "mc-analyst": "analyst",
+    "mc-strategist": "content_creator",
+    "mc-executor": "assistant",
+    "mc-optimizer": "analyst",
+    "mc-educator": "assistant",
+    "mc-communicator": "assistant",
 
     # Module assistant types
-    "module-crm-assistant": "crm",
-    "module-briefs-assistant": "brief",
-    "module-tasks-assistant": "core_tasks",
-    "module-projects-assistant": "core_projects",
-    "module-orders-assistant": "core_orders",
-    "module-analytics-assistant": "campaign_analytics",
-    "module-content-studio-assistant": "content",
-    "module-social-publishing-assistant": "campaign",
-    "module-finance-assistant": "invoice",
-    "module-time-leave-assistant": "resource",
-    "module-email-assistant": "gateway_email",
-    "module-calendar-assistant": "workflow",
-    "module-surveys-assistant": "community",
-    "module-lms-assistant": "training",
-    "module-media-buying-assistant": "media_buying",
+    "module-crm-assistant": "crm_manager",
+    "module-briefs-assistant": "brief_writer",
+    "module-tasks-assistant": "assistant",
+    "module-projects-assistant": "project_manager",
+    "module-orders-assistant": "order_manager",
+    "module-analytics-assistant": "analyst",
+    "module-content-studio-assistant": "content_creator",
+    "module-social-publishing-assistant": "assistant",
+    "module-finance-assistant": "order_manager",
+    "module-time-leave-assistant": "assistant",
+    "module-email-assistant": "assistant",
+    "module-calendar-assistant": "assistant",
+    "module-surveys-assistant": "assistant",
+    "module-lms-assistant": "assistant",
+    "module-media-buying-assistant": "analyst",
 
-    # Onboarding types
-    "onboarding-publisher-setup": "onboarding",
-    "onboarding-reply-setup": "onboarding",
-    "onboarding-channel-setup": "onboarding",
-    "onboarding-vertical-config": "onboarding",
+    # Onboarding
+    "onboarding": "core_onboarding",
+    "onboarding-publisher-setup": "core_onboarding",
+    "onboarding-reply-setup": "core_onboarding",
+    "onboarding-channel-setup": "core_onboarding",
+    "onboarding-vertical-config": "core_onboarding",
 
-    # Legacy MC names (from existing MC_TO_AGENT_BUILDER_MAP)
-    "assistant": "workflow",
-    "content_strategist": "content",
-    "brief_writer": "brief",
-    "deck_designer": "presentation",
-    "video_director": "video_script",
-    "document_writer": "copy",
-    "analyst": "campaign_analytics",
-    "media_buyer": "media_buying",
-    "course_designer": "training",
-    "contract_analyzer": "legal",
-    "resource_planner": "resource",
+    # Legacy MC names (from original MC_TO_AGENT_BUILDER_MAP)
+    "assistant": "assistant",
+    "content_strategist": "content_creator",
+    "brief_writer": "brief_writer",
+    "deck_designer": "content_creator",
+    "video_director": "content_creator",
+    "document_writer": "content_creator",
+    "analyst": "analyst",
+    "media_buyer": "analyst",
+    "course_designer": "assistant",
+    "contract_analyzer": "analyst",
+    "resource_planner": "project_manager",
+
+    # Pass-through canonical types (already in AGENT_TOOLS)
+    "project_manager": "project_manager",
+    "order_manager": "order_manager",
+    "crm_manager": "crm_manager",
+    "content_creator": "content_creator",
+    "core_onboarding": "core_onboarding",
+    "core_tasks": "core_tasks",
+    "core_projects": "core_projects",
+    "core_briefs": "core_briefs",
+    "core_orders": "core_orders",
 }
 
 
@@ -171,31 +183,23 @@ def get_default_model(agent_type: str) -> str:
 
 def build_registry_response() -> dict:
     """Build the full registry response for GET /api/v1/agents/registry."""
-    agents = []
-    for agent_type in AgentType:
-        canonical = agent_type.value
-        meta = AGENT_METADATA.get(canonical, {})
-        agents.append({
-            "type": canonical,
-            "name": meta.get("name", canonical.replace("_", " ").title()),
+    from src.tools.agent_tool_assignment import AGENT_TOOLS
+
+    # Build the spec's canonical agent list (tool-assignment types)
+    canonical_agents = []
+    for agent_type, tool_names in AGENT_TOOLS.items():
+        meta = AGENT_METADATA.get(agent_type, {})
+        canonical_agents.append({
+            "type": agent_type,
+            "name": meta.get("name", agent_type.replace("_", " ").title()),
             "description": meta.get("description", ""),
             "category": meta.get("category", "general"),
-            "defaultModel": get_default_model(canonical),
-        })
-
-    # Add core agents (not in AgentType enum but registered)
-    for core_type in ["core_onboarding", "core_tasks", "core_projects", "core_briefs", "core_orders"]:
-        meta = AGENT_METADATA.get(core_type, {})
-        agents.append({
-            "type": core_type,
-            "name": meta.get("name", core_type.replace("_", " ").title()),
-            "description": meta.get("description", ""),
-            "category": "core",
-            "defaultModel": get_default_model(core_type),
+            "tools": tool_names,
+            "defaultModel": get_default_model(agent_type),
         })
 
     return {
-        "agents": agents,
-        "total": len(agents),
+        "agents": canonical_agents,
+        "total": len(canonical_agents),
         "mcTranslationMap": MC_TO_CANONICAL_MAP,
     }
