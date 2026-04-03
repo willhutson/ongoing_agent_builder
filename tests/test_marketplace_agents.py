@@ -169,8 +169,9 @@ class TestAgentToolsAssignment:
     def test_module_builder_tools(self):
         from src.tools.agent_tool_assignment import get_tools_for_agent
         tools = get_tools_for_agent("module_builder")
-        assert "create_module_manifest" in tools
-        assert "scaffold_agent_config" in tools
+        assert "scaffold_module" in tools
+        assert "validate_module" in tools
+        assert "publish_module" in tools
 
     @pytest.mark.parametrize("agent_type", MARKETPLACE_AGENTS)
     def test_openai_format(self, agent_type):

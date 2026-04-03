@@ -175,6 +175,7 @@ CORE_AGENT_CLASSES = {
     "delegation_coordinator":  "src.agents.marketplace_agents.DelegationCoordinatorAgent",
     "access_admin":            "src.agents.marketplace_agents.AccessAdminAgent",
     "module_builder":          "src.agents.marketplace_agents.ModuleBuilderAgent",
+    "module_reviewer":         "src.agents.review_agents.ModuleReviewerAgent",
 }
 
 

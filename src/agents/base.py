@@ -413,9 +413,14 @@ class BaseAgent(ABC):
                 # ── Phase 10B: CRUD tool execution via tool_executor ──
                 from src.tools.spokestack_crud_tools import TOOLS as CRUD_TOOLS
                 if tool_name in CRUD_TOOLS:
-                    from src.tools.tool_executor import execute_tool
-                    tenant_id = context.organization_id or context.tenant_id
-                    data = await execute_tool(tool_name, args, tenant_id)
+                    tool_def = CRUD_TOOLS[tool_name]
+                    if tool_def.get("handler") == "local":
+                        # Local-execution tools — route to agent's _execute_tool
+                        data = await self._execute_tool(tool_name, args)
+                    else:
+                        from src.tools.tool_executor import execute_tool
+                        tenant_id = context.organization_id or context.tenant_id
+                        data = await execute_tool(tool_name, args, tenant_id)
                 else:
                     data = {"error": f"Unknown core tool: {tool_name}"}
             return json.dumps(data, default=str)

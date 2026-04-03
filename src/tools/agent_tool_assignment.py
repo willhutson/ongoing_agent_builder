@@ -128,8 +128,12 @@ AGENT_TOOLS: dict[str, list[str]] = {
         "audit_access", "log_access_event", "list_team_members", "read_context",
     ],
     "module_builder": [
-        "create_module_manifest", "list_modules", "scaffold_agent_config",
-        "create_module_page_template", "read_context", "write_context",
+        "scaffold_module", "validate_module", "test_module", "publish_module",
+        "list_my_modules", "get_module_analytics", "read_context",
+    ],
+    "module_reviewer": [
+        "analyze_tools", "analyze_prompt", "check_duplicates",
+        "generate_review", "approve_module", "reject_module",
     ],
 }
 

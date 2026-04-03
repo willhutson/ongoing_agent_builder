@@ -22,6 +22,8 @@ class TestToolDefinitions:
         from src.tools.spokestack_crud_tools import TOOLS
         for name, tool in TOOLS.items():
             assert "description" in tool, f"{name} missing description"
+            if tool.get("handler") == "local":
+                continue  # Local-handler tools don't have method/path
             assert "method" in tool, f"{name} missing method"
             assert "path" in tool, f"{name} missing path"
             assert tool["method"] in ("GET", "POST", "PATCH", "DELETE"), f"{name} bad method: {tool['method']}"
