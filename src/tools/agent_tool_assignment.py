@@ -61,6 +61,38 @@ AGENT_TOOLS: dict[str, list[str]] = {
         "create_order", "update_order_status", "generate_invoice", "list_orders",
         "list_invoices", "create_client", "list_clients", "read_context", "write_context",
     ],
+    # ── PR / Communications agents ──
+    "media_relations_manager": [
+        "add_journalist", "search_journalists", "create_media_list",
+        "create_pitch", "log_coverage", "get_coverage_report",
+        "list_pitches", "create_followup_task",
+        "list_clients", "read_context",
+    ],
+    "press_release_writer": [
+        "draft_press_release", "update_press_release", "submit_for_approval",
+        "approve_release", "list_press_releases", "schedule_distribution",
+        "list_clients", "read_context",
+    ],
+    "crisis_manager": [
+        "activate_crisis", "draft_holding_statement", "map_stakeholder",
+        "create_crisis_task", "update_crisis_status", "get_stakeholders",
+        "list_clients", "read_context", "write_context",
+    ],
+    "client_reporter": [
+        "generate_report", "get_coverage_data", "get_activity_data",
+        "get_client_briefs", "save_report_metrics",
+        "list_clients", "read_context",
+    ],
+    "influencer_manager": [
+        "add_influencer", "search_influencers", "create_influencer_campaign",
+        "create_deliverable", "create_influencer_contract", "list_campaigns",
+        "list_clients", "read_context",
+    ],
+    "event_planner": [
+        "create_event", "add_guest", "get_guest_list",
+        "create_run_of_show_item", "add_vendor", "update_event_status",
+        "list_events", "list_clients", "read_context",
+    ],
 }
 
 # Default fallback — if agent type not in AGENT_TOOLS, use assistant's tools

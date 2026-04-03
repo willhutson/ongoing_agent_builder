@@ -93,6 +93,13 @@ AGENT_METADATA: dict[str, dict] = {
     "core_projects": {"name": "Projects Agent", "description": "Project planning and management", "category": "core"},
     "core_briefs": {"name": "Briefs Agent", "description": "Brief lifecycle management", "category": "core"},
     "core_orders": {"name": "Orders Agent", "description": "Order, invoicing, and payment management", "category": "core"},
+    # PR / Communications
+    "media_relations_manager": {"name": "Media Relations Manager", "description": "Journalist contacts, media lists, pitch tracking, coverage monitoring", "category": "pr_comms"},
+    "press_release_writer": {"name": "Press Release Writer", "description": "Press release drafting, editing, approval, and distribution", "category": "pr_comms"},
+    "crisis_manager": {"name": "Crisis Manager", "description": "Rapid-response crisis communications and stakeholder management", "category": "pr_comms"},
+    "client_reporter": {"name": "Client Reporter", "description": "Monthly retainer reports with coverage metrics and AVE", "category": "pr_comms"},
+    "influencer_manager": {"name": "Influencer Manager", "description": "Influencer relationships, campaigns, and ROI tracking", "category": "pr_comms"},
+    "event_planner": {"name": "Event Planner", "description": "Event planning, guest lists, run of show, vendor management", "category": "pr_comms"},
 }
 
 
@@ -153,6 +160,14 @@ MC_TO_CANONICAL_MAP: dict[str, str] = {
     "contract_analyzer": "analyst",
     "resource_planner": "project_manager",
 
+    # PR / Communications module assistants
+    "module-media-relations-assistant": "media_relations_manager",
+    "module-press-releases-assistant": "press_release_writer",
+    "module-crisis-comms-assistant": "crisis_manager",
+    "module-client-reporting-assistant": "client_reporter",
+    "module-influencer-mgmt-assistant": "influencer_manager",
+    "module-events-assistant": "event_planner",
+
     # Pass-through canonical types (already in AGENT_TOOLS)
     "project_manager": "project_manager",
     "order_manager": "order_manager",
@@ -163,6 +178,12 @@ MC_TO_CANONICAL_MAP: dict[str, str] = {
     "core_projects": "core_projects",
     "core_briefs": "core_briefs",
     "core_orders": "core_orders",
+    "media_relations_manager": "media_relations_manager",
+    "press_release_writer": "press_release_writer",
+    "crisis_manager": "crisis_manager",
+    "client_reporter": "client_reporter",
+    "influencer_manager": "influencer_manager",
+    "event_planner": "event_planner",
 }
 
 
