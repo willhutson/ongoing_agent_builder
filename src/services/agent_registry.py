@@ -109,7 +109,8 @@ AGENT_METADATA: dict[str, dict] = {
     "portal_manager": {"name": "Portal Manager", "description": "Client portal deliverables and approvals", "category": "marketplace"},
     "delegation_coordinator": {"name": "Delegation Coordinator", "description": "Task delegation, workload balancing, escalation", "category": "marketplace"},
     "access_admin": {"name": "Access Admin", "description": "Role/permission management, audit, compliance", "category": "marketplace"},
-    "module_builder": {"name": "Module Builder", "description": "Custom module scaffolding and plugin development", "category": "marketplace"},
+    "module_builder": {"name": "Module Builder", "description": "Build, validate, and publish custom modules to the Marketplace", "category": "marketplace"},
+    "module_reviewer": {"name": "Module Reviewer", "description": "Automated security and quality review for marketplace submissions", "category": "internal"},
 }
 
 
@@ -213,6 +214,7 @@ MC_TO_CANONICAL_MAP: dict[str, str] = {
     "delegation_coordinator": "delegation_coordinator",
     "access_admin": "access_admin",
     "module_builder": "module_builder",
+    "module_reviewer": "module_reviewer",
 }
 
 

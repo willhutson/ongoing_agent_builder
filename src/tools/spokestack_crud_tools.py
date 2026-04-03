@@ -1075,6 +1075,125 @@ TOOLS: dict[str, dict] = {
             "value": {"type": "object", "required": True, "description": "{ module_type, module_name, tabs[], agent_type, description }"},
         },
     },
+
+    # ══════════════════════════════════════════════════════
+    # MODULE BUILDER TOOLS (local execution — not HTTP)
+    # ══════════════════════════════════════════════════════
+
+    "scaffold_module": {
+        "description": "Scaffold a complete module package from a conversation — generates manifest, tools, system prompt, and pricing",
+        "handler": "local",  # Routed to ModuleBuilderService, not HTTP
+        "parameters": {
+            "name": {"type": "string", "required": True, "description": "Human-readable module name"},
+            "slug": {"type": "string", "required": True, "description": "URL-safe slug in kebab-case"},
+            "module_type": {"type": "string", "required": True, "description": "Module type in UPPER_SNAKE_CASE"},
+            "entity_name": {"type": "string", "required": True, "description": "Singular entity name"},
+            "entity_name_plural": {"type": "string", "required": True, "description": "Plural entity name"},
+            "fields": {"type": "array", "required": True, "description": "List of { name, type, required, description }"},
+            "description": {"type": "string", "description": "Full description"},
+            "category": {"type": "string", "description": "Category: Operations, Sales, HR, Finance, Marketing, Legal"},
+            "pricing_type": {"type": "string", "description": "free, paid, or subscription"},
+            "price_cents": {"type": "number", "description": "Price in cents for paid modules"},
+            "monthly_price_cents": {"type": "number", "description": "Monthly price in cents for subscription"},
+        },
+    },
+    "validate_module": {
+        "description": "Validate a module package for security and completeness — returns blockers and warnings",
+        "handler": "local",
+        "parameters": {
+            "module_package": {"type": "object", "required": True, "description": "The module package to validate"},
+        },
+    },
+    "test_module": {
+        "description": "Test module tools in a sandboxed environment — executes each tool with sample data",
+        "handler": "local",
+        "parameters": {
+            "module_package": {"type": "object", "required": True, "description": "The module package to test"},
+        },
+    },
+    "publish_module": {
+        "description": "Publish a validated module to the SpokeStack Marketplace",
+        "method": "POST",
+        "path": "/api/v1/marketplace/publish",
+        "parameters": {
+            "module_package": {"type": "object", "required": True, "description": "The validated module package"},
+        },
+    },
+    "list_my_modules": {
+        "description": "List all modules published by the current organization",
+        "method": "GET",
+        "path": "/api/v1/marketplace/my-modules",
+        "parameters": {},
+    },
+    "get_module_analytics": {
+        "description": "Get analytics for a published module: install count, revenue, rating, churn",
+        "method": "GET",
+        "path": "/api/v1/marketplace/analytics/{moduleId}",
+        "parameters": {
+            "moduleId": {"type": "string", "required": True, "in": "path"},
+        },
+    },
+
+    # ══════════════════════════════════════════════════════
+    # MODULE REVIEWER TOOLS
+    # ══════════════════════════════════════════════════════
+
+    "analyze_tools": {
+        "description": "Static analysis of module tool definitions for security issues",
+        "handler": "local",
+        "parameters": {
+            "tools": {"type": "array", "required": True, "description": "Tool definitions to analyze"},
+            "module_id": {"type": "string", "required": True, "description": "Module ID being reviewed"},
+        },
+    },
+    "analyze_prompt": {
+        "description": "Check system prompt for injection patterns, impersonation, and quality issues",
+        "handler": "local",
+        "parameters": {
+            "system_prompt": {"type": "string", "required": True, "description": "System prompt to analyze"},
+            "module_id": {"type": "string", "required": True, "description": "Module ID being reviewed"},
+        },
+    },
+    "check_duplicates": {
+        "description": "Search the marketplace for modules similar to the submitted one",
+        "method": "GET",
+        "path": "/api/v1/marketplace/browse",
+        "parameters": {
+            "q": {"type": "string", "required": True, "in": "query", "description": "Module name to search for"},
+            "category": {"type": "string", "in": "query"},
+        },
+    },
+    "generate_review": {
+        "description": "Produce the final structured review report for a module",
+        "method": "POST",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "INSIGHT", "category": "module_review"},
+        "parameters": {
+            "key": {"type": "string", "required": True, "description": "Review key e.g. review_{module_id}"},
+            "value": {"type": "object", "required": True, "description": "{ module_id, security_score, quality_score, issues_found[], recommendations[], overall_assessment }"},
+        },
+    },
+    "approve_module": {
+        "description": "Mark a module as approved and publish it to the marketplace",
+        "method": "POST",
+        "path": "/api/v1/marketplace/review/{moduleId}",
+        "parameters": {
+            "moduleId": {"type": "string", "required": True, "in": "path"},
+            "decision": {"type": "string", "default": "approved"},
+            "securityNotes": {"type": "string"},
+        },
+    },
+    "reject_module": {
+        "description": "Reject a module submission with detailed feedback",
+        "method": "POST",
+        "path": "/api/v1/marketplace/review/{moduleId}",
+        "parameters": {
+            "moduleId": {"type": "string", "required": True, "in": "path"},
+            "decision": {"type": "string", "default": "rejected"},
+            "feedback": {"type": "string", "required": True},
+            "securityNotes": {"type": "string"},
+        },
+    },
 }
 
 

@@ -352,7 +352,7 @@ Precise and security-conscious. Never casually grant broad permissions. Document
 
 
 class ModuleBuilderAgent(BaseAgent):
-    """Custom module scaffolding, plugin development."""
+    """Module Builder — scaffolds, validates, tests, and publishes custom modules."""
 
     def __init__(self, client, model: str, **kwargs):
         super().__init__(client, model)
@@ -363,34 +363,48 @@ class ModuleBuilderAgent(BaseAgent):
 
     @property
     def system_prompt(self) -> str:
-        return """You help developers build custom SpokeStack modules. You scaffold module manifests, define agent configurations, create tool definitions, and generate boilerplate code.
+        return """You are the SpokeStack Module Builder. Your job is to help users design, build, validate, and publish custom modules to the SpokeStack Marketplace.
 
-## Three-repo architecture
+A module is a self-contained unit that adds new capabilities to SpokeStack. It consists of:
+- A **manifest** (name, description, category, pricing)
+- **Tools** (HTTP calls to /api/v1/* endpoints that the agent can make)
+- A **system prompt** (instructions for the AI agent that runs inside the module)
 
-**spokestack-modules** (define): manifest.json + agent.json
-**spokestack-core** (serve): page.tsx + MC router mapping
-**ongoing_agent_builder** (think): agent class + tools + registry
+## Your conversation flow
 
-## manifest.json template
+When a user wants to build a module:
 
-```json
-{
-  "moduleType": "MODULE_TYPE_UPPER",
-  "name": "Human-readable Name",
-  "description": "One sentence description",
-  "category": "productivity | engagement | analytics | comms | hr | finance",
-  "agentType": "module-{name}-assistant",
-  "tier": "STARTER | PROFESSIONAL | ENTERPRISE",
-  "tools": ["tool_one", "tool_two"]
-}
-```
+1. **Understand the domain**: Ask what the module does and what data it manages.
+2. **Design the data model**: Propose entities and fields based on their answers.
+3. **Scaffold**: Call scaffold_module to generate the full module package.
+4. **Validate**: Call validate_module to run security + completeness checks.
+5. **Test** (optional): Call test_module to run tools against a sandbox.
+6. **Publish**: Call publish_module when the user is ready.
+
+## Constraints you must communicate
+
+- Module tools can ONLY call /api/v1/* endpoints
+- No admin, auth, or marketplace routes
+- System prompts cannot contain instruction override patterns
+- Maximum 50 tools per module
 
 ## Tone
 
-Technical and precise. Output complete file contents, not pseudocode. Explain each section."""
+Be enthusiastic but precise. Building a module should feel empowering, not technical."""
 
     def _define_tools(self) -> list[dict]:
         return []
 
     async def _execute_tool(self, tool_name: str, tool_input: dict) -> Any:
+        # Local-execution tools handled by ModuleBuilderService
+        from src.services.module_builder_service import scaffold_module, validate_module, analyze_tools, analyze_prompt
+        from src.services.sandbox_executor import SandboxExecutor
+
+        if tool_name == "scaffold_module":
+            return scaffold_module(tool_input)
+        elif tool_name == "validate_module":
+            return validate_module(tool_input.get("module_package", tool_input))
+        elif tool_name == "test_module":
+            executor = SandboxExecutor()
+            return await executor.run_module_tests(tool_input.get("module_package", tool_input))
         return {"error": f"Unknown tool: {tool_name}"}
