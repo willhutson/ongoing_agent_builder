@@ -167,6 +167,16 @@ MC_TO_CANONICAL_MAP: dict[str, str] = {
     "module-client-reporting-assistant": "client_reporter",
     "module-influencer-mgmt-assistant": "influencer_manager",
     "module-events-assistant": "event_planner",
+    # Marketplace modules without dedicated agents — route to generic assistant
+    "module-access-control-assistant": "assistant",
+    "module-boards-assistant": "assistant",
+    "module-builder-assistant": "assistant",
+    "module-client-portal-assistant": "assistant",
+    "module-delegation-assistant": "assistant",
+    "module-listening-assistant": "assistant",
+    "module-nps-assistant": "assistant",
+    "module-spokechat-assistant": "assistant",
+    "module-workflows-assistant": "assistant",
 
     # Pass-through canonical types (already in AGENT_TOOLS)
     "project_manager": "project_manager",
