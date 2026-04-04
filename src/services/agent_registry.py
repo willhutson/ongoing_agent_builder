@@ -88,6 +88,15 @@ AGENT_METADATA: dict[str, dict] = {
     # Meta
     "prompt_helper": {"name": "Prompt Helper", "description": "Helps craft better prompts", "category": "meta"},
     # Core (spokestack-core agents)
+    # Canonical routing types (used by MC_TO_CANONICAL_MAP targets)
+    "assistant": {"name": "General Assistant", "description": "General-purpose assistant for tasks, questions, and workspace management", "category": "core"},
+    "project_manager": {"name": "Project Manager", "description": "Plans and manages projects, timelines, and milestones", "category": "core"},
+    "brief_writer": {"name": "Brief Writer", "description": "Creates and manages creative briefs, campaign briefs, and strategic documents", "category": "core"},
+    "content_creator": {"name": "Content Creator", "description": "Writes copy, designs presentations, scripts video content", "category": "content"},
+    "analyst": {"name": "Analyst", "description": "Analyzes data, generates reports, tracks metrics and KPIs", "category": "analytics"},
+    "crm_manager": {"name": "CRM Manager", "description": "Manages client relationships, deals, and contact data", "category": "client"},
+    "order_manager": {"name": "Order Manager", "description": "Manages orders, invoices, and financial operations", "category": "operations"},
+    # Core agents
     "core_onboarding": {"name": "Onboarding Specialist", "description": "Workspace setup and business discovery", "category": "core"},
     "core_tasks": {"name": "Tasks Agent", "description": "Task management and tracking", "category": "core"},
     "core_projects": {"name": "Projects Agent", "description": "Project planning and management", "category": "core"},

@@ -209,10 +209,10 @@ TOOLS: dict[str, dict] = {
 
     # ── Invoices ───────────────────────────────────
     "list_invoices": {
-        "description": "List all invoices",
+        "description": "List all invoices (via orders with invoice data)",
         "parameters": {"status": {"type": "string", "in": "query"}},
         "method": "GET",
-        "path": "/api/v1/invoices",
+        "path": "/api/v1/orders",
     },
 
     # ── Context Graph ──────────────────────────────
@@ -243,7 +243,7 @@ TOOLS: dict[str, dict] = {
         "description": "Install a marketplace module for the workspace",
         "parameters": {"moduleType": {"type": "string", "required": True}},
         "method": "POST",
-        "path": "/api/v1/modules/install",
+        "path": "/api/v1/marketplace/install",
     },
     "list_installed_modules": {
         "description": "List all installed modules",
@@ -254,14 +254,14 @@ TOOLS: dict[str, dict] = {
 
     # ── Events / Workflows ─────────────────────────
     "create_workflow": {
-        "description": "Create an automation workflow (event subscription)",
-        "parameters": {
-            "entityType": {"type": "string", "required": True, "description": "Entity to watch: Task, Project, Brief, Order, Client, or * for all"},
-            "action": {"type": "string", "required": True, "description": "Action: created, updated, deleted, status_changed, or * for all"},
-            "handler": {"type": "string", "required": True, "description": "Handler: webhook:URL, agent:ID, or module:TYPE"},
-        },
+        "description": "Create an automation workflow",
         "method": "POST",
-        "path": "/api/v1/events/subscriptions",
+        "path": "/api/v1/context",
+        "fixed_body_merge": {"entryType": "ENTITY", "category": "workflow"},
+        "parameters": {
+            "key": {"type": "string", "required": True, "description": "Unique workflow key"},
+            "value": {"type": "object", "required": True, "description": "{ entityType, action, handler, conditions, enabled }"},
+        },
     },
 
     # ── Team ───────────────────────────────────────
@@ -269,7 +269,7 @@ TOOLS: dict[str, dict] = {
         "description": "List all team members in the workspace",
         "parameters": {},
         "method": "GET",
-        "path": "/api/v1/members",
+        "path": "/api/v1/team",
     },
 
     # ── Activity ───────────────────────────────────
@@ -282,12 +282,12 @@ TOOLS: dict[str, dict] = {
 
     # ── Search ─────────────────────────────────────
     "search_workspace": {
-        "description": "Search across tasks, projects, briefs, clients, and orders",
+        "description": "Search across tasks, projects, briefs, clients, and orders via context graph",
         "parameters": {
-            "q": {"type": "string", "required": True, "in": "query", "description": "Search query"},
+            "search": {"type": "string", "required": True, "in": "query", "description": "Search query"},
         },
         "method": "GET",
-        "path": "/api/v1/search",
+        "path": "/api/v1/context",
     },
 
     # ══════════════════════════════════════════════════════

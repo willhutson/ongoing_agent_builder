@@ -99,7 +99,7 @@ AGENT_TOOLS: dict[str, list[str]] = {
         "list_board_cards", "create_column", "read_context", "list_clients",
     ],
     "workflow_designer": [
-        "create_workflow_def", "list_workflows", "create_trigger",
+        "create_workflow_def", "create_workflow", "list_workflows", "create_trigger",
         "create_action", "activate_workflow", "read_context", "write_context",
     ],
     "social_listener": [
@@ -130,6 +130,8 @@ AGENT_TOOLS: dict[str, list[str]] = {
     "module_builder": [
         "scaffold_module", "validate_module", "test_module", "publish_module",
         "list_my_modules", "get_module_analytics", "read_context",
+        "create_module_manifest", "create_module_page_template",
+        "scaffold_agent_config", "list_modules",
     ],
     "module_reviewer": [
         "analyze_tools", "analyze_prompt", "check_duplicates",
