@@ -209,10 +209,10 @@ TOOLS: dict[str, dict] = {
 
     # ── Invoices ───────────────────────────────────
     "list_invoices": {
-        "description": "List all invoices",
+        "description": "List all invoices (via orders with invoice data)",
         "parameters": {"status": {"type": "string", "in": "query"}},
         "method": "GET",
-        "path": "/api/v1/invoices",
+        "path": "/api/v1/orders",
     },
 
     # ── Context Graph ──────────────────────────────
