@@ -150,6 +150,13 @@ class RegisterAgentRequest(BaseModel):
 
 # ══════════════════════════════════════════════════════════════
 # Core Agent Registry
+#
+# CORE_AGENT_CLASSES: 22 agents directly callable via /api/v1/core/execute
+# Additional 50+ agents in src/agents/ are served via:
+#   - ERP integration (/api/v1/agent/execute) — see src/api/erp_integration.py
+#   - Module registration (/api/v1/core/modules/register) — persistent registry
+#   - Dynamic agent loading — see src/services/dynamic_module_registry.py
+# See: src/agents/README.md for the full registry of all agent classes
 # ══════════════════════════════════════════════════════════════
 
 CORE_AGENT_CLASSES = {

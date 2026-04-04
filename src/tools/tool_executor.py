@@ -17,7 +17,7 @@ from src.tools.spokestack_crud_tools import TOOLS
 logger = logging.getLogger(__name__)
 
 SPOKESTACK_CORE_URL = os.environ.get("SPOKESTACK_CORE_URL", "https://spokestack-core.vercel.app")
-AGENT_SECRET = os.environ.get("AGENT_RUNTIME_SECRET", "") or os.environ.get("AGENT_SECRET", "")
+AGENT_SECRET = os.environ.get("AGENT_RUNTIME_SECRET", "")
 
 
 async def execute_tool(tool_name: str, parameters: dict, tenant_id: str) -> dict:
