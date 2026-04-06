@@ -160,6 +160,15 @@ class RegisterAgentRequest(BaseModel):
 # ══════════════════════════════════════════════════════════════
 
 CORE_AGENT_CLASSES = {
+    # Canonical routing types (MC translation targets — use CoreTasksAgent as base)
+    "assistant":        "src.agents.core_tasks_agent.CoreTasksAgent",
+    "brief_writer":     "src.agents.core_briefs_agent.CoreBriefsAgent",
+    "project_manager":  "src.agents.core_projects_agent.CoreProjectsAgent",
+    "analyst":          "src.agents.core_tasks_agent.CoreTasksAgent",
+    "content_creator":  "src.agents.core_briefs_agent.CoreBriefsAgent",
+    "crm_manager":      "src.agents.core_orders_agent.CoreOrdersAgent",
+    "order_manager":    "src.agents.core_orders_agent.CoreOrdersAgent",
+    # Core agents
     "core_onboarding": "src.agents.core_onboarding_agent.CoreOnboardingAgent",
     "core_tasks":      "src.agents.core_tasks_agent.CoreTasksAgent",
     "core_projects":   "src.agents.core_projects_agent.CoreProjectsAgent",
