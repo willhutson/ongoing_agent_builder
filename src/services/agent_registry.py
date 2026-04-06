@@ -245,6 +245,7 @@ def get_default_model(agent_type: str) -> str:
 def build_registry_response() -> dict:
     """Build the full registry response for GET /api/v1/agents/registry."""
     from src.tools.agent_tool_assignment import AGENT_TOOLS
+    from src.tools.spokestack_crud_tools import TOOLS
 
     # Build the spec's canonical agent list (tool-assignment types)
     canonical_agents = []
@@ -259,8 +260,29 @@ def build_registry_response() -> dict:
             "defaultModel": get_default_model(agent_type),
         })
 
+    # Full tool registry — every tool with its HTTP definition
+    tool_registry = {}
+    for name, definition in TOOLS.items():
+        entry = {"name": name}
+        for key in ("description", "method", "path", "parameters", "fixed_body", "fixed_body_merge", "handler"):
+            if key in definition:
+                # Normalize key names for JSON consumers
+                json_key = "fixedBody" if key == "fixed_body" else (
+                    "fixedBodyMerge" if key == "fixed_body_merge" else key
+                )
+                entry[json_key] = definition[key]
+        tool_registry[name] = entry
+
+    # Agent → tool name mapping
+    agent_tools = {
+        agent_type: list(tool_names)
+        for agent_type, tool_names in AGENT_TOOLS.items()
+    }
+
     return {
         "agents": canonical_agents,
         "total": len(canonical_agents),
         "mcTranslationMap": MC_TO_CANONICAL_MAP,
+        "toolRegistry": tool_registry,
+        "agentTools": agent_tools,
     }
