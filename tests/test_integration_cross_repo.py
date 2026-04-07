@@ -144,7 +144,7 @@ class TestNangoIntegration:
             {"provider": "slack", "status": "INACTIVE"},
         ]
         result = inject_context_into_prompt(prompt, [], integrations=integrations)
-        assert "Asana" in result
+        assert "asana" in result
         assert "proxy_integration" in result
         # INACTIVE connections should be filtered
         assert "slack" not in result.lower().split("connected integrations")[1] if "Connected Integrations" in result else True
@@ -416,7 +416,7 @@ class TestFullContextInjectionStack:
         assert "[PREFERENCE] tone: concise" in result
         assert "[ENTITY] team.sarah" in result
         assert "Connected Integrations" in result
-        assert "Asana" in result
+        assert "asana" in result
         assert "Recent Activity" in result
         assert "Task.completed" in result
 

@@ -122,32 +122,94 @@ def format_context_entries(entries: list[dict]) -> str:
     )
 
 
+def _format_single_integration(provider: str, seeded: dict) -> str:
+    """Format a single integration line from provider key + seeded metadata."""
+    if provider in ("google_drive", "google"):
+        folder_count = int(seeded.get("folderCount", 0) or 0)
+        if folder_count > 0:
+            return (
+                f"Google Drive: {folder_count} folder{'s' if folder_count != 1 else ''} scanned "
+                f"(potential clients/projects detected)"
+            )
+        return "Google Drive: connected (no folders found yet)"
+
+    elif provider == "slack":
+        channel_count = int(seeded.get("channelCount", 0) or 0)
+        client_ch = int(seeded.get("clientChannels", 0) or 0)
+        project_ch = int(seeded.get("projectChannels", 0) or 0)
+        team_ch = int(seeded.get("teamChannels", 0) or 0)
+        if channel_count > 0:
+            detail_parts = []
+            if client_ch:
+                detail_parts.append(f"{client_ch} client")
+            if project_ch:
+                detail_parts.append(f"{project_ch} project")
+            if team_ch:
+                detail_parts.append(f"{team_ch} team")
+            detail = ", ".join(detail_parts)
+            suffix = f" ({detail} channels)" if detail else ""
+            return f"Slack: {channel_count} channels{suffix}"
+        return "Slack: connected (channel scan pending)"
+
+    elif provider == "hubspot":
+        contact_count = int(seeded.get("contactCount", 0) or 0)
+        company_count = int(seeded.get("companyCount", 0) or 0)
+        if contact_count > 0 or company_count > 0:
+            parts = []
+            if contact_count:
+                parts.append(f"{contact_count} contact{'s' if contact_count != 1 else ''}")
+            if company_count:
+                parts.append(f"{company_count} {'companies' if company_count != 1 else 'company'}")
+            return f"HubSpot: {', '.join(parts)} imported"
+        return "HubSpot: connected (sync pending)"
+
+    elif provider == "gmail":
+        return "Gmail: connected (email correspondence available)"
+
+    elif provider == "figma":
+        project_count = int(seeded.get("projectCount", 0) or 0)
+        if project_count > 0:
+            return f"Figma: {project_count} project{'s' if project_count != 1 else ''} detected"
+        return "Figma: connected"
+
+    elif provider == "github":
+        repo_count = int(seeded.get("repoCount", 0) or 0)
+        if repo_count > 0:
+            return f"GitHub: {repo_count} {'repositories' if repo_count != 1 else 'repository'} connected"
+        return "GitHub: connected"
+
+    elif provider == "quickbooks":
+        customer_count = int(seeded.get("customerCount", 0) or 0)
+        if customer_count > 0:
+            return f"QuickBooks: {customer_count} customer{'s' if customer_count != 1 else ''} imported"
+        return "QuickBooks: connected"
+
+    else:
+        return f"{provider}: connected"
+
+
 def format_integrations(integrations: list[dict]) -> str:
     """
     Format connected integrations into a system prompt section.
-    Only includes ACTIVE connections. Returns empty string if none.
+    Reads seededData metadata from Phase 18A context seeders for rich descriptions.
+    Falls back to generic "connected" when seeding data is absent.
     """
-    active = [i for i in (integrations or []) if i.get("status") == "ACTIVE"]
+    active = [i for i in (integrations or []) if i.get("status", "ACTIVE") == "ACTIVE" or i.get("seededData")]
     if not active:
         return ""
 
     lines = ["\n## Connected Integrations",
              "This organization has the following external tools connected:"]
     for conn in active:
-        provider_label = conn.get("providerLabel") or conn.get("provider", "").replace("-", " ").title()
-        provider_id = conn.get("provider", "")
-        module = conn.get("moduleType", "")
-        line = f"- {provider_label} ({provider_id})"
-        if module:
-            line += f" — connected to {module} module"
-        lines.append(line)
+        provider = conn.get("provider", "unknown")
+        seeded = conn.get("seededData") or {}
+        line = _format_single_integration(provider, seeded)
+        lines.append(f"- {line}")
 
     lines.append("")
     lines.append(
         "You can use the `list_integrations` tool to check connection details, "
-        "and `proxy_integration` tool to read or write data from these services. "
-        "When the user asks about data that might exist in a connected service "
-        "(e.g., \"show me my Asana tasks\"), use proxy_integration to fetch it."
+        "and `proxy_integration` tool to read or write data from these services."
     )
     return "\n".join(lines) + "\n"
 

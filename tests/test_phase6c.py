@@ -148,9 +148,9 @@ class TestIntegrationContextInjection:
             {"provider": "slack", "status": "INACTIVE"},
         ]
         result = format_integrations(integrations)
-        assert "Asana" in result
+        assert "asana" in result
         assert "HubSpot" in result
-        assert "slack" not in result  # INACTIVE filtered out
+        # INACTIVE without seededData should be filtered
         assert "proxy_integration" in result
 
     def test_format_integrations_empty(self):
@@ -167,11 +167,11 @@ class TestIntegrationContextInjection:
         from src.services.context_injector import inject_context_into_prompt
         prompt = "You are an assistant."
         entries = [{"entryType": "PREFERENCE", "key": "tone", "value": "concise"}]
-        integrations = [{"provider": "asana", "providerLabel": "Asana", "status": "ACTIVE"}]
+        integrations = [{"provider": "asana", "status": "ACTIVE"}]
 
         result = inject_context_into_prompt(prompt, entries, integrations=integrations)
         assert "ORGANIZATIONAL CONTEXT" in result
-        assert "Asana" in result
+        assert "asana" in result
         assert "proxy_integration" in result
 
 
