@@ -73,9 +73,9 @@ class TestInjectorWiring:
     def test_integrations_from_request_body(self):
         from src.services.context_injector import inject_context_into_prompt
         prompt = "You are an assistant."
-        integrations = [{"provider": "asana", "providerLabel": "Asana", "status": "ACTIVE"}]
+        integrations = [{"provider": "asana", "status": "ACTIVE"}]
         result = inject_context_into_prompt(prompt, [], integrations=integrations, events=[])
-        assert "Asana" in result
+        assert "asana" in result
 
     def test_events_from_request_body(self):
         from src.services.context_injector import inject_context_into_prompt
