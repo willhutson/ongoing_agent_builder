@@ -102,7 +102,9 @@ class CoreExecuteRequest(BaseModel):
     session_id: Optional[str] = None
     metadata: dict = Field(default_factory=dict)
     stream: bool = False
-    context_entries: Optional[list[dict[str, Any]]] = None
+    context_entries: list[dict] = Field(default_factory=list)  # ContextEntry records from core
+    integrations: list[dict] = Field(default_factory=list)     # Active integration records
+    recent_events: list[dict] = Field(default_factory=list)    # Last N org events
     conversation_history: Optional[list[dict]] = None  # Accepted, not used in core path
 
     @property
@@ -526,25 +528,25 @@ async def execute_core_agent(
     if crud_tools:
         agent.tools.extend(crud_tools)
 
-    # ── Phase 3/6C: Context + Integration Injection ──
-    if request.context_entries or True:  # Always try integration injection
-        if request.task.startswith("[SYNTHESIS]"):
-            agent._synthesis_prompt = (
-                "You are a data analyst. When asked, return ONLY a valid JSON array. "
-                "Do not include markdown fences, preamble, or explanation — just the raw JSON array."
-            )
-        else:
-            # Fetch connected integrations + recent events (cached per-org)
-            integrations = await _get_cached_integrations(org_id, agent.core_toolkit)
-            events = await _get_cached_events(org_id, agent.core_toolkit)
-            original_prompt = agent.system_prompt
-            injected_prompt = inject_context_into_prompt(
-                original_prompt,
-                request.context_entries or [],
-                integrations=integrations,
-                events=events,
-            )
-            agent._injected_system_prompt = injected_prompt
+    # ── Context + Integration + Event Injection ──
+    if request.task.startswith("[SYNTHESIS]"):
+        agent._synthesis_prompt = (
+            "You are a data analyst. When asked, return ONLY a valid JSON array. "
+            "Do not include markdown fences, preamble, or explanation — just the raw JSON array."
+        )
+    else:
+        # Prefer request-provided data; fall back to HTTP fetch if empty
+        integrations = request.integrations or await _get_cached_integrations(org_id, agent.core_toolkit)
+        events = request.recent_events or await _get_cached_events(org_id, agent.core_toolkit)
+
+        original_prompt = agent.system_prompt
+        injected_prompt = inject_context_into_prompt(
+            original_prompt,
+            request.context_entries,
+            integrations=integrations,
+            events=events,
+        )
+        agent._injected_system_prompt = injected_prompt
 
         if request.context_entries:
             logger.info(
