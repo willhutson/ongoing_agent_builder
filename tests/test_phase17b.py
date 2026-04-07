@@ -159,10 +159,10 @@ class TestIndustrySchemas:
 
 class TestOnboardingAgent:
 
-    def test_prompt_mentions_seed_context(self):
+    def test_prompt_mentions_setup_workspace(self):
         from src.agents.core_onboarding_agent import CoreOnboardingAgent
         agent = CoreOnboardingAgent.__new__(CoreOnboardingAgent)
-        assert "SEED_CONTEXT" in agent.system_prompt
+        assert "SETUP_WORKSPACE" in agent.system_prompt
 
     def test_prompt_mentions_industry_keys(self):
         from src.agents.core_onboarding_agent import CoreOnboardingAgent
@@ -173,9 +173,9 @@ class TestOnboardingAgent:
     def test_prompt_has_industry_adaptations(self):
         from src.agents.core_onboarding_agent import CoreOnboardingAgent
         agent = CoreOnboardingAgent.__new__(CoreOnboardingAgent)
-        assert "PR & Communications" in agent.system_prompt
-        assert "SaaS" in agent.system_prompt
-        assert "Law Firm" in agent.system_prompt
+        assert "pr_agency" in agent.system_prompt
+        assert "saas" in agent.system_prompt
+        assert "law_firm" in agent.system_prompt
 
     def test_get_onboarding_questions_for_industry(self):
         from src.agents.core_onboarding_agent import get_onboarding_questions_for_industry
