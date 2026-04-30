@@ -194,6 +194,8 @@ CORE_AGENT_CLASSES = {
     "access_admin":            "src.agents.marketplace_agents.AccessAdminAgent",
     "module_builder":          "src.agents.marketplace_agents.ModuleBuilderAgent",
     "module_reviewer":         "src.agents.review_agents.ModuleReviewerAgent",
+    # Operations agents
+    "workflow_selector":       "src.agents.workflow_selector_agent.WorkflowSelectorAgent",
 }
 
 

@@ -120,6 +120,7 @@ AGENT_METADATA: dict[str, dict] = {
     "access_admin": {"name": "Access Admin", "description": "Role/permission management, audit, compliance", "category": "marketplace"},
     "module_builder": {"name": "Module Builder", "description": "Build, validate, and publish custom modules to the Marketplace", "category": "marketplace"},
     "module_reviewer": {"name": "Module Reviewer", "description": "Automated security and quality review for marketplace submissions", "category": "internal"},
+    "workflow_selector": {"name": "Workflow Selector", "description": "AI-driven recipe recommendation for canvas workflows", "category": "operations"},
 }
 
 
@@ -224,6 +225,7 @@ MC_TO_CANONICAL_MAP: dict[str, str] = {
     "access_admin": "access_admin",
     "module_builder": "module_builder",
     "module_reviewer": "module_reviewer",
+    "workflow_selector": "workflow_selector",
 }
 
 
