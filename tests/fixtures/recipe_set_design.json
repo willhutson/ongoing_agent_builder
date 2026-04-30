@@ -1,0 +1,32 @@
+[
+  {
+    "id": "r1",
+    "title": "Generic Design Bakeoff",
+    "briefType": "DESIGN",
+    "clientId": null,
+    "tags": [],
+    "usageCount": 5,
+    "avgCompletionMs": 180000,
+    "isBuiltIn": true
+  },
+  {
+    "id": "r2",
+    "title": "Visit Dubai Hero Static",
+    "briefType": "DESIGN",
+    "clientId": "vd-id",
+    "tags": ["brand-aware"],
+    "usageCount": 47,
+    "avgCompletionMs": 240000,
+    "isBuiltIn": false
+  },
+  {
+    "id": "r3",
+    "title": "Quick Social Visual",
+    "briefType": "DESIGN",
+    "clientId": null,
+    "tags": ["quick"],
+    "usageCount": 22,
+    "avgCompletionMs": 60000,
+    "isBuiltIn": true
+  }
+]

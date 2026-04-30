@@ -1,0 +1,17 @@
+{
+  "name": "Visit Dubai",
+  "code": "DET-VD",
+  "industry": "Tourism / Government",
+  "brand_guidelines": "Premium, warm, aspirational. Showcase Dubai as a world-class destination for leisure, business, and culture.",
+  "tone_of_voice": "Conversational but elevated. Inviting, never hard-sell. Use 'discover' over 'buy'. Speak as a local showing a friend around.",
+  "visual_references": [
+    "https://cdn.visitdubai.com/brand/hero-1.jpg",
+    "https://cdn.visitdubai.com/brand/hero-2.jpg"
+  ],
+  "content_rules": [
+    {"rule": "Never mention competitor destinations by name"},
+    {"rule": "Always use #VisitDubai in social posts"},
+    {"rule": "Photography must feature real Dubai locations, not stock"},
+    {"rule": "All content must be available in English and Arabic"}
+  ]
+}
