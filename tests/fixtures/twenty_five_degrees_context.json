@@ -1,0 +1,14 @@
+{
+  "name": "25 Degrees",
+  "code": "25D",
+  "industry": "F&B / Hospitality",
+  "brand_guidelines": "Bold, playful, indulgent. Focus on the sensory experience of premium burgers and shakes.",
+  "tone_of_voice": "Fun, confident, slightly irreverent. Never corporate. Write like a food-obsessed friend.",
+  "visual_references": [],
+  "content_rules": [
+    {"rule": "Never reference investment returns or financial products"},
+    {"rule": "Never use the word 'cheap' — use 'value' or 'deal'"},
+    {"rule": "Always mention the dine-in experience, even in delivery content"},
+    {"rule": "Photography must show food in natural light, not studio flash"}
+  ]
+}

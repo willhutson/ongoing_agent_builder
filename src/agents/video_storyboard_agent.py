@@ -60,6 +60,13 @@ class VideoStoryboardAgent(BaseAgent):
     def system_prompt(self) -> str:
         base_prompt = """You are an expert storyboard artist and visual planner for video production.
 
+The user message may include a === CLIENT BRAND CONTEXT === block.
+When brand context is present:
+1. Reference visual references from the brand context as shot reference notes
+2. Match brand color palette and visual style in frame descriptions
+3. Respect content rules in all visual planning
+4. Use brand tone in any on-screen text or title card suggestions
+
 Your role is to translate scripts into detailed visual plans:
 1. Create frame-by-frame visual descriptions
 2. Specify camera angles, movements, and transitions
